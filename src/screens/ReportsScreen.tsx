@@ -12,15 +12,16 @@ import { backupData, restoreData } from '../utils/backup';
 import { syncWithCloud } from '../utils/sync';
 import GeneralIssueModal from '../components/GeneralIssueModal';
 
+function isUnitCommissioned(unit: Unit): boolean {
+  return STAGES.every(s => unit.stages[s.key]) &&
+    COMPONENTS.every(c => unit.components[c.key].status === 'good');
+}
+
 function getUnitCommissionDate(unit: Unit): string | undefined {
-  const allStagesChecked = STAGES.every(s => unit.stages[s.key]);
-  const allComponentsGood = COMPONENTS.every(c => unit.components[c.key].status === 'good');
-  const allMiscGood = (unit.miscEquipment ?? []).every(m => m.status === 'good');
-  if (!allStagesChecked || !allComponentsGood || !allMiscGood) return undefined;
+  if (!isUnitCommissioned(unit)) return undefined;
   const dates: string[] = [];
   for (const s of STAGES) { const d = unit.stagesDates?.[s.key]; if (d) dates.push(d); }
   for (const c of COMPONENTS) { const d = unit.components[c.key].goodDate; if (d) dates.push(d); }
-  for (const m of (unit.miscEquipment ?? [])) { if (m.goodDate) dates.push(m.goodDate); }
   return dates.length ? dates.sort().pop() : undefined;
 }
 
@@ -31,8 +32,17 @@ function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[]): 
     try { return format(new Date(iso), 'yyyy-MM-dd') === todayStr; } catch { return false; }
   };
 
+  const allCommissioned = Object.values(units)
+    .filter(u => isUnitCommissioned(u))
+    .map(u => u.id)
+    .sort();
+
   const commissionedToday = Object.values(units)
-    .filter(u => sameDay(getUnitCommissionDate(u)))
+    .filter(u => {
+      if (!isUnitCommissioned(u)) return false;
+      const d = getUnitCommissionDate(u);
+      return d ? sameDay(d) : false;
+    })
     .map(u => u.id)
     .sort();
 
@@ -133,6 +143,10 @@ function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[]): 
     if (doneGeneral) gp.push(`${doneGeneral} resolved`);
     lines.push(`General Issues: ${gp.join(', ')}`);
   }
+
+  lines.push('');
+  lines.push(`Total Commissioned: ${allCommissioned.length} / ${Object.keys(units).length} units`);
+  if (allCommissioned.length) lines.push(allCommissioned.join(', '));
 
   return lines.join('\n');
 }
