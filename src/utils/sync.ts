@@ -29,9 +29,15 @@ export async function syncWithCloud(): Promise<SyncResult> {
   try {
     // 1. Upload any locally stored photos to Supabase Storage
     const { units: localUnits, generalIssues: localGeneralIssues } = useStore.getState();
-    const { units: uploadedUnits, updated } = await uploadLocalPhotos(localUnits);
-    if (updated) {
-      useStore.getState().loadBackup(uploadedUnits as UnitsStore, localGeneralIssues);
+    let uploadedUnits = localUnits as any;
+    try {
+      const result = await uploadLocalPhotos(localUnits);
+      if (result.updated) {
+        useStore.getState().loadBackup(result.units as UnitsStore, localGeneralIssues);
+        uploadedUnits = result.units;
+      }
+    } catch (photoErr: any) {
+      return { success: false, error: `Photo upload failed: ${photoErr?.message ?? photoErr}` };
     }
 
     // 2. Fetch remote state

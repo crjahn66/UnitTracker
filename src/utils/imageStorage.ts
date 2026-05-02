@@ -59,10 +59,10 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
       for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
 
       const { error } = await supabase.storage.from('photos').upload(fileName, bytes, { contentType, upsert: false });
-      if (error) return uri;
+      if (error) throw new Error(`Storage upload failed: ${error.message}`);
       updated = true;
       return supabase.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
-    } catch { return uri; }
+    } catch (e) { throw e; }
   };
 
   for (const unit of Object.values(result) as any[]) {
