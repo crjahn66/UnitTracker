@@ -1,6 +1,6 @@
 {
   "installCommand": "npm install --legacy-peer-deps",
-  "buildCommand": "npx expo export --platform web",
+  "buildCommand": "npx expo export --platform web && node scripts/inject-error-handler.js",
   "outputDirectory": "dist",
   "framework": null
 }
