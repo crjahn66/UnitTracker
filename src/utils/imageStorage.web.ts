@@ -2,17 +2,34 @@ import { supabase } from './supabase';
 
 export async function ensureImagesDir(): Promise<void> {}
 
+function isHeicBlob(blob: Blob): boolean {
+  return blob.type === 'image/heic' || blob.type === 'image/heif';
+}
+
+function isHeicFile(file: File): boolean {
+  if (isHeicBlob(file)) return true;
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+  return ext === 'heic' || ext === 'heif';
+}
+
+async function convertHeicToJpeg(blob: Blob): Promise<Blob> {
+  const heic2any = (await import('heic2any')).default;
+  const result = await heic2any({ blob, toType: 'image/jpeg', quality: 0.9 });
+  return Array.isArray(result) ? result[0] : result;
+}
+
 export async function saveImage(issueId: string, sourceUri: string, file?: File): Promise<string> {
   let blob: Blob;
   if (file) {
-    blob = file;
+    blob = isHeicFile(file) ? await convertHeicToJpeg(file) : file;
   } else {
     const response = await fetch(sourceUri);
-    blob = await response.blob();
+    const raw = await response.blob();
+    blob = isHeicBlob(raw) ? await convertHeicToJpeg(raw) : raw;
   }
 
   const mimeType = blob.type || 'image/jpeg';
-  const ext = mimeType.split('/')[1]?.replace('jpeg', 'jpg').replace('jpg', 'jpg') ?? 'jpg';
+  const ext = mimeType === 'image/jpeg' ? 'jpg' : (mimeType.split('/')[1] ?? 'jpg');
   const fileName = `${issueId}_${Date.now()}.${ext}`;
 
   const { error } = await supabase.storage.from('photos').upload(fileName, blob, { contentType: mimeType });
