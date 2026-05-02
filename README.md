@@ -6,31 +6,6 @@ Android app for tracking commissioning of 51 Chilling Units at Skybox Data Cente
 
 ---
 
-## Running the dev server (Expo Go)
-
-Requires Node 20. The server must be running on the same Wi-Fi network as your phone.
-
-1. Open a terminal and run:
-   ```
-   cd "C:\OD\OneDrive - Red Group\Tools\UnitTracker"
-   start.bat
-   ```
-2. Scan the QR code with the **Expo Go** app on your phone.
-
-> If `start.bat` doesn't work from the terminal, double-click it in File Explorer instead.
-
-### Node not found?
-
-Node 20 is managed via nvm. If the server fails to start:
-
-```
-C:\Users\kiraz\AppData\Local\nvm\nvm.exe use 20.19.1
-```
-
-Then run `start.bat` again.
-
----
-
 ## Building a standalone APK
 
 Pushing to the `master` branch on GitHub automatically triggers a build via GitHub Actions.
