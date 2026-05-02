@@ -17,7 +17,7 @@
     "@supabase/supabase-js": "^2.105.1",
     "date-fns": "^3.6.0",
     "exceljs": "^4.4.0",
-    "babel-preset-expo": "~13.0.0",
+    "babel-preset-expo": "~54.0.0",
     "expo": "~54.0.0",
     "expo-document-picker": "~13.0.0",
     "expo-file-system": "~19.0.22",
