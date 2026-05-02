@@ -33,6 +33,7 @@ interface StoreState {
   addGeneralIssue: (issue: GeneralIssue) => void;
   updateGeneralIssue: (issueId: string, updates: Partial<GeneralIssue>) => void;
   deleteGeneralIssue: (issueId: string) => void;
+  mergeImport: (importUnits: UnitsStore, importGeneralIssues: GeneralIssue[]) => void;
   loadBackup: (units: UnitsStore, generalIssues?: GeneralIssue[]) => void;
 }
 
@@ -277,6 +278,53 @@ export const useStore = create<StoreState>()(
         set((state) => ({
           generalIssues: state.generalIssues.filter((i) => i.id !== issueId),
         })),
+
+      mergeImport: (importUnits, importGeneralIssues) =>
+        set((state) => {
+          const merged = { ...state.units };
+
+          for (const [uid, importUnit] of Object.entries(importUnits)) {
+            if (!merged[uid]) { merged[uid] = importUnit as any; continue; }
+
+            const existing = merged[uid];
+
+            // Merge component issues — skip any ID already present
+            const mergedComponents = { ...existing.components };
+            for (const comp of (Object.keys(existing.components) as ComponentKey[])) {
+              const existIds = new Set(existing.components[comp].issues.map((i) => i.id));
+              const newIssues = ((importUnit as any).components?.[comp]?.issues ?? []).filter((i: any) => !existIds.has(i.id));
+              const importStatus = (importUnit as any).components?.[comp]?.status;
+              const mergedStatus = existing.components[comp].status !== 'unchecked'
+                ? existing.components[comp].status
+                : (importStatus ?? 'unchecked');
+              mergedComponents[comp] = {
+                status: mergedStatus,
+                issues: [...existing.components[comp].issues, ...newIssues],
+              };
+            }
+
+            // Merge misc equipment — match by label (case-insensitive)
+            const existingMisc = [...(existing.miscEquipment ?? [])];
+            for (const importItem of ((importUnit as any).miscEquipment ?? [])) {
+              const idx = existingMisc.findIndex((m) => m.label.toLowerCase() === importItem.label.toLowerCase());
+              if (idx === -1) {
+                existingMisc.push(importItem);
+              } else {
+                const existIds = new Set(existingMisc[idx].issues.map((i) => i.id));
+                const newIssues = importItem.issues.filter((i: any) => !existIds.has(i.id));
+                existingMisc[idx] = { ...existingMisc[idx], issues: [...existingMisc[idx].issues, ...newIssues] };
+              }
+            }
+
+            merged[uid] = { ...existing, components: mergedComponents, miscEquipment: existingMisc };
+          }
+
+          // Merge general issues — skip IDs already present
+          const existGeneralIds = new Set(state.generalIssues.map((i) => i.id));
+          const newGeneral = importGeneralIssues.filter((i) => !existGeneralIds.has(i.id));
+
+          return { units: merged, generalIssues: [...state.generalIssues, ...newGeneral] };
+        }),
 
       loadBackup: (units, generalIssues = []) => set({ units, generalIssues }),
     }),

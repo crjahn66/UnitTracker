@@ -13,9 +13,11 @@ export default function ReportsScreen() {
   const units         = useStore((state) => state.units);
   const generalIssues = useStore((state) => state.generalIssues);
   const loadBackup    = useStore((state) => state.loadBackup);
+  const mergeImport   = useStore((state) => state.mergeImport);
   const [exporting, setExporting]           = useState(false);
   const [backingUp, setBackingUp]           = useState(false);
   const [restoring, setRestoring]           = useState(false);
+  const [importing, setImporting]           = useState(false);
   const [generalModalOpen, setGeneralModalOpen] = useState(false);
 
   const openGeneralCount = generalIssues.filter((i) => !i.resolved).length;
@@ -91,11 +93,11 @@ export default function ReportsScreen() {
       if (!restored) { setRestoring(false); return; }
       Alert.alert(
         'Restore Backup',
-        'This will replace ALL current data with the backup. This cannot be undone.',
+        'Replace ALL current data with this backup? This cannot be undone.',
         [
           { text: 'Cancel', style: 'cancel', onPress: () => setRestoring(false) },
           {
-            text: 'Restore', style: 'destructive',
+            text: 'Replace All', style: 'destructive',
             onPress: () => { loadBackup(restored.units, restored.generalIssues); setRestoring(false); Alert.alert('Restored', 'Data restored successfully.'); },
           },
         ],
@@ -104,6 +106,29 @@ export default function ReportsScreen() {
     } catch (e) {
       Alert.alert('Restore Failed', String(e));
       setRestoring(false);
+    }
+  };
+
+  const handleImport = async () => {
+    setImporting(true);
+    try {
+      const data = await restoreData();
+      if (!data) { setImporting(false); return; }
+      Alert.alert(
+        'Merge Import',
+        'This will add new issues and equipment from the file into your current data without overwriting anything.',
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => setImporting(false) },
+          {
+            text: 'Merge',
+            onPress: () => { mergeImport(data.units, data.generalIssues); setImporting(false); Alert.alert('Imported', 'Data merged successfully.'); },
+          },
+        ],
+        { onDismiss: () => setImporting(false) }
+      );
+    } catch (e) {
+      Alert.alert('Import Failed', String(e));
+      setImporting(false);
     }
   };
 
@@ -126,6 +151,10 @@ export default function ReportsScreen() {
           <Text style={s.restoreBtnText}>{restoring ? 'Loading…' : 'Restore Backup'}</Text>
         </TouchableOpacity>
       </View>
+      <TouchableOpacity style={[s.importBtn, importing && s.btnDisabled]} onPress={handleImport} disabled={importing} activeOpacity={0.8}>
+        {importing ? <ActivityIndicator color="#3fb950" size="small" /> : <Ionicons name="git-merge-outline" size={17} color="#3fb950" style={{ marginRight: 6 }} />}
+        <Text style={s.importBtnText}>{importing ? 'Merging…' : 'Merge Import'}</Text>
+      </TouchableOpacity>
 
       {/* General Issues */}
       <TouchableOpacity style={s.generalIssuesBtn} onPress={() => setGeneralModalOpen(true)} activeOpacity={0.8}>
@@ -247,7 +276,7 @@ const s = StyleSheet.create({
     backgroundColor: '#3fb950', borderRadius: 10, paddingVertical: 14, marginBottom: 10,
   },
   exportBtnText: { color: '#0d1117', fontSize: 16, fontWeight: '700' },
-  backupRow: { flexDirection: 'row', marginBottom: 24 },
+  backupRow: { flexDirection: 'row', marginBottom: 10 },
   backupBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     borderRadius: 10, paddingVertical: 12, marginRight: 8,
@@ -261,6 +290,12 @@ const s = StyleSheet.create({
   backupBtnText: { color: '#58a6ff', fontSize: 14, fontWeight: '600' },
   restoreBtnText: { color: '#d29922', fontSize: 14, fontWeight: '600' },
   btnDisabled: { opacity: 0.5 },
+  importBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderRadius: 10, paddingVertical: 12, marginBottom: 24,
+    borderWidth: 1, borderColor: '#3fb950',
+  },
+  importBtnText: { color: '#3fb950', fontSize: 14, fontWeight: '600' },
   generalIssuesBtn: {
     flexDirection: 'row',
     alignItems: 'center',
