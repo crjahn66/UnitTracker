@@ -2,10 +2,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { format } from 'date-fns';
-import { UnitsStore } from '../types';
+import { GeneralIssue, UnitsStore } from '../types';
 
-export const backupData = async (units: UnitsStore): Promise<void> => {
-  const payload = { version: 1, timestamp: new Date().toISOString(), units };
+export const backupData = async (units: UnitsStore, generalIssues: GeneralIssue[]): Promise<void> => {
+  const payload = { version: 1, timestamp: new Date().toISOString(), units, generalIssues };
   const json     = JSON.stringify(payload, null, 2);
   const filename = `UnitTracker_Backup_${format(new Date(), 'yyyy-MM-dd_HHmm')}.json`;
   const uri      = (FileSystem.documentDirectory ?? '') + filename;
@@ -14,7 +14,7 @@ export const backupData = async (units: UnitsStore): Promise<void> => {
   await Sharing.shareAsync(uri, { mimeType: 'application/json', dialogTitle: 'Save Unit Tracker Backup' });
 };
 
-export const restoreData = async (): Promise<UnitsStore | null> => {
+export const restoreData = async (): Promise<{ units: UnitsStore; generalIssues: GeneralIssue[] } | null> => {
   const result = await DocumentPicker.getDocumentAsync({
     type: ['application/json', '*/*'],
     copyToCacheDirectory: true,
@@ -30,5 +30,8 @@ export const restoreData = async (): Promise<UnitsStore | null> => {
     throw new Error('Invalid backup file. Expected a UnitTracker backup JSON.');
   }
 
-  return parsed.units as UnitsStore;
+  return {
+    units: parsed.units as UnitsStore,
+    generalIssues: Array.isArray(parsed.generalIssues) ? parsed.generalIssues as GeneralIssue[] : [],
+  };
 };

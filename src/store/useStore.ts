@@ -8,11 +8,13 @@ import {
   ComponentKey,
   ComponentStatus,
   Issue,
+  GeneralIssue,
 } from '../types';
 import { createInitialUnits } from '../utils/initialData';
 
 interface StoreState {
   units: UnitsStore;
+  generalIssues: GeneralIssue[];
   updateStage: (unitId: string, stage: StageKey, value: boolean) => void;
   updateComponentStatus: (unitId: string, component: ComponentKey, status: ComponentStatus) => void;
   addIssue: (unitId: string, issue: Issue) => void;
@@ -20,13 +22,17 @@ interface StoreState {
   deleteIssue: (unitId: string, componentKey: ComponentKey, issueId: string) => void;
   resetUnit: (unitId: string) => void;
   setCustomComponentLabel: (unitId: string, componentKey: ComponentKey, label: string) => void;
-  loadBackup: (units: UnitsStore) => void;
+  addGeneralIssue: (issue: GeneralIssue) => void;
+  updateGeneralIssue: (issueId: string, updates: Partial<GeneralIssue>) => void;
+  deleteGeneralIssue: (issueId: string) => void;
+  loadBackup: (units: UnitsStore, generalIssues?: GeneralIssue[]) => void;
 }
 
 export const useStore = create<StoreState>()(
   persist(
     (set) => ({
       units: createInitialUnits(),
+      generalIssues: [] as GeneralIssue[],
 
       updateStage: (unitId, stage, value) =>
         set((state) => ({
@@ -148,7 +154,22 @@ export const useStore = create<StoreState>()(
           };
         }),
 
-      loadBackup: (units) => set({ units }),
+      addGeneralIssue: (issue) =>
+        set((state) => ({ generalIssues: [...state.generalIssues, issue] })),
+
+      updateGeneralIssue: (issueId, updates) =>
+        set((state) => ({
+          generalIssues: state.generalIssues.map((i) =>
+            i.id === issueId ? { ...i, ...updates } : i
+          ),
+        })),
+
+      deleteGeneralIssue: (issueId) =>
+        set((state) => ({
+          generalIssues: state.generalIssues.filter((i) => i.id !== issueId),
+        })),
+
+      loadBackup: (units, generalIssues = []) => set({ units, generalIssues }),
     }),
     {
       name: 'unit-tracker-v1',

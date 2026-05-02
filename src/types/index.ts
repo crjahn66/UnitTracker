@@ -59,3 +59,14 @@ export interface Unit {
 }
 
 export type UnitsStore = Record<string, Unit>;
+
+export interface GeneralIssue {
+  id: string;
+  dateFound: string;
+  foundBy: string;
+  notes: string;
+  resolved: boolean;
+  dateFixed?: string;
+  fixedBy?: string;
+  howFixed?: string;
+}

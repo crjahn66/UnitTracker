@@ -7,13 +7,18 @@ import { useStore } from '../store/useStore';
 import { STAGES, COMPONENTS } from '../types';
 import { exportToExcel } from '../utils/exportExcel';
 import { backupData, restoreData } from '../utils/backup';
+import GeneralIssueModal from '../components/GeneralIssueModal';
 
 export default function ReportsScreen() {
-  const units      = useStore((state) => state.units);
-  const loadBackup = useStore((state) => state.loadBackup);
-  const [exporting, setExporting]   = useState(false);
-  const [backingUp, setBackingUp]   = useState(false);
-  const [restoring, setRestoring]   = useState(false);
+  const units         = useStore((state) => state.units);
+  const generalIssues = useStore((state) => state.generalIssues);
+  const loadBackup    = useStore((state) => state.loadBackup);
+  const [exporting, setExporting]           = useState(false);
+  const [backingUp, setBackingUp]           = useState(false);
+  const [restoring, setRestoring]           = useState(false);
+  const [generalModalOpen, setGeneralModalOpen] = useState(false);
+
+  const openGeneralCount = generalIssues.filter((i) => !i.resolved).length;
 
   const stats = useMemo(() => {
     const all = Object.values(units);
@@ -56,14 +61,14 @@ export default function ReportsScreen() {
 
   const handleExport = async () => {
     setExporting(true);
-    try { await exportToExcel(units); }
+    try { await exportToExcel(units, generalIssues); }
     catch (e) { Alert.alert('Export Failed', String(e)); }
     finally { setExporting(false); }
   };
 
   const handleBackup = async () => {
     setBackingUp(true);
-    try { await backupData(units); }
+    try { await backupData(units, generalIssues); }
     catch (e) { Alert.alert('Backup Failed', String(e)); }
     finally { setBackingUp(false); }
   };
@@ -80,7 +85,7 @@ export default function ReportsScreen() {
           { text: 'Cancel', style: 'cancel', onPress: () => setRestoring(false) },
           {
             text: 'Restore', style: 'destructive',
-            onPress: () => { loadBackup(restored); setRestoring(false); Alert.alert('Restored', 'Data restored successfully.'); },
+            onPress: () => { loadBackup(restored.units, restored.generalIssues); setRestoring(false); Alert.alert('Restored', 'Data restored successfully.'); },
           },
         ],
         { onDismiss: () => setRestoring(false) }
@@ -110,6 +115,33 @@ export default function ReportsScreen() {
           <Text style={s.restoreBtnText}>{restoring ? 'Loading…' : 'Restore Backup'}</Text>
         </TouchableOpacity>
       </View>
+
+      {/* General Issues */}
+      <TouchableOpacity style={s.generalIssuesBtn} onPress={() => setGeneralModalOpen(true)} activeOpacity={0.8}>
+        <View style={s.generalIssuesBtnLeft}>
+          <Ionicons name="warning-outline" size={20} color="#d29922" style={{ marginRight: 10 }} />
+          <View>
+            <Text style={s.generalIssuesBtnTitle}>General Issues</Text>
+            <Text style={s.generalIssuesBtnSub}>
+              {openGeneralCount > 0
+                ? `${openGeneralCount} open · ${generalIssues.length} total`
+                : generalIssues.length > 0
+                  ? `All resolved · ${generalIssues.length} total`
+                  : 'No issues logged'}
+            </Text>
+          </View>
+        </View>
+        <View style={s.generalIssuesBtnRight}>
+          {openGeneralCount > 0 && (
+            <View style={s.openBadge}>
+              <Text style={s.openBadgeText}>{openGeneralCount}</Text>
+            </View>
+          )}
+          <Ionicons name="chevron-forward" size={18} color="#6e7681" />
+        </View>
+      </TouchableOpacity>
+
+      {generalModalOpen && <GeneralIssueModal onClose={() => setGeneralModalOpen(false)} />}
 
       {/* Overall progress */}
       <SectionHeader title="Overall Progress" />
@@ -218,6 +250,33 @@ const s = StyleSheet.create({
   backupBtnText: { color: '#58a6ff', fontSize: 14, fontWeight: '600' },
   restoreBtnText: { color: '#d29922', fontSize: 14, fontWeight: '600' },
   btnDisabled: { opacity: 0.5 },
+  generalIssuesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#161b22',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d2992244',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+  },
+  generalIssuesBtnLeft:  { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  generalIssuesBtnRight: { flexDirection: 'row', alignItems: 'center' },
+  generalIssuesBtnTitle: { color: '#e6edf3', fontSize: 15, fontWeight: '600' },
+  generalIssuesBtnSub:   { color: '#8b949e', fontSize: 12, marginTop: 1 },
+  openBadge: {
+    backgroundColor: '#f85149',
+    borderRadius: 10,
+    minWidth: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+    marginRight: 8,
+  },
+  openBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   sectionHeader: {
     color: '#8b949e',
     fontSize: 11,

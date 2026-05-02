@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { format } from 'date-fns';
-import { Unit, STAGES, COMPONENTS } from '../types';
+import { Unit, STAGES, COMPONENTS, GeneralIssue } from '../types';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const XLSX = require('xlsx-js-style');
@@ -212,18 +212,43 @@ function sheetWithIssues(sorted: Unit[]): any {
   return makeSheet(rows, [9, 7, 7, 12, 12, 40, 12, 20]);
 }
 
+// ─── Sheet 6 : General Issues ─────────────────────────────────────────────────
+function sheetGeneralIssues(issues: GeneralIssue[]): any {
+  const rows = [[
+    hdr('Date Found'), hdr('Found By'), hdr('Notes'),
+    hdr('Status'), hdr('Date Fixed'), hdr('Fixed By'), hdr('How Fixed'),
+  ]];
+  const sorted = [...issues].sort((a, b) => b.dateFound.localeCompare(a.dateFound));
+  for (const issue of sorted) {
+    const bg = issue.resolved ? GRN_BG : RED_BG;
+    const fg = issue.resolved ? GRN_TXT : RED_TXT;
+    rows.push([
+      cell(fmtDate(issue.dateFound), bg, fg, false, true),
+      cell(issue.foundBy, bg, fg),
+      cell(issue.notes, bg, fg),
+      cell(issue.resolved ? 'Resolved' : 'Open', bg, fg, true, true),
+      cell(fmtDate(issue.dateFixed), bg, fg, false, true),
+      cell(issue.fixedBy ?? '', bg, fg),
+      cell(issue.howFixed ?? '', bg, fg),
+    ]);
+  }
+  if (rows.length === 1) rows.push([cell('No general issues logged', WHT_BG, GRY_TXT)]);
+  return makeSheet(rows, [12, 14, 40, 10, 12, 14, 40]);
+}
+
 // ─── Export entry point ───────────────────────────────────────────────────────
-export const exportToExcel = async (units: Record<string, Unit>): Promise<void> => {
+export const exportToExcel = async (units: Record<string, Unit>, generalIssues: GeneralIssue[]): Promise<void> => {
   const wb = XLSX.utils.book_new();
   const sorted = Object.values(units).sort((a, b) =>
     a.side !== b.side ? (a.side === 'North' ? -1 : 1) : a.unitNumber - b.unitNumber
   );
 
-  XLSX.utils.book_append_sheet(wb, sheetOverview(sorted),    'Overview');
-  XLSX.utils.book_append_sheet(wb, sheetComponents(sorted),  'Component Status');
-  XLSX.utils.book_append_sheet(wb, sheetIssues(sorted),      'Issues Log');
-  XLSX.utils.book_append_sheet(wb, sheetCompleted(sorted),   'Completed Units');
-  XLSX.utils.book_append_sheet(wb, sheetWithIssues(sorted),  'Units with Issues');
+  XLSX.utils.book_append_sheet(wb, sheetOverview(sorted),          'Overview');
+  XLSX.utils.book_append_sheet(wb, sheetComponents(sorted),        'Component Status');
+  XLSX.utils.book_append_sheet(wb, sheetIssues(sorted),            'Issues Log');
+  XLSX.utils.book_append_sheet(wb, sheetCompleted(sorted),         'Completed Units');
+  XLSX.utils.book_append_sheet(wb, sheetWithIssues(sorted),        'Units with Issues');
+  XLSX.utils.book_append_sheet(wb, sheetGeneralIssues(generalIssues), 'General Issues');
 
   const base64  = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
   const filename = `UnitTracker_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`;
