@@ -11,14 +11,19 @@ type Props = NativeStackScreenProps<UnitStackParamList, 'UnitList'>;
 
 function unitStatusColor(unit: Unit): string {
   const comps = Object.values(unit.components);
-  const miscIssues = (unit.miscEquipment ?? []).flatMap((m) => m.issues ?? []);
+  const miscItems = unit.miscEquipment ?? [];
+  const miscIssues = miscItems.flatMap((m) => m.issues ?? []);
   const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues].filter((i) => !i.resolved).length;
-  const hasBad = comps.some((c) => c.status === 'bad') || (unit.miscEquipment ?? []).some((m) => m.status === 'bad');
+  const hasBad = comps.some((c) => c.status === 'bad') || miscItems.some((m) => m.status === 'bad');
   if (hasBad || openIssues > 0) return '#f85149';
 
   const stagesComplete = STAGES.filter((s) => unit.stages[s.key]).length;
   if (stagesComplete === STAGES.length) return '#3fb950';
-  if (stagesComplete > 0) return '#d29922';
+
+  const hasWork = stagesComplete > 0
+    || comps.some((c) => c.status !== 'unchecked')
+    || miscItems.some((m) => m.status !== 'unchecked');
+  if (hasWork) return '#d29922';
   return '#30363d';
 }
 
@@ -77,7 +82,13 @@ export default function UnitListScreen({ navigation, route }: Props) {
       const miscIssues = (u.miscEquipment ?? []).flatMap((m) => m.issues ?? []);
       return [...compIssues, ...miscIssues].some((i) => !i.resolved);
     }).length;
-    return { complete, hasIssue };
+    const inProgress = sideUnits.filter((u) => {
+      if (STAGES.every((st) => u.stages[st.key])) return false;
+      return STAGES.some((st) => u.stages[st.key])
+        || Object.values(u.components).some((c) => c.status !== 'unchecked')
+        || (u.miscEquipment ?? []).some((m) => m.status !== 'unchecked');
+    }).length;
+    return { complete, hasIssue, inProgress };
   }, [sideUnits]);
 
   return (
@@ -86,7 +97,7 @@ export default function UnitListScreen({ navigation, route }: Props) {
         <SumItem label="Total" value={sideUnits.length} color="#58a6ff" />
         <SumItem label="Complete" value={stats.complete} color="#3fb950" />
         <SumItem label="Open Issues" value={stats.hasIssue} color="#f85149" />
-        <SumItem label="In Progress" value={sideUnits.length - stats.complete - (sideUnits.filter(u => STAGES.every(st => !u.stages[st.key])).length)} color="#d29922" />
+        <SumItem label="In Progress" value={stats.inProgress} color="#d29922" />
       </View>
       <FlatList
         data={sideUnits}

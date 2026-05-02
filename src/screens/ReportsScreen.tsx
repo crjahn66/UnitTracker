@@ -61,7 +61,11 @@ export default function ReportsScreen() {
       ].some((i) => !i.resolved);
       return STAGES.every((s) => u.stages[s.key]) && !hasOpen;
     }).length;
-    const hasAnyWork = all.filter((u) => STAGES.some((s) => u.stages[s.key])).length;
+    const hasAnyWork = all.filter((u) =>
+      STAGES.some((s) => u.stages[s.key])
+      || Object.values(u.components).some((c) => c.status !== 'unchecked')
+      || (u.miscEquipment ?? []).some((m) => m.status !== 'unchecked')
+    ).length;
 
     const compStats = COMPONENTS.map((comp) => ({
       label: comp.label,
