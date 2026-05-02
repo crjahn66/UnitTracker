@@ -18,6 +18,10 @@
       },
       "package": "com.redgroup.unittracker"
     },
-    "plugins": []
+    "plugins": [],
+    "web": {
+      "favicon": "./assets/icon.png",
+      "bundler": "metro"
+    }
   }
 }
