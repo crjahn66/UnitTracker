@@ -6,11 +6,23 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, UnitsStore, GeneralIssue } from '../types';
+import { STAGES, COMPONENTS, UnitsStore, GeneralIssue, Unit } from '../types';
 import { exportToExcel } from '../utils/exportExcel';
 import { backupData, restoreData } from '../utils/backup';
 import { syncWithCloud } from '../utils/sync';
 import GeneralIssueModal from '../components/GeneralIssueModal';
+
+function getUnitCommissionDate(unit: Unit): string | undefined {
+  const allStagesChecked = STAGES.every(s => unit.stages[s.key]);
+  const allComponentsGood = COMPONENTS.every(c => unit.components[c.key].status === 'good');
+  const allMiscGood = (unit.miscEquipment ?? []).every(m => m.status === 'good');
+  if (!allStagesChecked || !allComponentsGood || !allMiscGood) return undefined;
+  const dates: string[] = [];
+  for (const s of STAGES) { const d = unit.stagesDates?.[s.key]; if (d) dates.push(d); }
+  for (const c of COMPONENTS) { const d = unit.components[c.key].goodDate; if (d) dates.push(d); }
+  for (const m of (unit.miscEquipment ?? [])) { if (m.goodDate) dates.push(m.goodDate); }
+  return dates.length ? dates.sort().pop() : undefined;
+}
 
 function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[]): string {
   const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -18,6 +30,11 @@ function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[]): 
     if (!iso) return false;
     try { return format(new Date(iso), 'yyyy-MM-dd') === todayStr; } catch { return false; }
   };
+
+  const commissionedToday = Object.values(units)
+    .filter(u => sameDay(getUnitCommissionDate(u)))
+    .map(u => u.id)
+    .sort();
 
   type Activity = { newIssues: string[]; resolved: string[]; goodItems: string[]; stages: string[] };
   const byUnit: Record<string, Activity> = {};
@@ -63,12 +80,13 @@ function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[]): 
   lines.push(`Daily Report — ${format(new Date(), 'MMMM d, yyyy')}`);
   lines.push('');
 
-  if (!unitIds.length && !newGeneral && !doneGeneral) {
+  if (!unitIds.length && !newGeneral && !doneGeneral && !commissionedToday.length) {
     lines.push('No activity recorded today.');
     return lines.join('\n');
   }
 
   const summary: string[] = [];
+  if (commissionedToday.length) summary.push(`★ ${commissionedToday.length} unit${commissionedToday.length !== 1 ? 's' : ''} commissioned`);
   if (unitIds.length) summary.push(`${unitIds.length} unit${unitIds.length !== 1 ? 's' : ''} with activity`);
   if (totalNew)    summary.push(`${totalNew} new issue${totalNew !== 1 ? 's' : ''}`);
   if (totalDone)   summary.push(`${totalDone} resolved`);
@@ -76,6 +94,11 @@ function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[]): 
   if (totalStages) summary.push(`${totalStages} stage${totalStages !== 1 ? 's' : ''} completed`);
   lines.push(summary.join(' · '));
   lines.push('');
+
+  if (commissionedToday.length) {
+    lines.push(`★ COMMISSIONED TODAY: ${commissionedToday.join(', ')}`);
+    lines.push('');
+  }
 
   for (const id of unitIds) {
     const { newIssues, resolved, goodItems, stages } = byUnit[id];
