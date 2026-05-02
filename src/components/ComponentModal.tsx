@@ -1,12 +1,15 @@
 import React, { useState, useCallback } from 'react';
 import {
   Modal, View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, Alert, KeyboardAvoidingView, Platform,
+  StyleSheet, Alert, KeyboardAvoidingView, Platform, Image,
+  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { format, parse, isValid } from 'date-fns';
 import { useStore } from '../store/useStore';
 import { COMPONENTS, ComponentKey, ComponentStatus, Issue } from '../types';
+import { saveImage, deleteImage } from '../utils/imageStorage';
 
 interface Props {
   unitId: string;
@@ -43,22 +46,67 @@ function fmtDate(iso?: string) {
   try { return format(new Date(iso), 'MMM d, yyyy'); } catch { return iso; }
 }
 
+// ─── Image Strip ──────────────────────────────────────────────────────────────
+
+function ImageStrip({ images, onAdd, onRemove }: {
+  images: string[];
+  onAdd: () => void;
+  onRemove: (uri: string) => void;
+}) {
+  return (
+    <View style={img.strip}>
+      <FlatList
+        horizontal
+        data={images}
+        keyExtractor={(item) => item}
+        renderItem={({ item }) => (
+          <View style={img.thumb}>
+            <Image source={{ uri: item }} style={img.thumbImg} />
+            <TouchableOpacity style={img.removeBtn} onPress={() => onRemove(item)}>
+              <Ionicons name="close-circle" size={18} color="#f85149" />
+            </TouchableOpacity>
+          </View>
+        )}
+        ListFooterComponent={
+          <TouchableOpacity style={img.addBtn} onPress={onAdd}>
+            <Ionicons name="camera-outline" size={22} color="#58a6ff" />
+            <Text style={img.addBtnText}>Photo</Text>
+          </TouchableOpacity>
+        }
+        showsHorizontalScrollIndicator={false}
+      />
+    </View>
+  );
+}
+
 // ─── Add Issue Form ────────────────────────────────────────────────────────────
 
 interface AddIssueFormProps {
-  onSave: (data: { dateFound: string; foundBy: string; notes: string }) => void;
+  onSave: (data: { dateFound: string; foundBy: string; notes: string; images: string[] }) => void;
   onCancel: () => void;
 }
 
 function AddIssueForm({ onSave, onCancel }: AddIssueFormProps) {
   const [form, setForm] = useState(EMPTY_ISSUE);
+  const [images, setImages] = useState<string[]>([]);
   const set = (key: 'dateFound' | 'foundBy' | 'notes', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
+
+  const pickImages = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      quality: 0.7,
+    });
+    if (!result.canceled) setImages((prev) => [...prev, ...result.assets.map((a) => a.uri)]);
+  };
+
+  const removeImage = (uri: string) => setImages((prev) => prev.filter((i) => i !== uri));
 
   const handleSave = () => {
     if (!form.foundBy.trim()) { Alert.alert('Required', 'Please enter who found the issue.'); return; }
     if (!form.notes.trim()) { Alert.alert('Required', 'Please enter issue notes.'); return; }
-    onSave(form);
+    onSave({ ...form, images });
   };
 
   return (
@@ -67,6 +115,8 @@ function AddIssueForm({ onSave, onCancel }: AddIssueFormProps) {
       <FormField label="Date Found" value={form.dateFound} onChangeText={(v) => set('dateFound', v)} placeholder="MM/DD/YYYY" />
       <FormField label="Found By" value={form.foundBy} onChangeText={(v) => set('foundBy', v)} placeholder="Name / Tech ID" />
       <FormField label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} placeholder="Describe the issue…" multiline />
+      <Text style={f.label}>Photos</Text>
+      <ImageStrip images={images} onAdd={pickImages} onRemove={removeImage} />
       <View style={f.buttonRow}>
         <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={onCancel}>
           <Text style={f.btnOutlineText}>Cancel</Text>
@@ -81,12 +131,10 @@ function AddIssueForm({ onSave, onCancel }: AddIssueFormProps) {
 
 // ─── Resolve Issue Form ────────────────────────────────────────────────────────
 
-interface ResolveFormProps {
+function ResolveForm({ onSave, onCancel }: {
   onSave: (data: { dateFixed: string; fixedBy: string; howFixed: string }) => void;
   onCancel: () => void;
-}
-
-function ResolveForm({ onSave, onCancel }: ResolveFormProps) {
+}) {
   const [form, setForm] = useState(EMPTY_RESOLVE);
   const set = (key: 'dateFixed' | 'fixedBy' | 'howFixed', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
@@ -117,14 +165,23 @@ function ResolveForm({ onSave, onCancel }: ResolveFormProps) {
 
 // ─── Issue Card ────────────────────────────────────────────────────────────────
 
-interface IssueCardProps {
+function IssueCard({ issue, onResolve, onDelete, onAddImage, onRemoveImage }: {
   issue: Issue;
   onResolve: () => void;
   onDelete: () => void;
-}
-
-function IssueCard({ issue, onResolve, onDelete }: IssueCardProps) {
+  onAddImage: (uri: string) => void;
+  onRemoveImage: (uri: string) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
+
+  const pickImages = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      quality: 0.7,
+    });
+    if (!result.canceled) result.assets.forEach((a) => onAddImage(a.uri));
+  };
 
   return (
     <View style={[ic.card, issue.resolved ? ic.cardResolved : ic.cardOpen]}>
@@ -134,6 +191,9 @@ function IssueCard({ issue, onResolve, onDelete }: IssueCardProps) {
             <Text style={ic.badgeText}>{issue.resolved ? 'Resolved' : 'Open'}</Text>
           </View>
           <Text style={ic.dateText}>{fmtDate(issue.dateFound)}</Text>
+          {(issue.images?.length ?? 0) > 0 && (
+            <Ionicons name="image-outline" size={13} color="#8b949e" style={{ marginLeft: 6 }} />
+          )}
         </View>
         <View style={ic.headerRight}>
           <Text style={ic.foundBy} numberOfLines={1}>{issue.foundBy || '—'}</Text>
@@ -151,11 +211,22 @@ function IssueCard({ issue, onResolve, onDelete }: IssueCardProps) {
               <DetailRow label="How Fixed" value={issue.howFixed} />
             </>
           )}
+          {(issue.images?.length ?? 0) > 0 && (
+            <ImageStrip
+              images={issue.images ?? []}
+              onAdd={pickImages}
+              onRemove={onRemoveImage}
+            />
+          )}
           {!issue.resolved && (
             <View style={ic.actions}>
               <TouchableOpacity style={[ic.actionBtn, ic.resolveBtn]} onPress={onResolve}>
                 <Ionicons name="checkmark-circle-outline" size={14} color="#3fb950" style={{ marginRight: 4 }} />
                 <Text style={ic.resolveBtnText}>Mark Resolved</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[ic.actionBtn, ic.photoBtn]} onPress={pickImages}>
+                <Ionicons name="camera-outline" size={14} color="#58a6ff" style={{ marginRight: 4 }} />
+                <Text style={ic.photoBtnText}>Add Photo</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[ic.actionBtn, ic.deleteBtn]} onPress={onDelete}>
                 <Ionicons name="trash-outline" size={14} color="#f85149" style={{ marginRight: 4 }} />
@@ -182,9 +253,7 @@ function DetailRow({ label, value }: { label: string; value?: string }) {
 // ─── Progress Note Form ───────────────────────────────────────────────────────
 
 function ProgressNoteForm({ initial, onSave, onCancel }: {
-  initial: string;
-  onSave: (note: string) => void;
-  onCancel: () => void;
+  initial: string; onSave: (note: string) => void; onCancel: () => void;
 }) {
   const [note, setNote] = useState(initial);
   return (
@@ -206,9 +275,7 @@ function ProgressNoteForm({ initial, onSave, onCancel }: {
 // ─── Good Note Form ───────────────────────────────────────────────────────────
 
 function GoodNoteForm({ initial, onSave, onSkip }: {
-  initial: string;
-  onSave: (note: string) => void;
-  onSkip: () => void;
+  initial: string; onSave: (note: string) => void; onSkip: () => void;
 }) {
   const [note, setNote] = useState(initial);
   return (
@@ -264,7 +331,6 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
         onClose();
         return;
       }
-      // unchecked
       setComponentProgressNote(unitId, componentKey, '');
       setComponentGoodNote(unitId, componentKey, '');
     },
@@ -272,14 +338,20 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
   );
 
   const handleAddIssue = useCallback(
-    (data: { dateFound: string; foundBy: string; notes: string }) => {
+    async (data: { dateFound: string; foundBy: string; notes: string; images: string[] }) => {
+      const id = genId();
+      const savedImages: string[] = [];
+      for (const uri of data.images) {
+        try { savedImages.push(await saveImage(id, uri)); } catch { /* skip */ }
+      }
       const issue: Issue = {
-        id: genId(),
+        id,
         componentKey,
         dateFound: (() => { const p = parse(data.dateFound, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : new Date().toISOString(); })(),
         foundBy: data.foundBy,
         notes: data.notes,
         resolved: false,
+        images: savedImages.length > 0 ? savedImages : undefined,
       };
       addIssue(unitId, issue);
       setView('detail');
@@ -305,10 +377,45 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
     (issueId: string) => {
       Alert.alert('Delete Issue', 'This will permanently remove this issue log. Continue?', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => deleteIssue(unitId, componentKey, issueId) },
+        {
+          text: 'Delete', style: 'destructive', onPress: async () => {
+            const issue = compData.issues.find((i) => i.id === issueId);
+            for (const uri of (issue?.images ?? [])) deleteImage(uri);
+            deleteIssue(unitId, componentKey, issueId);
+          },
+        },
       ]);
     },
-    [unitId, componentKey, deleteIssue]
+    [unitId, componentKey, deleteIssue, compData.issues]
+  );
+
+  const handleAddImage = useCallback(
+    async (issueId: string, uri: string) => {
+      const saved = await saveImage(issueId, uri);
+      const issue = compData.issues.find((i) => i.id === issueId);
+      updateIssue(unitId, componentKey, issueId, {
+        images: [...(issue?.images ?? []), saved],
+      });
+    },
+    [unitId, componentKey, updateIssue, compData.issues]
+  );
+
+  const handleRemoveImage = useCallback(
+    (issueId: string, uri: string) => {
+      Alert.alert('Remove Photo', 'Remove this photo from the issue?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove', style: 'destructive', onPress: async () => {
+            await deleteImage(uri);
+            const issue = compData.issues.find((i) => i.id === issueId);
+            updateIssue(unitId, componentKey, issueId, {
+              images: (issue?.images ?? []).filter((i) => i !== uri),
+            });
+          },
+        },
+      ]);
+    },
+    [unitId, componentKey, updateIssue, compData.issues]
   );
 
   const openIssues = compData.issues.filter((i) => !i.resolved).length;
@@ -316,14 +423,8 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
 
   const renderContent = () => {
     if (view === 'addIssue') {
-      return (
-        <AddIssueForm
-          onSave={handleAddIssue}
-          onCancel={() => setView('detail')}
-        />
-      );
+      return <AddIssueForm onSave={handleAddIssue} onCancel={() => setView('detail')} />;
     }
-
     if (view === 'resolveIssue' && resolvingId) {
       return (
         <ResolveForm
@@ -332,7 +433,6 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
         />
       );
     }
-
     if (view === 'progressNote') {
       return (
         <ProgressNoteForm
@@ -342,7 +442,6 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
         />
       );
     }
-
     if (view === 'goodNote') {
       return (
         <GoodNoteForm
@@ -355,7 +454,6 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
 
     return (
       <View>
-        {/* Status selector */}
         <Text style={m.sectionLabel}>STATUS</Text>
         <View style={m.statusRow}>
           {(['good', 'inProgress', 'bad', 'unchecked'] as ComponentStatus[]).map((status) => (
@@ -373,7 +471,6 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
           ))}
         </View>
 
-        {/* Progress note display */}
         {compData.status === 'inProgress' && (
           <TouchableOpacity style={m.progressNoteBox} onPress={() => setView('progressNote')} activeOpacity={0.7}>
             <View style={{ flex: 1 }}>
@@ -384,7 +481,6 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
           </TouchableOpacity>
         )}
 
-        {/* Good note display */}
         {compData.status === 'good' && (
           <TouchableOpacity style={m.goodNoteBox} onPress={() => setView('goodNote')} activeOpacity={0.7}>
             <View style={{ flex: 1 }}>
@@ -395,7 +491,6 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
           </TouchableOpacity>
         )}
 
-        {/* Issues section */}
         <View style={m.issueSectionHeader}>
           <Text style={m.sectionLabel}>ISSUES</Text>
           {openIssues > 0 && (
@@ -414,6 +509,8 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
               issue={issue}
               onResolve={() => { setResolvingId(issue.id); setView('resolveIssue'); }}
               onDelete={() => handleDelete(issue.id)}
+              onAddImage={(uri) => handleAddImage(issue.id, uri)}
+              onRemoveImage={(uri) => handleRemoveImage(issue.id, uri)}
             />
           ))
         )}
@@ -428,12 +525,8 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={m.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <KeyboardAvoidingView style={m.overlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={m.sheet}>
-          {/* Modal header */}
           <View style={m.header}>
             <View style={{ flex: 1, marginRight: 8 }}>
               <Text style={m.compName}>{displayLabel}</Text>
@@ -443,7 +536,6 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
               <Ionicons name="close" size={22} color="#8b949e" />
             </TouchableOpacity>
           </View>
-
           <ScrollView contentContainerStyle={m.body} keyboardShouldPersistTaps="handled">
             {renderContent()}
           </ScrollView>
@@ -455,14 +547,8 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
 
 // ─── FormField ─────────────────────────────────────────────────────────────────
 
-function FormField({
-  label, value, onChangeText, placeholder, multiline,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (v: string) => void;
-  placeholder?: string;
-  multiline?: boolean;
+function FormField({ label, value, onChangeText, placeholder, multiline }: {
+  label: string; value: string; onChangeText: (v: string) => void; placeholder?: string; multiline?: boolean;
 }) {
   return (
     <View style={f.field}>
@@ -485,156 +571,79 @@ function FormField({
 
 const m = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#00000099' },
-  sheet: {
-    backgroundColor: '#161b22',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    maxHeight: '90%',
-    borderTopWidth: 1,
-    borderColor: '#21262d',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#21262d',
-  },
+  sheet: { backgroundColor: '#161b22', borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '90%', borderTopWidth: 1, borderColor: '#21262d' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 16, borderBottomWidth: 1, borderBottomColor: '#21262d' },
   compName: { color: '#e6edf3', fontSize: 18, fontWeight: '700' },
   statusTag: { fontSize: 13, marginTop: 3, fontWeight: '600' },
   closeBtn: { padding: 4 },
   labelRow: { flexDirection: 'row', alignItems: 'center' },
   labelEditIcon: { marginLeft: 8, padding: 4 },
   labelEditRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
-  labelInput: {
-    flex: 1, color: '#e6edf3', fontSize: 17, fontWeight: '700',
-    backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#58a6ff',
-    borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4,
-  },
+  labelInput: { flex: 1, color: '#e6edf3', fontSize: 17, fontWeight: '700', backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#58a6ff', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   labelEditBtn: { padding: 6, marginLeft: 4 },
   body: { padding: 16, paddingBottom: 40 },
   sectionLabel: { color: '#8b949e', fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 10, marginTop: 4 },
   statusRow: { flexDirection: 'row', marginBottom: 24 },
-  statusBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#30363d',
-    alignItems: 'center',
-    marginHorizontal: 5,
-  },
+  statusBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#30363d', alignItems: 'center', marginHorizontal: 5 },
   statusBtnText: { fontSize: 13, fontWeight: '700' },
   issueSectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  openBadge: {
-    marginLeft: 8,
-    backgroundColor: '#f8514922',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: '#f85149',
-  },
+  openBadge: { marginLeft: 8, backgroundColor: '#f8514922', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: '#f85149' },
   openBadgeText: { color: '#f85149', fontSize: 10, fontWeight: '700' },
   noIssues: { color: '#6e7681', fontSize: 13, textAlign: 'center', paddingVertical: 20 },
-  addIssueBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#58a6ff',
-  },
+  addIssueBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 16, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: '#58a6ff' },
   addIssueBtnText: { color: '#58a6ff', fontSize: 14, fontWeight: '600' },
-  progressNoteBox: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#d2992211', borderRadius: 8, borderWidth: 1, borderColor: '#d2992244',
-    padding: 10, marginBottom: 20,
-  },
+  progressNoteBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#d2992211', borderRadius: 8, borderWidth: 1, borderColor: '#d2992244', padding: 10, marginBottom: 20 },
   progressNoteLabel: { color: '#d29922', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 3 },
   progressNoteText: { color: '#e6edf3', fontSize: 13 },
-  goodNoteBox: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#3fb95011', borderRadius: 8, borderWidth: 1, borderColor: '#3fb95044',
-    padding: 10, marginBottom: 20,
-  },
+  goodNoteBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#3fb95011', borderRadius: 8, borderWidth: 1, borderColor: '#3fb95044', padding: 10, marginBottom: 20 },
   goodNoteLabel: { color: '#3fb950', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 3 },
   goodNoteText: { color: '#e6edf3', fontSize: 13 },
 });
 
 const ic = StyleSheet.create({
-  card: {
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 8,
-    overflow: 'hidden',
-  },
+  card: { borderRadius: 8, borderWidth: 1, marginBottom: 8, overflow: 'hidden' },
   cardOpen: { borderColor: '#f85149', backgroundColor: '#f8514911' },
   cardResolved: { borderColor: '#3fb95044', backgroundColor: '#3fb95011' },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 10,
-  },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 10 },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
   headerRight: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'flex-end' },
   badge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
   badgeOpen: { backgroundColor: '#f85149' },
   badgeResolved: { backgroundColor: '#3fb950' },
   badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
-  dateText: { color: '#8b949e', fontSize: 12 },
+  dateText: { color: '#8b949e', fontSize: 12, marginLeft: 6 },
   foundBy: { color: '#8b949e', fontSize: 12, maxWidth: 120 },
   body: { paddingHorizontal: 10, paddingBottom: 10 },
   detailRow: { flexDirection: 'row', marginBottom: 4 },
   detailLabel: { color: '#6e7681', fontSize: 12, width: 70 },
   detailValue: { color: '#e6edf3', fontSize: 12, flex: 1 },
-  actions: { flexDirection: 'row', marginTop: 10 },
-  actionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    borderWidth: 1,
-    marginRight: 8,
-  },
+  actions: { flexDirection: 'row', marginTop: 10, flexWrap: 'wrap', gap: 8 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1 },
   resolveBtn: { borderColor: '#3fb950' },
   resolveBtnText: { color: '#3fb950', fontSize: 12, fontWeight: '600' },
+  photoBtn: { borderColor: '#58a6ff' },
+  photoBtnText: { color: '#58a6ff', fontSize: 12, fontWeight: '600' },
   deleteBtn: { borderColor: '#f85149' },
   deleteBtnText: { color: '#f85149', fontSize: 12, fontWeight: '600' },
 });
 
+const img = StyleSheet.create({
+  strip: { marginVertical: 8 },
+  thumb: { width: 80, height: 80, marginRight: 8, borderRadius: 6, overflow: 'hidden', position: 'relative' },
+  thumbImg: { width: 80, height: 80 },
+  removeBtn: { position: 'absolute', top: 2, right: 2, backgroundColor: '#0d1117aa', borderRadius: 9 },
+  addBtn: { width: 80, height: 80, borderRadius: 6, borderWidth: 1, borderColor: '#58a6ff', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  addBtnText: { color: '#58a6ff', fontSize: 11, marginTop: 2 },
+});
+
 const f = StyleSheet.create({
-  formTitle: {
-    color: '#e6edf3',
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 16,
-  },
+  formTitle: { color: '#e6edf3', fontSize: 16, fontWeight: '700', marginBottom: 16 },
   field: { marginBottom: 14 },
   label: { color: '#8b949e', fontSize: 12, marginBottom: 6, fontWeight: '600' },
-  input: {
-    backgroundColor: '#0d1117',
-    borderWidth: 1,
-    borderColor: '#30363d',
-    borderRadius: 8,
-    padding: 10,
-    color: '#e6edf3',
-    fontSize: 14,
-  },
+  input: { backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#30363d', borderRadius: 8, padding: 10, color: '#e6edf3', fontSize: 14 },
   inputMulti: { minHeight: 90 },
   buttonRow: { flexDirection: 'row', marginTop: 6 },
-  btn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  btn: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   btnOutline: { borderWidth: 1, borderColor: '#30363d', marginRight: 10 },
   btnOutlineText: { color: '#8b949e', fontWeight: '600', fontSize: 14 },
   btnPrimary: { backgroundColor: '#58a6ff' },

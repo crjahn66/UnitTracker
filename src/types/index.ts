@@ -38,6 +38,7 @@ export interface Issue {
   dateFixed?: string;
   fixedBy?: string;
   howFixed?: string;
+  images?: string[];
 }
 
 export interface ComponentData {
@@ -59,6 +60,7 @@ export interface MiscIssue {
   dateFixed?: string;
   fixedBy?: string;
   howFixed?: string;
+  images?: string[];
 }
 
 export interface MiscEquipItem {

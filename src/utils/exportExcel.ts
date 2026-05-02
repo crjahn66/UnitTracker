@@ -1,65 +1,51 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { format } from 'date-fns';
-import { Unit, STAGES, COMPONENTS, GeneralIssue } from '../types';
+import { Unit, STAGES, COMPONENTS, GeneralIssue, Issue, MiscIssue } from '../types';
+import { readAsBase64 } from './imageStorage';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const XLSX = require('xlsx-js-style');
+const ExcelJS = require('exceljs/dist/exceljs.bare.js');
 
 // ─── Colour palette ───────────────────────────────────────────────────────────
-const HDR_BG  = '1E3A5F'; const HDR_TXT  = 'FFFFFF';
-const GRN_BG  = 'C6EFCE'; const GRN_TXT  = '276221';
-const RED_BG  = 'FFC7CE'; const RED_TXT  = '9C0006';
-const AMB_BG  = 'FFF2CC'; const AMB_TXT  = '7D5A00';
-const GRY_BG  = 'F2F2F2'; const GRY_TXT  = '595959';
-const WHT_BG  = 'FFFFFF'; const BLK_TXT  = '000000';
+const HDR = { bg: '1E3A5F', fg: 'FFFFFF' };
+const GRN = { bg: 'C6EFCE', fg: '276221' };
+const RED = { bg: 'FFC7CE', fg: '9C0006' };
+const AMB = { bg: 'FFF2CC', fg: '7D5A00' };
+const GRY = { bg: 'F2F2F2', fg: '595959' };
+const WHT = { bg: 'FFFFFF', fg: '000000' };
 
-// ─── Style builders ───────────────────────────────────────────────────────────
-const fill = (rgb: string) => ({ fgColor: { rgb }, patternType: 'solid' });
-const fnt  = (rgb: string, bold = false, sz = 10) => ({ color: { rgb }, bold, sz, name: 'Calibri' });
-const bdr  = (rgb = 'D0D0D0') => { const s = { style: 'thin', color: { rgb } }; return { top: s, bottom: s, left: s, right: s }; };
+type Clr = { bg: string; fg: string };
 
-function cell(v: string | number, bg: string, fg: string, bold = false, center = false): any {
-  return {
-    v, t: typeof v === 'number' ? 'n' : 's',
-    s: { fill: fill(bg), font: fnt(fg, bold), border: bdr(), alignment: { horizontal: center ? 'center' : 'left', vertical: 'center', wrapText: true } },
+function applyCell(cell: any, value: string | number, clr: Clr, bold = false, center = false) {
+  cell.value = value;
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + clr.bg } };
+  cell.font = { name: 'Calibri', size: 10, bold, color: { argb: 'FF' + clr.fg } };
+  cell.border = {
+    top: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+    bottom: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+    left: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+    right: { style: 'thin', color: { argb: 'FFD0D0D0' } },
   };
+  cell.alignment = { horizontal: center ? 'center' : 'left', vertical: 'middle', wrapText: true };
 }
 
-function hdr(v: string): any {
-  return {
-    v, t: 's',
-    s: { fill: fill(HDR_BG), font: fnt(HDR_TXT, true, 11), border: bdr('888888'), alignment: { horizontal: 'center', vertical: 'center', wrapText: true } },
+function applyHeader(cell: any, value: string) {
+  cell.value = value;
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + HDR.bg } };
+  cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF' + HDR.fg } };
+  cell.border = {
+    top: { style: 'thin', color: { argb: 'FF888888' } },
+    bottom: { style: 'thin', color: { argb: 'FF888888' } },
+    left: { style: 'thin', color: { argb: 'FF888888' } },
+    right: { style: 'thin', color: { argb: 'FF888888' } },
   };
+  cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
 }
 
-// ─── Worksheet builder ────────────────────────────────────────────────────────
-function makeSheet(rows: any[][], colWidths: number[]): any {
-  const ws: any = {};
-  const range = { s: { c: 0, r: 0 }, e: { c: 0, r: 0 } };
-  for (let R = 0; R < rows.length; R++) {
-    for (let C = 0; C < rows[R].length; C++) {
-      ws[XLSX.utils.encode_cell({ r: R, c: C })] = rows[R][C];
-      if (C > range.e.c) range.e.c = C;
-    }
-    if (R > range.e.r) range.e.r = R;
-  }
-  ws['!ref']   = XLSX.utils.encode_range(range);
-  ws['!cols']  = colWidths.map((wch) => ({ wch }));
-  ws['!freeze'] = { xSplit: 0, ySplit: 1 };
-  return ws;
-}
-
-// ─── Row colour based on unit health ─────────────────────────────────────────
-function rowClr(unit: Unit): { bg: string; fg: string } {
-  const compIssues = Object.values(unit.components).flatMap((c) => c.issues);
-  const miscIssues = (unit.miscEquipment ?? []).flatMap((m) => m.issues);
-  const openCount  = [...compIssues, ...miscIssues].filter((i) => !i.resolved).length;
-  const doneCount  = STAGES.filter((s) => unit.stages[s.key]).length;
-  if (doneCount === STAGES.length && openCount === 0) return { bg: GRN_BG, fg: GRN_TXT };
-  if (openCount > 0)  return { bg: RED_BG, fg: RED_TXT };
-  if (doneCount > 0)  return { bg: AMB_BG, fg: AMB_TXT };
-  return { bg: WHT_BG, fg: BLK_TXT };
+function freezeAndWidth(ws: any, widths: number[]) {
+  ws.views = [{ state: 'frozen', ySplit: 1 }];
+  ws.columns = widths.map((width) => ({ width }));
 }
 
 const fmtDate = (iso?: string) => {
@@ -67,241 +53,287 @@ const fmtDate = (iso?: string) => {
   try { return format(new Date(iso), 'MM/dd/yyyy'); } catch { return iso; }
 };
 
-// ─── Sheet 1 : Overview ───────────────────────────────────────────────────────
-function sheetOverview(sorted: Unit[]): any {
-  const rows = [[
-    hdr('Unit ID'), hdr('Side'), hdr('Unit #'),
-    ...STAGES.map((s) => hdr(s.label)),
-    hdr('Stages Done'), hdr('Open Issues'), hdr('Status'),
-  ]];
+function rowClr(unit: Unit): Clr {
+  const compIssues = Object.values(unit.components).flatMap((c) => c.issues);
+  const miscIssues = (unit.miscEquipment ?? []).flatMap((m) => m.issues);
+  const openCount  = [...compIssues, ...miscIssues].filter((i) => !i.resolved).length;
+  const doneCount  = STAGES.filter((s) => unit.stages[s.key]).length;
+  if (doneCount === STAGES.length && openCount === 0) return GRN;
+  if (openCount > 0)  return RED;
+  if (doneCount > 0 || Object.values(unit.components).some((c) => c.status !== 'unchecked'))  return AMB;
+  return WHT;
+}
+
+// ─── Sheet 1: Overview ────────────────────────────────────────────────────────
+function buildOverview(wb: any, sorted: Unit[]) {
+  const ws = wb.addWorksheet('Overview');
+  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Stages Done', 'Open Issues', 'Status'];
+  const row1 = ws.addRow(headers);
+  row1.eachCell((cell: any) => applyHeader(cell, cell.value));
+  row1.height = 30;
+
   for (const u of sorted) {
-    const { bg, fg } = rowClr(u);
-    const issues = Object.values(u.components).flatMap((c) => c.issues);
-    const open   = issues.filter((i) => !i.resolved).length;
-    const done   = STAGES.filter((s) => u.stages[s.key]).length;
+    const clr = rowClr(u);
+    const allIssues = [
+      ...Object.values(u.components).flatMap((c) => c.issues),
+      ...(u.miscEquipment ?? []).flatMap((m) => m.issues),
+    ];
+    const open = allIssues.filter((i) => !i.resolved).length;
+    const done = STAGES.filter((s) => u.stages[s.key]).length;
     const status = done === STAGES.length && open === 0 ? 'Complete'
                  : open > 0 ? `${open} Issue${open > 1 ? 's' : ''}`
                  : done > 0 ? 'In Progress' : 'Not Started';
-    rows.push([
-      cell(u.id, bg, fg, true),
-      cell(u.side, bg, fg),
-      cell(u.unitNumber, bg, fg, false, true),
-      ...STAGES.map((s) => u.stages[s.key] ? cell('✓ Done', GRN_BG, GRN_TXT, true, true) : cell('—', GRY_BG, GRY_TXT, false, true)),
-      cell(`${done} / ${STAGES.length}`, bg, fg, true, true),
-      cell(open, open > 0 ? RED_BG : bg, open > 0 ? RED_TXT : fg, true, true),
-      cell(status, bg, fg, true, true),
-    ]);
+    const rowData = [u.id, u.side, u.unitNumber, ...STAGES.map((s) => u.stages[s.key] ? '✓ Done' : '—'), `${done} / ${STAGES.length}`, open, status];
+    const r = ws.addRow(rowData);
+    r.eachCell((cell: any, col: number) => {
+      const isStageCol = col >= 4 && col <= 3 + STAGES.length;
+      const stageVal = isStageCol ? (cell.value === '✓ Done') : false;
+      const c = isStageCol ? (stageVal ? GRN : GRY) : (col === 3 + STAGES.length + 2 && open > 0 ? RED : clr);
+      applyCell(cell, cell.value, c, col === 1 || isStageCol, col >= 3);
+    });
+    r.height = 18;
   }
-  return makeSheet(rows, [9, 7, 7, 24, 22, 14, 16, 11, 10, 12]);
+  freezeAndWidth(ws, [9, 7, 7, 24, 22, 14, 16, 11, 10, 12]);
 }
 
-// ─── Sheet 2 : Component Status ───────────────────────────────────────────────
-function sheetComponents(sorted: Unit[]): any {
-  const rows = [[
-    hdr('Unit ID'), hdr('Side'), hdr('Unit #'),
-    ...COMPONENTS.map((c) => hdr(c.label)),
-    hdr('Misc Equipment'),
-  ]];
+// ─── Sheet 2: Component Status ────────────────────────────────────────────────
+function buildComponents(wb: any, sorted: Unit[]) {
+  const ws = wb.addWorksheet('Component Status');
+  const headers = ['Unit ID', 'Side', 'Unit #', ...COMPONENTS.map((c) => c.label), 'Misc Equipment'];
+  const row1 = ws.addRow(headers);
+  row1.eachCell((cell: any) => applyHeader(cell, cell.value));
+  row1.height = 30;
+
   for (const u of sorted) {
-    const { bg, fg } = rowClr(u);
+    const clr = rowClr(u);
     const misc = u.miscEquipment ?? [];
-    const miscSummary = misc.length === 0
-      ? '—'
-      : misc.map((m) => {
-          const v = m.status === 'good' ? '✓' : m.status === 'bad' ? '✗' : m.status === 'inProgress' ? '⏳' : '?';
-          const note = m.status === 'inProgress' && m.progressNote ? ` (${m.progressNote})`
-                     : m.status === 'good' && m.goodNote ? ` (${m.goodNote})`
-                     : '';
-          return `${v} ${m.label || 'Unnamed'}${note}`;
-        }).join(', ');
-    const miscBg = misc.some((m) => m.status === 'bad') ? RED_BG : misc.some((m) => m.status === 'inProgress') ? AMB_BG : misc.some((m) => m.status === 'good') ? GRN_BG : GRY_BG;
-    const miscFg = misc.some((m) => m.status === 'bad') ? RED_TXT : misc.some((m) => m.status === 'inProgress') ? AMB_TXT : misc.some((m) => m.status === 'good') ? GRN_TXT : GRY_TXT;
-    rows.push([
-      cell(u.id, bg, fg, true),
-      cell(u.side, bg, fg),
-      cell(u.unitNumber, bg, fg, false, true),
-      ...COMPONENTS.map((comp) => {
-        const s = u.components[comp.key].status;
-        const progressNote = u.components[comp.key].progressNote;
-        const goodNote = u.components[comp.key].goodNote;
-        const v = s === 'good'
-          ? (goodNote ? `✓ ${goodNote}` : '✓ Good')
-          : s === 'bad' ? '✗ Bad'
-          : s === 'inProgress' ? `⏳ ${progressNote || 'In Progress'}`
-          : '—';
-        const cb = s === 'good' ? GRN_BG : s === 'bad' ? RED_BG : s === 'inProgress' ? AMB_BG : GRY_BG;
-        const cf = s === 'good' ? GRN_TXT : s === 'bad' ? RED_TXT : s === 'inProgress' ? AMB_TXT : GRY_TXT;
-        return cell(v, cb, cf, s !== 'unchecked', true);
-      }),
-      cell(miscSummary, miscBg, miscFg),
-    ]);
+    const miscSummary = misc.length === 0 ? '—' : misc.map((m) => {
+      const v = m.status === 'good' ? '✓' : m.status === 'bad' ? '✗' : m.status === 'inProgress' ? '⏳' : '?';
+      const note = m.status === 'inProgress' && m.progressNote ? ` (${m.progressNote})`
+                 : m.status === 'good' && m.goodNote ? ` (${m.goodNote})` : '';
+      return `${v} ${m.label || 'Unnamed'}${note}`;
+    }).join(', ');
+    const miscClr = misc.some((m) => m.status === 'bad') ? RED : misc.some((m) => m.status === 'inProgress') ? AMB : misc.some((m) => m.status === 'good') ? GRN : GRY;
+
+    const rowData: (string | number)[] = [u.id, u.side, u.unitNumber];
+    const compClrs: Clr[] = [];
+    for (const comp of COMPONENTS) {
+      const s = u.components[comp.key].status;
+      const pn = u.components[comp.key].progressNote;
+      const gn = u.components[comp.key].goodNote;
+      const v = s === 'good' ? (gn ? `✓ ${gn}` : '✓ Good')
+              : s === 'bad' ? '✗ Bad'
+              : s === 'inProgress' ? `⏳ ${pn || 'In Progress'}` : '—';
+      rowData.push(v);
+      compClrs.push(s === 'good' ? GRN : s === 'bad' ? RED : s === 'inProgress' ? AMB : GRY);
+    }
+    rowData.push(miscSummary);
+
+    const r = ws.addRow(rowData);
+    r.eachCell((cell: any, col: number) => {
+      const c = col === 1 ? clr : col === 2 || col === 3 ? clr : col <= 3 + COMPONENTS.length ? compClrs[col - 4] : miscClr;
+      applyCell(cell, cell.value, c, col === 1, col >= 3);
+    });
+    r.height = 18;
   }
-  return makeSheet(rows, [9, 7, 7, ...COMPONENTS.map(() => 14), 40]);
+  freezeAndWidth(ws, [9, 7, 7, ...COMPONENTS.map(() => 14), 40]);
 }
 
-// ─── Sheet 3 : Issues Log ─────────────────────────────────────────────────────
-function sheetIssues(sorted: Unit[]): any {
-  const rows = [[
-    hdr('Unit ID'), hdr('Side'), hdr('Unit #'), hdr('Component'),
-    hdr('Date Found'), hdr('Found By'), hdr('Notes'),
-    hdr('Status'), hdr('Date Fixed'), hdr('Fixed By'), hdr('How Fixed'),
-  ]];
+// ─── Sheet 3: Issues Log (with embedded images) ───────────────────────────────
+async function buildIssues(wb: any, sorted: Unit[]) {
+  const ws = wb.addWorksheet('Issues Log');
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Component', 'Date Found', 'Found By', 'Notes', 'Status', 'Date Fixed', 'Fixed By', 'How Fixed', 'Photos'];
+  const row1 = ws.addRow(headers);
+  row1.eachCell((cell: any) => applyHeader(cell, cell.value));
+  row1.height = 30;
+
+  const IMG_COL = 12; // 1-indexed column for photos
+  const IMG_H   = 80; // pixel height for thumbnail rows
+  const IMG_W   = 80; // pixel width per thumbnail
+
+  interface IssueRow { issue: Issue | MiscIssue; unitId: string; side: string; unitNum: number; label: string; }
+  const rows: IssueRow[] = [];
+
   for (const u of sorted) {
     for (const comp of COMPONENTS) {
-      const compLabel = (u.customComponentLabels?.[comp.key]) ?? comp.label;
+      const label = u.customComponentLabels?.[comp.key] ?? comp.label;
       for (const issue of u.components[comp.key].issues) {
-        const bg = issue.resolved ? GRN_BG : RED_BG;
-        const fg = issue.resolved ? GRN_TXT : RED_TXT;
-        rows.push([
-          cell(u.id, bg, fg, true),
-          cell(u.side, bg, fg),
-          cell(u.unitNumber, bg, fg, false, true),
-          cell(compLabel, bg, fg),
-          cell(fmtDate(issue.dateFound), bg, fg, false, true),
-          cell(issue.foundBy, bg, fg),
-          cell(issue.notes, bg, fg),
-          cell(issue.resolved ? 'Resolved' : 'Open', bg, fg, true, true),
-          cell(fmtDate(issue.dateFixed), bg, fg, false, true),
-          cell(issue.fixedBy ?? '', bg, fg),
-          cell(issue.howFixed ?? '', bg, fg),
-        ]);
+        rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label });
       }
     }
     for (const item of (u.miscEquipment ?? [])) {
-      const compLabel = item.label || 'Misc Equipment';
       for (const issue of item.issues) {
-        const bg = issue.resolved ? GRN_BG : RED_BG;
-        const fg = issue.resolved ? GRN_TXT : RED_TXT;
-        rows.push([
-          cell(u.id, bg, fg, true),
-          cell(u.side, bg, fg),
-          cell(u.unitNumber, bg, fg, false, true),
-          cell(compLabel, bg, fg),
-          cell(fmtDate(issue.dateFound), bg, fg, false, true),
-          cell(issue.foundBy, bg, fg),
-          cell(issue.notes, bg, fg),
-          cell(issue.resolved ? 'Resolved' : 'Open', bg, fg, true, true),
-          cell(fmtDate(issue.dateFixed), bg, fg, false, true),
-          cell(issue.fixedBy ?? '', bg, fg),
-          cell(issue.howFixed ?? '', bg, fg),
-        ]);
+        rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label: item.label || 'Misc Equipment' });
       }
     }
   }
-  if (rows.length === 1) rows.push([cell('No issues logged', WHT_BG, GRY_TXT)]);
-  return makeSheet(rows, [9, 7, 7, 18, 12, 14, 40, 10, 12, 14, 40]);
+
+  rows.sort((a, b) => b.issue.dateFound.localeCompare(a.issue.dateFound));
+
+  for (let idx = 0; idx < rows.length; idx++) {
+    const { issue, unitId, side, unitNum, label } = rows[idx];
+    const clr = issue.resolved ? GRN : RED;
+    const excelRow = idx + 2; // 1-indexed, row 1 is header
+
+    const r = ws.addRow([
+      unitId, side, unitNum, label,
+      fmtDate(issue.dateFound), issue.foundBy, issue.notes,
+      issue.resolved ? 'Resolved' : 'Open',
+      fmtDate(issue.dateFixed), issue.fixedBy ?? '', issue.howFixed ?? '',
+      '',
+    ]);
+    r.eachCell((cell: any, col: number) => {
+      if (col === IMG_COL) return;
+      applyCell(cell, cell.value, clr, col === 1, col >= 3);
+    });
+
+    const images = issue.images ?? [];
+    if (images.length > 0) {
+      r.height = IMG_H * 0.75 + 4; // points ~= pixels * 0.75
+
+      // Style the photo cell background only
+      const photoCell = r.getCell(IMG_COL);
+      applyCell(photoCell, '', clr, false, true);
+
+      for (let i = 0; i < images.length; i++) {
+        const base64 = await readAsBase64(images[i]);
+        if (!base64) continue;
+        const ext = (images[i].split('.').pop()?.toLowerCase() ?? 'jpeg') as 'jpeg' | 'png';
+        const imgId = wb.addImage({ base64, extension: ext });
+        const colOffset = i * (IMG_W + 4);
+        ws.addImage(imgId, {
+          tl: { col: IMG_COL - 1 + colOffset / 64, row: excelRow - 1 },
+          ext: { width: IMG_W, height: IMG_H },
+          editAs: 'oneCell',
+        });
+      }
+    } else {
+      r.height = 18;
+    }
+  }
+
+  if (rows.length === 0) {
+    const r = ws.addRow(['No issues logged']);
+    applyCell(r.getCell(1), 'No issues logged', WHT, false);
+  }
+
+  freezeAndWidth(ws, [9, 7, 7, 18, 12, 14, 40, 10, 12, 14, 40, 60]);
 }
 
-// ─── Sheet 4 : Completed Units ────────────────────────────────────────────────
-function sheetCompleted(sorted: Unit[]): any {
+// ─── Sheet 4: Completed Units ─────────────────────────────────────────────────
+function buildCompleted(wb: any, sorted: Unit[]) {
+  const ws = wb.addWorksheet('Completed Units');
+  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Components Good', 'Total Issues'];
+  const row1 = ws.addRow(headers);
+  row1.eachCell((cell: any) => applyHeader(cell, cell.value));
+  row1.height = 30;
+
   const done = sorted.filter((u) => {
-    const compOpen = Object.values(u.components).flatMap((c) => c.issues).filter((i) => !i.resolved).length;
-    const miscOpen = (u.miscEquipment ?? []).flatMap((m) => m.issues).filter((i) => !i.resolved).length;
-    return STAGES.every((s) => u.stages[s.key]) && compOpen === 0 && miscOpen === 0;
+    const open = [
+      ...Object.values(u.components).flatMap((c) => c.issues),
+      ...(u.miscEquipment ?? []).flatMap((m) => m.issues),
+    ].filter((i) => !i.resolved).length;
+    return STAGES.every((s) => u.stages[s.key]) && open === 0;
   });
-  const rows = [[
-    hdr('Unit ID'), hdr('Side'), hdr('Unit #'),
-    ...STAGES.map((s) => hdr(s.label)),
-    hdr('Components Good'), hdr('Total Issues'),
-  ]];
+
   for (const u of done) {
     const comps = Object.values(u.components);
-    rows.push([
-      cell(u.id, GRN_BG, GRN_TXT, true),
-      cell(u.side, GRN_BG, GRN_TXT),
-      cell(u.unitNumber, GRN_BG, GRN_TXT, false, true),
-      ...STAGES.map(() => cell('✓ Done', GRN_BG, GRN_TXT, true, true)),
-      cell(comps.filter((c) => c.status === 'good').length, GRN_BG, GRN_TXT, true, true),
-      cell(comps.flatMap((c) => c.issues).length, GRN_BG, GRN_TXT, true, true),
+    const r = ws.addRow([
+      u.id, u.side, u.unitNumber,
+      ...STAGES.map(() => '✓ Done'),
+      comps.filter((c) => c.status === 'good').length,
+      comps.flatMap((c) => c.issues).length,
     ]);
+    r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, GRN, col === 1, col >= 3));
+    r.height = 18;
   }
-  if (done.length === 0) rows.push([cell('No fully completed units yet', WHT_BG, GRY_TXT)]);
-  return makeSheet(rows, [9, 7, 7, 24, 22, 14, 16, 16, 12]);
+  if (done.length === 0) {
+    const r = ws.addRow(['No fully completed units yet']);
+    applyCell(r.getCell(1), 'No fully completed units yet', WHT);
+  }
+  freezeAndWidth(ws, [9, 7, 7, 24, 22, 14, 16, 16, 12]);
 }
 
-// ─── Sheet 5 : Units with Issues ─────────────────────────────────────────────
-function sheetWithIssues(sorted: Unit[]): any {
-  const rows = [[
-    hdr('Unit ID'), hdr('Side'), hdr('Unit #'),
-    hdr('Open Issues'), hdr('Total Issues'), hdr('Components Affected'),
-    hdr('Stages Done'), hdr('Status'),
-  ]];
+// ─── Sheet 5: Units with Issues ───────────────────────────────────────────────
+function buildWithIssues(wb: any, sorted: Unit[]) {
+  const ws = wb.addWorksheet('Units with Issues');
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Open Issues', 'Total Issues', 'Components Affected', 'Stages Done', 'Status'];
+  const row1 = ws.addRow(headers);
+  row1.eachCell((cell: any) => applyHeader(cell, cell.value));
+  row1.height = 30;
+
   const affected = sorted.filter((u) => {
     const compOpen = Object.values(u.components).flatMap((c) => c.issues).some((i) => !i.resolved);
     const miscOpen = (u.miscEquipment ?? []).flatMap((m) => m.issues).some((i) => !i.resolved);
     return compOpen || miscOpen;
   });
+
   for (const u of affected) {
-    const allIssues  = [
-      ...Object.values(u.components).flatMap((c) => c.issues),
-      ...(u.miscEquipment ?? []).flatMap((m) => m.issues),
-    ];
-    const open       = allIssues.filter((i) => !i.resolved).length;
-    const stagesDone = STAGES.filter((s) => u.stages[s.key]).length;
-    const compNames  = [
-      ...COMPONENTS
-        .filter((comp) => u.components[comp.key].issues.some((i) => !i.resolved))
-        .map((comp) => (u.customComponentLabels?.[comp.key]) ?? comp.label),
-      ...(u.miscEquipment ?? [])
-        .filter((m) => m.issues.some((i) => !i.resolved))
-        .map((m) => m.label || 'Misc Equipment'),
+    const all = [...Object.values(u.components).flatMap((c) => c.issues), ...(u.miscEquipment ?? []).flatMap((m) => m.issues)];
+    const open = all.filter((i) => !i.resolved).length;
+    const done = STAGES.filter((s) => u.stages[s.key]).length;
+    const names = [
+      ...COMPONENTS.filter((comp) => u.components[comp.key].issues.some((i) => !i.resolved)).map((comp) => u.customComponentLabels?.[comp.key] ?? comp.label),
+      ...(u.miscEquipment ?? []).filter((m) => m.issues.some((i) => !i.resolved)).map((m) => m.label || 'Misc Equipment'),
     ].join(', ');
-    rows.push([
-      cell(u.id, RED_BG, RED_TXT, true),
-      cell(u.side, RED_BG, RED_TXT),
-      cell(u.unitNumber, RED_BG, RED_TXT, false, true),
-      cell(open, RED_BG, RED_TXT, true, true),
-      cell(allIssues.length, RED_BG, RED_TXT, true, true),
-      cell(compNames, RED_BG, RED_TXT),
-      cell(`${stagesDone} / ${STAGES.length}`, RED_BG, RED_TXT, false, true),
-      cell(stagesDone === STAGES.length ? 'Complete (Issues)' : 'In Progress', RED_BG, RED_TXT, true, true),
-    ]);
+    const r = ws.addRow([u.id, u.side, u.unitNumber, open, all.length, names, `${done} / ${STAGES.length}`, done === STAGES.length ? 'Complete (Issues)' : 'In Progress']);
+    r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, RED, col === 1, col >= 3));
+    r.height = 18;
   }
-  if (affected.length === 0) rows.push([cell('No units with open issues', WHT_BG, GRY_TXT)]);
-  return makeSheet(rows, [9, 7, 7, 12, 12, 40, 12, 20]);
+  if (affected.length === 0) {
+    const r = ws.addRow(['No units with open issues']);
+    applyCell(r.getCell(1), 'No units with open issues', WHT);
+  }
+  freezeAndWidth(ws, [9, 7, 7, 12, 12, 40, 12, 20]);
 }
 
-// ─── Sheet 6 : General Issues ─────────────────────────────────────────────────
-function sheetGeneralIssues(issues: GeneralIssue[]): any {
-  const rows = [[
-    hdr('Date Found'), hdr('Found By'), hdr('Notes'),
-    hdr('Status'), hdr('Date Fixed'), hdr('Fixed By'), hdr('How Fixed'),
-  ]];
+// ─── Sheet 6: General Issues ──────────────────────────────────────────────────
+function buildGeneralIssues(wb: any, issues: GeneralIssue[]) {
+  const ws = wb.addWorksheet('General Issues');
+  const headers = ['Date Found', 'Found By', 'Notes', 'Status', 'Date Fixed', 'Fixed By', 'How Fixed'];
+  const row1 = ws.addRow(headers);
+  row1.eachCell((cell: any) => applyHeader(cell, cell.value));
+  row1.height = 30;
+
   const sorted = [...issues].sort((a, b) => b.dateFound.localeCompare(a.dateFound));
   for (const issue of sorted) {
-    const bg = issue.resolved ? GRN_BG : RED_BG;
-    const fg = issue.resolved ? GRN_TXT : RED_TXT;
-    rows.push([
-      cell(fmtDate(issue.dateFound), bg, fg, false, true),
-      cell(issue.foundBy, bg, fg),
-      cell(issue.notes, bg, fg),
-      cell(issue.resolved ? 'Resolved' : 'Open', bg, fg, true, true),
-      cell(fmtDate(issue.dateFixed), bg, fg, false, true),
-      cell(issue.fixedBy ?? '', bg, fg),
-      cell(issue.howFixed ?? '', bg, fg),
-    ]);
+    const clr = issue.resolved ? GRN : RED;
+    const r = ws.addRow([fmtDate(issue.dateFound), issue.foundBy, issue.notes, issue.resolved ? 'Resolved' : 'Open', fmtDate(issue.dateFixed), issue.fixedBy ?? '', issue.howFixed ?? '']);
+    r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, clr, col === 4, col === 1 || col >= 4));
+    r.height = 18;
   }
-  if (rows.length === 1) rows.push([cell('No general issues logged', WHT_BG, GRY_TXT)]);
-  return makeSheet(rows, [12, 14, 40, 10, 12, 14, 40]);
+  if (issues.length === 0) {
+    const r = ws.addRow(['No general issues logged']);
+    applyCell(r.getCell(1), 'No general issues logged', WHT);
+  }
+  freezeAndWidth(ws, [12, 14, 40, 10, 12, 14, 40]);
 }
 
 // ─── Export entry point ───────────────────────────────────────────────────────
 export const exportToExcel = async (units: Record<string, Unit>, generalIssues: GeneralIssue[]): Promise<void> => {
-  const wb = XLSX.utils.book_new();
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'UnitTracker';
+  wb.created = new Date();
+
   const sorted = Object.values(units).sort((a, b) =>
     a.side !== b.side ? (a.side === 'North' ? -1 : 1) : a.unitNumber - b.unitNumber
   );
 
-  XLSX.utils.book_append_sheet(wb, sheetOverview(sorted),          'Overview');
-  XLSX.utils.book_append_sheet(wb, sheetComponents(sorted),        'Component Status');
-  XLSX.utils.book_append_sheet(wb, sheetIssues(sorted),            'Issues Log');
-  XLSX.utils.book_append_sheet(wb, sheetCompleted(sorted),         'Completed Units');
-  XLSX.utils.book_append_sheet(wb, sheetWithIssues(sorted),        'Units with Issues');
-  XLSX.utils.book_append_sheet(wb, sheetGeneralIssues(generalIssues), 'General Issues');
+  buildOverview(wb, sorted);
+  buildComponents(wb, sorted);
+  await buildIssues(wb, sorted);
+  buildCompleted(wb, sorted);
+  buildWithIssues(wb, sorted);
+  buildGeneralIssues(wb, generalIssues);
 
-  const base64  = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+  const buffer: ArrayBuffer = await wb.xlsx.writeBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  const base64 = btoa(binary);
+
   const filename = `UnitTracker_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`;
-  const uri      = (FileSystem.documentDirectory ?? FileSystem.cacheDirectory ?? '') + filename;
+  const uri = (FileSystem.documentDirectory ?? FileSystem.cacheDirectory ?? '') + filename;
 
   await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' as any });
   await Sharing.shareAsync(uri, {
