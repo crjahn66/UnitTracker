@@ -52,7 +52,7 @@ jobs:
         run: chmod +x android/gradlew
 
       - name: Enable JS bundle in debug APK
-        run: sed -i '/^react {/a\    bundleInDebug = true' android/app/build.gradle
+        run: sed -i '/^react {/a\    debuggableVariants = []' android/app/build.gradle
 
       - name: Build debug APK
         run: cd android && ./gradlew assembleDebug --no-daemon
