@@ -229,7 +229,7 @@ export const exportToExcel = async (units: Record<string, Unit>): Promise<void> 
   const filename = `UnitTracker_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`;
   const uri      = (FileSystem.documentDirectory ?? FileSystem.cacheDirectory ?? '') + filename;
 
-  await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 });
+  await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' as any });
   await Sharing.shareAsync(uri, {
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     dialogTitle: 'Export Unit Tracker Report',

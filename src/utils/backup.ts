@@ -10,7 +10,7 @@ export const backupData = async (units: UnitsStore): Promise<void> => {
   const filename = `UnitTracker_Backup_${format(new Date(), 'yyyy-MM-dd_HHmm')}.json`;
   const uri      = (FileSystem.documentDirectory ?? '') + filename;
 
-  await FileSystem.writeAsStringAsync(uri, json, { encoding: FileSystem.EncodingType.UTF8 });
+  await FileSystem.writeAsStringAsync(uri, json, { encoding: 'utf8' as any });
   await Sharing.shareAsync(uri, { mimeType: 'application/json', dialogTitle: 'Save Unit Tracker Backup' });
 };
 
@@ -23,7 +23,7 @@ export const restoreData = async (): Promise<UnitsStore | null> => {
   if (result.canceled) return null;
 
   const file    = result.assets[0];
-  const content = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.UTF8 });
+  const content = await FileSystem.readAsStringAsync(file.uri, { encoding: 'utf8' as any });
   const parsed  = JSON.parse(content);
 
   if (!parsed.units || typeof parsed.units !== 'object') {
