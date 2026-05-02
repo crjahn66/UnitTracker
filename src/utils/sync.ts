@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { useStore } from '../store/useStore';
 import { UnitsStore, GeneralIssue } from '../types';
+import { uploadLocalPhotos } from './imageStorage';
 
 export interface SyncResult {
   success: boolean;
@@ -10,6 +11,14 @@ export interface SyncResult {
 
 export async function syncWithCloud(): Promise<SyncResult> {
   try {
+    // 1. Upload any locally stored photos to Supabase Storage
+    const { units: localUnits, generalIssues: localGeneralIssues } = useStore.getState();
+    const { units: uploadedUnits, updated } = await uploadLocalPhotos(localUnits);
+    if (updated) {
+      useStore.getState().loadBackup(uploadedUnits as UnitsStore, localGeneralIssues);
+    }
+
+    // 2. Fetch remote state
     const { data, error } = await supabase
       .from('sync_state')
       .select('units, general_issues')
@@ -18,6 +27,7 @@ export async function syncWithCloud(): Promise<SyncResult> {
 
     if (error) throw error;
 
+    // 3. Merge remote into local
     const remoteUnits = (data.units ?? {}) as UnitsStore;
     const remoteGeneralIssues = (data.general_issues ?? []) as GeneralIssue[];
 
@@ -25,6 +35,7 @@ export async function syncWithCloud(): Promise<SyncResult> {
       useStore.getState().mergeImport(remoteUnits, remoteGeneralIssues);
     }
 
+    // 4. Push merged state back up
     const { units: mergedUnits, generalIssues: mergedGeneralIssues } = useStore.getState();
     const now = new Date().toISOString();
 

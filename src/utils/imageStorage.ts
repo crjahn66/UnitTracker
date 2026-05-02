@@ -9,21 +9,11 @@ export async function ensureImagesDir(): Promise<void> {
 }
 
 export async function saveImage(issueId: string, sourceUri: string): Promise<string> {
-  const ext = (sourceUri.split('.').pop()?.split('?')[0]?.toLowerCase() ?? 'jpg').slice(0, 4);
-  const fileName = `${issueId}_${Date.now()}.${ext}`;
-  const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
-
-  const response = await fetch(sourceUri);
-  const arrayBuffer = await response.arrayBuffer();
-
-  const { error } = await supabase.storage
-    .from('photos')
-    .upload(fileName, arrayBuffer, { contentType });
-
-  if (error) throw error;
-
-  const { data } = supabase.storage.from('photos').getPublicUrl(fileName);
-  return data.publicUrl;
+  await ensureImagesDir();
+  const ext = sourceUri.split('.').pop()?.toLowerCase() ?? 'jpg';
+  const dest = IMAGES_DIR + `${issueId}_${Date.now()}.${ext}`;
+  await FileSystem.copyAsync({ from: sourceUri, to: dest });
+  return dest;
 }
 
 export async function deleteImage(uri: string): Promise<void> {
@@ -49,4 +39,43 @@ export async function readAsBase64(uri: string): Promise<string | null> {
     }
     return await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
   } catch { return null; }
+}
+
+export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; updated: boolean }> {
+  let updated = false;
+  const result = JSON.parse(JSON.stringify(units));
+
+  const upload = async (uri: string): Promise<string> => {
+    if (!uri || uri.startsWith('https://')) return uri;
+    try {
+      const ext = (uri.split('.').pop()?.toLowerCase() ?? 'jpg').slice(0, 4);
+      const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
+      const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+      const response = await fetch(uri);
+      const arrayBuffer = await response.arrayBuffer();
+      const { error } = await supabase.storage.from('photos').upload(fileName, arrayBuffer, { contentType });
+      if (error) return uri;
+      updated = true;
+      return supabase.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
+    } catch { return uri; }
+  };
+
+  for (const unit of Object.values(result) as any[]) {
+    for (const comp of Object.values(unit.components) as any[]) {
+      if (comp.issues) comp.issues = await Promise.all(comp.issues.map(async (iss: any) => ({
+        ...iss, images: iss.images ? await Promise.all(iss.images.map(upload)) : undefined,
+      })));
+      if (comp.progressImages) comp.progressImages = await Promise.all(comp.progressImages.map(upload));
+      if (comp.goodImages) comp.goodImages = await Promise.all(comp.goodImages.map(upload));
+    }
+    for (const item of (unit.miscEquipment ?? []) as any[]) {
+      if (item.issues) item.issues = await Promise.all(item.issues.map(async (iss: any) => ({
+        ...iss, images: iss.images ? await Promise.all(iss.images.map(upload)) : undefined,
+      })));
+      if (item.progressImages) item.progressImages = await Promise.all(item.progressImages.map(upload));
+      if (item.goodImages) item.goodImages = await Promise.all(item.goodImages.map(upload));
+    }
+  }
+
+  return { units: result, updated };
 }
