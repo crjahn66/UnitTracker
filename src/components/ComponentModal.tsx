@@ -360,14 +360,14 @@ function EditIssueForm({ issue, onSave, onCancel }: {
 
 function StatusImageStrip({ images, onAdd, onRemove, onView, accentColor }: {
   images: string[];
-  onAdd: (uri: string) => void;
+  onAdd: (uri: string, file?: File) => void;
   onRemove: (uri: string) => void;
   onView: (uri: string) => void;
   accentColor: string;
 }) {
   const pick = async () => {
     const result = await DocumentPicker.getDocumentAsync({ type: 'image/*', multiple: true, copyToCacheDirectory: true });
-    if (!result.canceled) result.assets.forEach((a) => onAdd(a.uri));
+    if (!result.canceled) result.assets.forEach((a) => onAdd(a.uri, (a as any).file));
   };
   if (images.length === 0) {
     return (
@@ -612,8 +612,8 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
             </TouchableOpacity>
             <StatusImageStrip
               images={compData.progressImages ?? []}
-              onAdd={async (uri) => {
-                const saved = await saveImage(`${unitId}_${componentKey}_prog`, uri);
+              onAdd={async (uri, file) => {
+                const saved = await saveImage(`${unitId}_${componentKey}_prog`, uri, file);
                 setComponentProgressImages(unitId, componentKey, [...(compData.progressImages ?? []), saved]);
               }}
               onRemove={async (uri) => {
@@ -637,8 +637,8 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
             </TouchableOpacity>
             <StatusImageStrip
               images={compData.goodImages ?? []}
-              onAdd={async (uri) => {
-                const saved = await saveImage(`${unitId}_${componentKey}_good`, uri);
+              onAdd={async (uri, file) => {
+                const saved = await saveImage(`${unitId}_${componentKey}_good`, uri, file);
                 setComponentGoodImages(unitId, componentKey, [...(compData.goodImages ?? []), saved]);
               }}
               onRemove={async (uri) => {

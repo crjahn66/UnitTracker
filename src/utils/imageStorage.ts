@@ -8,7 +8,7 @@ export async function ensureImagesDir(): Promise<void> {
   if (!info.exists) await FileSystem.makeDirectoryAsync(IMAGES_DIR, { intermediates: true });
 }
 
-export async function saveImage(issueId: string, sourceUri: string): Promise<string> {
+export async function saveImage(issueId: string, sourceUri: string, _file?: unknown): Promise<string> {
   await ensureImagesDir();
   const ext = sourceUri.split('.').pop()?.toLowerCase() ?? 'jpg';
   const dest = IMAGES_DIR + `${issueId}_${Date.now()}.${ext}`;

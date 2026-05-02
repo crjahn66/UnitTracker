@@ -266,11 +266,11 @@ function EditIssueForm({ issue, onSave, onCancel }: {
 // ─── Status Image Strip (for good/inProgress note boxes) ─────────────────────
 
 function StatusImageStrip({ images, onAdd, onRemove, onView, accentColor }: {
-  images: string[]; onAdd: (uri: string) => void; onRemove: (uri: string) => void; onView: (uri: string) => void; accentColor: string;
+  images: string[]; onAdd: (uri: string, file?: File) => void; onRemove: (uri: string) => void; onView: (uri: string) => void; accentColor: string;
 }) {
   const pick = async () => {
     const result = await DocumentPicker.getDocumentAsync({ type: 'image/*', multiple: true, copyToCacheDirectory: true });
-    if (!result.canceled) result.assets.forEach((a) => onAdd(a.uri));
+    if (!result.canceled) result.assets.forEach((a) => onAdd(a.uri, (a as any).file));
   };
   if (images.length === 0) {
     return (
@@ -484,8 +484,8 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
             </TouchableOpacity>
             <StatusImageStrip
               images={item.progressImages ?? []}
-              onAdd={async (uri) => {
-                const saved = await saveImage(`${unitId}_${itemId}_prog`, uri);
+              onAdd={async (uri, file) => {
+                const saved = await saveImage(`${unitId}_${itemId}_prog`, uri, file);
                 updateMiscEquip(unitId, itemId, { progressImages: [...(item.progressImages ?? []), saved] });
               }}
               onRemove={async (uri) => {
@@ -505,8 +505,8 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
             </TouchableOpacity>
             <StatusImageStrip
               images={item.goodImages ?? []}
-              onAdd={async (uri) => {
-                const saved = await saveImage(`${unitId}_${itemId}_good`, uri);
+              onAdd={async (uri, file) => {
+                const saved = await saveImage(`${unitId}_${itemId}_good`, uri, file);
                 updateMiscEquip(unitId, itemId, { goodImages: [...(item.goodImages ?? []), saved] });
               }}
               onRemove={async (uri) => {

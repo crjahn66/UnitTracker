@@ -2,13 +2,17 @@ import { supabase } from './supabase';
 
 export async function ensureImagesDir(): Promise<void> {}
 
-export async function saveImage(issueId: string, sourceUri: string): Promise<string> {
-  const response = await fetch(sourceUri);
-  const blob = await response.blob();
+export async function saveImage(issueId: string, sourceUri: string, file?: File): Promise<string> {
+  let blob: Blob;
+  if (file) {
+    blob = file;
+  } else {
+    const response = await fetch(sourceUri);
+    blob = await response.blob();
+  }
 
-  // On web, sourceUri is a blob: URL with no extension — derive type from the blob itself
   const mimeType = blob.type || 'image/jpeg';
-  const ext = mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
+  const ext = mimeType.split('/')[1]?.replace('jpeg', 'jpg').replace('jpg', 'jpg') ?? 'jpg';
   const fileName = `${issueId}_${Date.now()}.${ext}`;
 
   const { error } = await supabase.storage.from('photos').upload(fileName, blob, { contentType: mimeType });
