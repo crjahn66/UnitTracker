@@ -294,10 +294,18 @@ function StatusImageStrip({ images, onAdd, onRemove, onView, accentColor }: {
             </TouchableOpacity>
           );
         }
+        const isRemote = item.startsWith('https://');
         return (
           <View style={img.thumb}>
-            <TouchableOpacity onPress={() => onView(item)} activeOpacity={0.85}>
-              <Image source={{ uri: item }} style={img.thumbImg} />
+            <TouchableOpacity onPress={() => isRemote && onView(item)} activeOpacity={0.85}>
+              {isRemote || Platform.OS !== 'web' ? (
+                <Image source={{ uri: item }} style={img.thumbImg} />
+              ) : (
+                <View style={[img.thumbImg, img.thumbPending]}>
+                  <Ionicons name="cloud-upload-outline" size={16} color="#8b949e" />
+                  <Text style={img.thumbPendingText}>Sync{'\n'}device</Text>
+                </View>
+              )}
             </TouchableOpacity>
             <TouchableOpacity style={img.removeBtn} onPress={() => onRemove(item)}>
               <Ionicons name="close-circle" size={18} color="#f85149" />
@@ -654,6 +662,8 @@ const img = StyleSheet.create({
   strip: { marginVertical: 8 },
   thumb: { width: 80, height: 80, marginRight: 8, borderRadius: 6, overflow: 'hidden', position: 'relative' },
   thumbImg: { width: 80, height: 80 },
+  thumbPending: { backgroundColor: '#21262d', alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
+  thumbPendingText: { color: '#8b949e', fontSize: 9, textAlign: 'center', marginTop: 2 },
   removeBtn: { position: 'absolute', top: 2, right: 2, backgroundColor: '#0d1117aa', borderRadius: 9 },
   addBtn: { width: 80, height: 80, borderRadius: 6, borderWidth: 1, borderColor: '#58a6ff', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   addBtnText: { color: '#58a6ff', fontSize: 11, marginTop: 2 },
