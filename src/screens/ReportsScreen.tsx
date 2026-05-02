@@ -19,18 +19,20 @@ function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[]): 
     try { return format(new Date(iso), 'yyyy-MM-dd') === todayStr; } catch { return false; }
   };
 
-  type Activity = { newIssues: string[]; resolved: string[] };
+  type Activity = { newIssues: string[]; resolved: string[]; goodItems: string[]; stages: string[] };
   const byUnit: Record<string, Activity> = {};
 
   for (const unit of Object.values(units)) {
-    const act: Activity = { newIssues: [], resolved: [] };
+    const act: Activity = { newIssues: [], resolved: [], goodItems: [], stages: [] };
 
     for (const comp of COMPONENTS) {
       const label = unit.customComponentLabels?.[comp.key] ?? comp.label;
-      for (const issue of unit.components[comp.key].issues) {
+      const compData = unit.components[comp.key];
+      for (const issue of compData.issues) {
         if (sameDay(issue.dateFound)) act.newIssues.push(label);
         if (issue.resolved && sameDay(issue.dateFixed)) act.resolved.push(label);
       }
+      if (sameDay(compData.goodDate)) act.goodItems.push(label);
     }
     for (const item of (unit.miscEquipment ?? [])) {
       const label = item.label || 'Misc Equipment';
@@ -38,9 +40,15 @@ function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[]): 
         if (sameDay(issue.dateFound)) act.newIssues.push(label);
         if (issue.resolved && sameDay(issue.dateFixed)) act.resolved.push(label);
       }
+      if (sameDay(item.goodDate)) act.goodItems.push(label);
+    }
+    for (const stage of STAGES) {
+      if (sameDay(unit.stagesDates?.[stage.key])) act.stages.push(stage.label);
     }
 
-    if (act.newIssues.length || act.resolved.length) byUnit[unit.id] = act;
+    if (act.newIssues.length || act.resolved.length || act.goodItems.length || act.stages.length) {
+      byUnit[unit.id] = act;
+    }
   }
 
   const newGeneral  = generalIssues.filter((i) => sameDay(i.dateFound)).length;
@@ -48,32 +56,43 @@ function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[]): 
   const unitIds     = Object.keys(byUnit).sort();
   const totalNew    = unitIds.reduce((s, id) => s + byUnit[id].newIssues.length, 0) + newGeneral;
   const totalDone   = unitIds.reduce((s, id) => s + byUnit[id].resolved.length, 0) + doneGeneral;
+  const totalGood   = unitIds.reduce((s, id) => s + byUnit[id].goodItems.length, 0);
+  const totalStages = unitIds.reduce((s, id) => s + byUnit[id].stages.length, 0);
 
   const lines: string[] = [];
   lines.push(`Daily Report — ${format(new Date(), 'MMMM d, yyyy')}`);
   lines.push('');
 
   if (!unitIds.length && !newGeneral && !doneGeneral) {
-    lines.push('No issue activity recorded today.');
+    lines.push('No activity recorded today.');
     return lines.join('\n');
   }
 
   const summary: string[] = [];
   if (unitIds.length) summary.push(`${unitIds.length} unit${unitIds.length !== 1 ? 's' : ''} with activity`);
-  if (totalNew)  summary.push(`${totalNew} new issue${totalNew !== 1 ? 's' : ''}`);
-  if (totalDone) summary.push(`${totalDone} resolved`);
+  if (totalNew)    summary.push(`${totalNew} new issue${totalNew !== 1 ? 's' : ''}`);
+  if (totalDone)   summary.push(`${totalDone} resolved`);
+  if (totalGood)   summary.push(`${totalGood} marked good`);
+  if (totalStages) summary.push(`${totalStages} stage${totalStages !== 1 ? 's' : ''} completed`);
   lines.push(summary.join(' · '));
   lines.push('');
 
   for (const id of unitIds) {
-    const { newIssues, resolved } = byUnit[id];
+    const { newIssues, resolved, goodItems, stages } = byUnit[id];
     const parts: string[] = [];
 
+    if (stages.length) parts.push(`Stages: ${stages.join(', ')}`);
+    if (goodItems.length) {
+      const counts: Record<string, number> = {};
+      for (const l of goodItems) counts[l] = (counts[l] ?? 0) + 1;
+      const desc = Object.entries(counts).map(([l, n]) => n > 1 ? `${l} ×${n}` : l).join(', ');
+      parts.push(`Good: ${desc}`);
+    }
     if (newIssues.length) {
       const counts: Record<string, number> = {};
       for (const l of newIssues) counts[l] = (counts[l] ?? 0) + 1;
       const desc = Object.entries(counts).map(([l, n]) => n > 1 ? `${l} ×${n}` : l).join(', ');
-      parts.push(`${newIssues.length} new (${desc})`);
+      parts.push(`${newIssues.length} new issue${newIssues.length !== 1 ? 's' : ''} (${desc})`);
     }
     if (resolved.length) {
       const counts: Record<string, number> = {};

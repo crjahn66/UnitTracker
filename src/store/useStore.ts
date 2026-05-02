@@ -48,15 +48,18 @@ export const useStore = create<StoreState>()(
       generalIssues: [] as GeneralIssue[],
 
       updateStage: (unitId, stage, value) =>
-        set((state) => ({
-          units: {
-            ...state.units,
-            [unitId]: {
-              ...state.units[unitId],
-              stages: { ...state.units[unitId].stages, [stage]: value },
+        set((state) => {
+          const u = state.units[unitId];
+          const dates = { ...(u.stagesDates ?? {}) };
+          if (value) { dates[stage] = new Date().toISOString(); }
+          else { delete dates[stage]; }
+          return {
+            units: {
+              ...state.units,
+              [unitId]: { ...u, stages: { ...u.stages, [stage]: value }, stagesDates: dates },
             },
-          },
-        })),
+          };
+        }),
 
       updateComponentStatus: (unitId, component, status) =>
         set((state) => ({
@@ -69,6 +72,7 @@ export const useStore = create<StoreState>()(
                 [component]: {
                   ...state.units[unitId].components[component],
                   status,
+                  goodDate: status === 'good' ? new Date().toISOString() : undefined,
                 },
               },
             },
@@ -243,13 +247,17 @@ export const useStore = create<StoreState>()(
       updateMiscEquip: (unitId, itemId, updates) =>
         set((state) => {
           const u = state.units[unitId];
+          const extraUpdates: { goodDate?: string } = {};
+          if ('status' in updates) {
+            extraUpdates.goodDate = updates.status === 'good' ? new Date().toISOString() : undefined;
+          }
           return {
             units: {
               ...state.units,
               [unitId]: {
                 ...u,
                 miscEquipment: (u.miscEquipment ?? []).map((item) =>
-                  item.id === itemId ? { ...item, ...updates } : item
+                  item.id === itemId ? { ...item, ...updates, ...extraUpdates } : item
                 ),
               },
             },

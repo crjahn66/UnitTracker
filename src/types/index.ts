@@ -48,6 +48,7 @@ export interface ComponentData {
   progressImages?: string[];
   goodNote?: string;
   goodImages?: string[];
+  goodDate?: string;
 }
 
 export type StagesData = Record<StageKey, boolean>;
@@ -74,6 +75,7 @@ export interface MiscEquipItem {
   progressImages?: string[];
   goodNote?: string;
   goodImages?: string[];
+  goodDate?: string;
 }
 
 export interface Unit {
@@ -81,6 +83,7 @@ export interface Unit {
   side: Side;
   unitNumber: number;
   stages: StagesData;
+  stagesDates?: Partial<Record<StageKey, string>>;
   components: ComponentsData;
   miscEquipment?: MiscEquipItem[];
   customComponentLabels?: Partial<Record<ComponentKey, string>>;
