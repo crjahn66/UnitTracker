@@ -14,7 +14,7 @@ interface Props {
   onClose: () => void;
 }
 
-type ModalView = 'detail' | 'addIssue' | 'resolveIssue';
+type ModalView = 'detail' | 'addIssue' | 'resolveIssue' | 'progressNote';
 
 const today = () => format(new Date(), 'MM/dd/yyyy');
 const EMPTY_ISSUE = () => ({ dateFound: today(), foundBy: '', notes: '' });
@@ -23,12 +23,14 @@ const EMPTY_RESOLVE = () => ({ dateFixed: today(), fixedBy: '', howFixed: '' });
 function statusColor(s: ComponentStatus) {
   if (s === 'good') return '#3fb950';
   if (s === 'bad') return '#f85149';
+  if (s === 'inProgress') return '#d29922';
   return '#6e7681';
 }
 
 function statusLabel(s: ComponentStatus) {
   if (s === 'good') return 'Good';
   if (s === 'bad') return 'Bad';
+  if (s === 'inProgress') return 'In Progress';
   return 'Unchecked';
 }
 
@@ -177,12 +179,37 @@ function DetailRow({ label, value }: { label: string; value?: string }) {
   );
 }
 
+// ─── Progress Note Form ───────────────────────────────────────────────────────
+
+function ProgressNoteForm({ initial, onSave, onCancel }: {
+  initial: string;
+  onSave: (note: string) => void;
+  onCancel: () => void;
+}) {
+  const [note, setNote] = useState(initial);
+  return (
+    <View>
+      <Text style={f.formTitle}>In Progress Note</Text>
+      <FormField label="What's in progress?" value={note} onChangeText={setNote} placeholder="Describe current status…" multiline />
+      <View style={f.buttonRow}>
+        <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={onCancel}>
+          <Text style={f.btnOutlineText}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[f.btn, f.btnAmber]} onPress={() => onSave(note)}>
+          <Text style={f.btnPrimaryText}>Save Note</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 // ─── Main Modal ────────────────────────────────────────────────────────────────
 
 export default function ComponentModal({ unitId, componentKey, onClose }: Props) {
   const unit = useStore((state) => state.units[unitId]);
-  const updateComponentStatus = useStore((state) => state.updateComponentStatus);
-  const addIssue = useStore((state) => state.addIssue);
+  const updateComponentStatus    = useStore((state) => state.updateComponentStatus);
+  const setComponentProgressNote = useStore((state) => state.setComponentProgressNote);
+  const addIssue    = useStore((state) => state.addIssue);
   const updateIssue = useStore((state) => state.updateIssue);
   const deleteIssue = useStore((state) => state.deleteIssue);
 
@@ -196,10 +223,12 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
   const handleStatusChange = useCallback(
     (status: ComponentStatus) => {
       updateComponentStatus(unitId, componentKey, status);
-      if (status === 'bad') setView('addIssue');
+      if (status === 'inProgress') { setView('progressNote'); return; }
+      if (status === 'bad') { setView('addIssue'); return; }
+      if (status !== 'inProgress') setComponentProgressNote(unitId, componentKey, '');
       if (status === 'good') onClose();
     },
-    [unitId, componentKey, updateComponentStatus, onClose]
+    [unitId, componentKey, updateComponentStatus, setComponentProgressNote, onClose]
   );
 
   const handleAddIssue = useCallback(
@@ -264,12 +293,22 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
       );
     }
 
+    if (view === 'progressNote') {
+      return (
+        <ProgressNoteForm
+          initial={compData.progressNote ?? ''}
+          onSave={(note) => { setComponentProgressNote(unitId, componentKey, note); setView('detail'); }}
+          onCancel={() => setView('detail')}
+        />
+      );
+    }
+
     return (
       <View>
         {/* Status selector */}
         <Text style={m.sectionLabel}>STATUS</Text>
         <View style={m.statusRow}>
-          {(['good', 'bad', 'unchecked'] as ComponentStatus[]).map((status) => (
+          {(['good', 'inProgress', 'bad', 'unchecked'] as ComponentStatus[]).map((status) => (
             <TouchableOpacity
               key={status}
               style={[
@@ -283,6 +322,17 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Progress note display */}
+        {compData.status === 'inProgress' && (
+          <TouchableOpacity style={m.progressNoteBox} onPress={() => setView('progressNote')} activeOpacity={0.7}>
+            <View style={{ flex: 1 }}>
+              <Text style={m.progressNoteLabel}>IN PROGRESS NOTE</Text>
+              <Text style={m.progressNoteText}>{compData.progressNote || '(tap to add note)'}</Text>
+            </View>
+            <Ionicons name="pencil-outline" size={14} color="#d29922" />
+          </TouchableOpacity>
+        )}
 
         {/* Issues section */}
         <View style={m.issueSectionHeader}>
@@ -438,6 +488,13 @@ const m = StyleSheet.create({
     borderColor: '#58a6ff',
   },
   addIssueBtnText: { color: '#58a6ff', fontSize: 14, fontWeight: '600' },
+  progressNoteBox: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#d2992211', borderRadius: 8, borderWidth: 1, borderColor: '#d2992244',
+    padding: 10, marginBottom: 20,
+  },
+  progressNoteLabel: { color: '#d29922', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 3 },
+  progressNoteText: { color: '#e6edf3', fontSize: 13 },
 });
 
 const ic = StyleSheet.create({
@@ -514,5 +571,6 @@ const f = StyleSheet.create({
   btnOutlineText: { color: '#8b949e', fontWeight: '600', fontSize: 14 },
   btnPrimary: { backgroundColor: '#58a6ff' },
   btnGreen: { backgroundColor: '#3fb950' },
+  btnAmber: { backgroundColor: '#d29922' },
   btnPrimaryText: { color: '#0d1117', fontWeight: '700', fontSize: 14 },
 });

@@ -130,7 +130,7 @@ export default function UnitDetailScreen({ route }: Props) {
                 </View>
                 <View style={s.compRight}>
                   <Text style={[s.compStatusText, { color: statusColor(data.status) }]}>
-                    {data.status === 'good' ? 'Good' : data.status === 'bad' ? 'Bad' : '—'}
+                    {data.status === 'good' ? 'Good' : data.status === 'bad' ? 'Bad' : data.status === 'inProgress' ? 'In Progress' : '—'}
                   </Text>
                   <Ionicons name="chevron-forward" size={14} color="#6e7681" style={s.chevron} />
                 </View>
@@ -166,7 +166,7 @@ export default function UnitDetailScreen({ route }: Props) {
                 </View>
                 <View style={s.compRight}>
                   <Text style={[s.compStatusText, { color: statusColor(item.status) }]}>
-                    {item.status === 'good' ? 'Good' : item.status === 'bad' ? 'Bad' : '—'}
+                    {item.status === 'good' ? 'Good' : item.status === 'bad' ? 'Bad' : item.status === 'inProgress' ? 'In Progress' : '—'}
                   </Text>
                   <Ionicons name="chevron-forward" size={14} color="#6e7681" style={s.chevron} />
                 </View>
@@ -216,15 +216,17 @@ function SectionHeader({ title, icon }: { title: string; icon: React.ComponentPr
   );
 }
 
-function StatusIcon({ status }: { status: 'good' | 'bad' | 'unchecked' }) {
+function StatusIcon({ status }: { status: 'good' | 'bad' | 'unchecked' | 'inProgress' }) {
   if (status === 'good') return <Ionicons name="checkmark-circle" size={22} color="#3fb950" style={s.statusIcon} />;
   if (status === 'bad') return <Ionicons name="close-circle" size={22} color="#f85149" style={s.statusIcon} />;
+  if (status === 'inProgress') return <Ionicons name="time" size={22} color="#d29922" style={s.statusIcon} />;
   return <Ionicons name="ellipse-outline" size={22} color="#30363d" style={s.statusIcon} />;
 }
 
 function statusColor(status: string) {
   if (status === 'good') return '#3fb950';
   if (status === 'bad') return '#f85149';
+  if (status === 'inProgress') return '#d29922';
   return '#6e7681';
 }
 

@@ -108,20 +108,22 @@ function sheetComponents(sorted: Unit[]): any {
     const miscSummary = misc.length === 0
       ? '—'
       : misc.map((m) => {
-          const v = m.status === 'good' ? '✓' : m.status === 'bad' ? '✗' : '?';
-          return `${v} ${m.label || 'Unnamed'}`;
+          const v = m.status === 'good' ? '✓' : m.status === 'bad' ? '✗' : m.status === 'inProgress' ? '⏳' : '?';
+          const note = m.status === 'inProgress' && m.progressNote ? ` (${m.progressNote})` : '';
+          return `${v} ${m.label || 'Unnamed'}${note}`;
         }).join(', ');
-    const miscBg = misc.some((m) => m.status === 'bad') ? RED_BG : misc.some((m) => m.status === 'good') ? GRN_BG : GRY_BG;
-    const miscFg = misc.some((m) => m.status === 'bad') ? RED_TXT : misc.some((m) => m.status === 'good') ? GRN_TXT : GRY_TXT;
+    const miscBg = misc.some((m) => m.status === 'bad') ? RED_BG : misc.some((m) => m.status === 'inProgress') ? AMB_BG : misc.some((m) => m.status === 'good') ? GRN_BG : GRY_BG;
+    const miscFg = misc.some((m) => m.status === 'bad') ? RED_TXT : misc.some((m) => m.status === 'inProgress') ? AMB_TXT : misc.some((m) => m.status === 'good') ? GRN_TXT : GRY_TXT;
     rows.push([
       cell(u.id, bg, fg, true),
       cell(u.side, bg, fg),
       cell(u.unitNumber, bg, fg, false, true),
       ...COMPONENTS.map((comp) => {
         const s = u.components[comp.key].status;
-        const v = s === 'good' ? '✓ Good' : s === 'bad' ? '✗ Bad' : '—';
-        const cb = s === 'good' ? GRN_BG : s === 'bad' ? RED_BG : GRY_BG;
-        const cf = s === 'good' ? GRN_TXT : s === 'bad' ? RED_TXT : GRY_TXT;
+        const note = u.components[comp.key].progressNote;
+        const v = s === 'good' ? '✓ Good' : s === 'bad' ? '✗ Bad' : s === 'inProgress' ? `⏳ ${note || 'In Progress'}` : '—';
+        const cb = s === 'good' ? GRN_BG : s === 'bad' ? RED_BG : s === 'inProgress' ? AMB_BG : GRY_BG;
+        const cf = s === 'good' ? GRN_TXT : s === 'bad' ? RED_TXT : s === 'inProgress' ? AMB_TXT : GRY_TXT;
         return cell(v, cb, cf, s !== 'unchecked', true);
       }),
       cell(miscSummary, miscBg, miscFg),

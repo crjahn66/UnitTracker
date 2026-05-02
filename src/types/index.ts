@@ -26,7 +26,7 @@ export const COMPONENTS = [
 
 export type ComponentKey = (typeof COMPONENTS)[number]['key'];
 
-export type ComponentStatus = 'unchecked' | 'good' | 'bad';
+export type ComponentStatus = 'unchecked' | 'good' | 'bad' | 'inProgress';
 
 export interface Issue {
   id: string;
@@ -43,6 +43,7 @@ export interface Issue {
 export interface ComponentData {
   status: ComponentStatus;
   issues: Issue[];
+  progressNote?: string;
 }
 
 export type StagesData = Record<StageKey, boolean>;
@@ -64,6 +65,7 @@ export interface MiscEquipItem {
   label: string;
   status: ComponentStatus;
   issues: MiscIssue[];
+  progressNote?: string;
 }
 
 export interface Unit {

@@ -67,6 +67,7 @@ export default function ReportsScreen() {
       label: comp.label,
       good: all.filter((u) => u.components[comp.key].status === 'good').length,
       bad: all.filter((u) => u.components[comp.key].status === 'bad').length,
+      inProgress: all.filter((u) => u.components[comp.key].status === 'inProgress').length,
     }));
 
     return { stageStats, openIssueCount, issuesByUnit, fullyComplete, hasAnyWork, compStats, total: all.length };
@@ -225,8 +226,9 @@ export default function ReportsScreen() {
             <Text style={s.compStatLabel}>{comp.label}</Text>
             <View style={s.compStatRight}>
               <Text style={[s.compStat, { color: '#3fb950' }]}>✓{comp.good}</Text>
+              <Text style={[s.compStat, { color: '#d29922' }]}>⏳{comp.inProgress}</Text>
               <Text style={[s.compStat, { color: '#f85149' }]}>✗{comp.bad}</Text>
-              <Text style={[s.compStat, { color: '#6e7681' }]}>?{stats.total - comp.good - comp.bad}</Text>
+              <Text style={[s.compStat, { color: '#6e7681' }]}>?{stats.total - comp.good - comp.inProgress - comp.bad}</Text>
             </View>
           </View>
         ))}
