@@ -1,0 +1,34 @@
+{
+  "name": "unit-tracker",
+  "version": "1.0.0",
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "start": "node node_modules/@expo/cli/build/bin/cli start",
+    "android": "node node_modules/@expo/cli/build/bin/cli start --android",
+    "postinstall": "node scripts/patch-modules.js"
+  },
+  "dependencies": {
+    "expo": "~54.0.0",
+    "expo-status-bar": "~2.2.0",
+    "expo-file-system": "~18.0.0",
+    "expo-sharing": "~13.0.0",
+    "@react-navigation/native": "^7.0.0",
+    "@react-navigation/bottom-tabs": "^7.0.0",
+    "@react-navigation/native-stack": "^7.0.0",
+    "react-native-screens": "~4.4.0",
+    "react-native-safe-area-context": "~5.0.0",
+    "zustand": "^5.0.0",
+    "@react-native-async-storage/async-storage": "~2.1.0",
+    "xlsx": "^0.18.5",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "@expo/vector-icons": "~14.1.0",
+    "date-fns": "^3.6.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@types/react": "~19.0.0",
+    "typescript": "^5.3.3"
+  },
+  "private": true
+}

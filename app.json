@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "UnitTracker",
+    "slug": "unit-tracker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#121212"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#121212"
+      },
+      "package": "com.redgroup.unittracker"
+    },
+    "plugins": []
+  }
+}
