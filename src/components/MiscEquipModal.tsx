@@ -9,6 +9,7 @@ import { format, parse, isValid } from 'date-fns';
 import { useStore } from '../store/useStore';
 import { ComponentStatus, MiscIssue } from '../types';
 import { saveImage, deleteImage } from '../utils/imageStorage';
+import PhotoViewer from './PhotoViewer';
 
 interface Props {
   unitId: string;
@@ -16,7 +17,7 @@ interface Props {
   onClose: () => void;
 }
 
-type ModalView = 'detail' | 'addIssue' | 'resolveIssue' | 'progressNote' | 'goodNote';
+type ModalView = 'detail' | 'addIssue' | 'resolveIssue' | 'editIssue' | 'progressNote' | 'goodNote';
 
 const today = () => format(new Date(), 'MM/dd/yyyy');
 const EMPTY_ISSUE = () => ({ dateFound: today(), foundBy: '', notes: '' });
@@ -38,8 +39,8 @@ function statusLabel(s: ComponentStatus) {
 
 // ─── Image Strip ──────────────────────────────────────────────────────────────
 
-function ImageStrip({ images, onAdd, onRemove }: {
-  images: string[]; onAdd: () => void; onRemove: (uri: string) => void;
+function ImageStrip({ images, onAdd, onRemove, onView = () => {} }: {
+  images: string[]; onAdd: () => void; onRemove: (uri: string) => void; onView?: (uri: string) => void;
 }) {
   return (
     <View style={img.strip}>
@@ -49,7 +50,9 @@ function ImageStrip({ images, onAdd, onRemove }: {
         keyExtractor={(item) => item}
         renderItem={({ item }) => (
           <View style={img.thumb}>
-            <Image source={{ uri: item }} style={img.thumbImg} />
+            <TouchableOpacity onPress={() => onView(item)} activeOpacity={0.85}>
+              <Image source={{ uri: item }} style={img.thumbImg} />
+            </TouchableOpacity>
             <TouchableOpacity style={img.removeBtn} onPress={() => onRemove(item)}>
               <Ionicons name="close-circle" size={18} color="#f85149" />
             </TouchableOpacity>
@@ -138,9 +141,9 @@ function ResolveForm({ onSave, onCancel }: {
 
 // ─── Issue Card ────────────────────────────────────────────────────────────────
 
-function IssueCard({ issue, onResolve, onDelete, onAddImage, onRemoveImage }: {
-  issue: MiscIssue; onResolve: () => void; onDelete: () => void;
-  onAddImage: (uri: string) => void; onRemoveImage: (uri: string) => void;
+function IssueCard({ issue, onResolve, onDelete, onEdit, onAddImage, onRemoveImage, onViewImage }: {
+  issue: MiscIssue; onResolve: () => void; onDelete: () => void; onEdit: () => void;
+  onAddImage: (uri: string) => void; onRemoveImage: (uri: string) => void; onViewImage: (uri: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -181,34 +184,89 @@ function IssueCard({ issue, onResolve, onDelete, onAddImage, onRemoveImage }: {
             </>
           )}
           {(issue.images?.length ?? 0) > 0 && (
-            <ImageStrip images={issue.images ?? []} onAdd={pickImages} onRemove={onRemoveImage} />
+            <ImageStrip images={issue.images ?? []} onAdd={pickImages} onRemove={onRemoveImage} onView={onViewImage} />
           )}
-          {!issue.resolved && (
-            <View style={ic.actions}>
+          <View style={ic.actions}>
+            {!issue.resolved && (
               <TouchableOpacity style={[ic.actionBtn, ic.resolveBtn]} onPress={onResolve}>
                 <Ionicons name="checkmark-circle-outline" size={14} color="#3fb950" style={{ marginRight: 4 }} />
                 <Text style={ic.resolveBtnText}>Mark Resolved</Text>
               </TouchableOpacity>
+            )}
+            <TouchableOpacity style={[ic.actionBtn, ic.editBtn]} onPress={onEdit}>
+              <Ionicons name="pencil-outline" size={14} color="#d29922" style={{ marginRight: 4 }} />
+              <Text style={ic.editBtnText}>Edit</Text>
+            </TouchableOpacity>
+            {!issue.resolved && (
               <TouchableOpacity style={[ic.actionBtn, ic.photoBtn]} onPress={pickImages}>
                 <Ionicons name="camera-outline" size={14} color="#58a6ff" style={{ marginRight: 4 }} />
                 <Text style={ic.photoBtnText}>Add Photo</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[ic.actionBtn, ic.deleteBtn]} onPress={onDelete}>
-                <Ionicons name="trash-outline" size={14} color="#f85149" style={{ marginRight: 4 }} />
-                <Text style={ic.deleteBtnText}>Delete</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+            )}
+            <TouchableOpacity style={[ic.actionBtn, ic.deleteBtn]} onPress={onDelete}>
+              <Ionicons name="trash-outline" size={14} color="#f85149" style={{ marginRight: 4 }} />
+              <Text style={ic.deleteBtnText}>Delete</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
     </View>
   );
 }
 
+// ─── Edit Issue Form ──────────────────────────────────────────────────────────
+
+function EditIssueForm({ issue, onSave, onCancel }: {
+  issue: MiscIssue; onSave: (updates: Partial<MiscIssue>) => void; onCancel: () => void;
+}) {
+  const fmt = (iso?: string) => { try { return iso ? format(new Date(iso), 'MM/dd/yyyy') : ''; } catch { return iso ?? ''; } };
+  const [form, setForm] = useState({
+    dateFound: fmt(issue.dateFound), foundBy: issue.foundBy, notes: issue.notes,
+    dateFixed: fmt(issue.dateFixed), fixedBy: issue.fixedBy ?? '', howFixed: issue.howFixed ?? '',
+  });
+  const set = (key: keyof typeof form, val: string) => setForm((p) => ({ ...p, [key]: val }));
+  const parseDate = (s: string, fallback: string) => { const p = parse(s, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : fallback; };
+
+  const handleSave = () => {
+    if (!form.foundBy.trim()) { Alert.alert('Required', 'Please enter who found the issue.'); return; }
+    if (!form.notes.trim()) { Alert.alert('Required', 'Please enter issue notes.'); return; }
+    const updates: Partial<MiscIssue> = {
+      dateFound: parseDate(form.dateFound, issue.dateFound),
+      foundBy: form.foundBy, notes: form.notes,
+    };
+    if (issue.resolved) {
+      updates.dateFixed = parseDate(form.dateFixed, issue.dateFixed ?? new Date().toISOString());
+      updates.fixedBy = form.fixedBy;
+      updates.howFixed = form.howFixed;
+    }
+    onSave(updates);
+  };
+
+  return (
+    <View>
+      <Text style={f.formTitle}>Edit Issue</Text>
+      <FormField label="Date Found" value={form.dateFound} onChangeText={(v) => set('dateFound', v)} placeholder="MM/DD/YYYY" />
+      <FormField label="Found By" value={form.foundBy} onChangeText={(v) => set('foundBy', v)} placeholder="Name / Tech ID" />
+      <FormField label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} placeholder="Describe the issue…" multiline />
+      {issue.resolved && (
+        <>
+          <FormField label="Date Fixed" value={form.dateFixed} onChangeText={(v) => set('dateFixed', v)} placeholder="MM/DD/YYYY" />
+          <FormField label="Fixed By" value={form.fixedBy} onChangeText={(v) => set('fixedBy', v)} placeholder="Name / Tech ID" />
+          <FormField label="How Fixed" value={form.howFixed} onChangeText={(v) => set('howFixed', v)} placeholder="Describe the resolution…" multiline />
+        </>
+      )}
+      <View style={f.buttonRow}>
+        <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={onCancel}><Text style={f.btnOutlineText}>Cancel</Text></TouchableOpacity>
+        <TouchableOpacity style={[f.btn, f.btnPrimary]} onPress={handleSave}><Text style={f.btnPrimaryText}>Save Changes</Text></TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 // ─── Status Image Strip (for good/inProgress note boxes) ─────────────────────
 
-function StatusImageStrip({ images, onAdd, onRemove, accentColor }: {
-  images: string[]; onAdd: (uri: string) => void; onRemove: (uri: string) => void; accentColor: string;
+function StatusImageStrip({ images, onAdd, onRemove, onView, accentColor }: {
+  images: string[]; onAdd: (uri: string) => void; onRemove: (uri: string) => void; onView: (uri: string) => void; accentColor: string;
 }) {
   const pick = async () => {
     const result = await DocumentPicker.getDocumentAsync({ type: 'image/*', multiple: true, copyToCacheDirectory: true });
@@ -238,7 +296,9 @@ function StatusImageStrip({ images, onAdd, onRemove, accentColor }: {
         }
         return (
           <View style={img.thumb}>
-            <Image source={{ uri: item }} style={img.thumbImg} />
+            <TouchableOpacity onPress={() => onView(item)} activeOpacity={0.85}>
+              <Image source={{ uri: item }} style={img.thumbImg} />
+            </TouchableOpacity>
             <TouchableOpacity style={img.removeBtn} onPress={() => onRemove(item)}>
               <Ionicons name="close-circle" size={18} color="#f85149" />
             </TouchableOpacity>
@@ -299,6 +359,8 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
 
   const [view, setView] = useState<ModalView>('detail');
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [editingIssueId, setEditingIssueId] = useState<string | null>(null);
+  const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelValue, setLabelValue] = useState(item?.label ?? '');
 
@@ -372,6 +434,12 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
     ]);
   }, [unitId, itemId, updateMiscIssue, item]);
 
+  const handleEditIssue = useCallback((issueId: string, updates: Partial<MiscIssue>) => {
+    updateMiscIssue(unitId, itemId, issueId, updates);
+    setEditingIssueId(null);
+    setView('detail');
+  }, [unitId, itemId, updateMiscIssue]);
+
   const handleDeleteItem = useCallback(() => {
     Alert.alert('Delete Equipment', 'Remove this misc equipment entry and all its issues?', [
       { text: 'Cancel', style: 'cancel' },
@@ -386,6 +454,10 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
 
   const renderContent = () => {
     if (view === 'addIssue') return <AddIssueForm onSave={handleAddIssue} onCancel={() => setView('detail')} />;
+    if (view === 'editIssue' && editingIssueId) {
+      const issue = item?.issues.find((i) => i.id === editingIssueId);
+      if (issue) return <EditIssueForm issue={issue} onSave={(u) => handleEditIssue(editingIssueId, u)} onCancel={() => { setEditingIssueId(null); setView('detail'); }} />;
+    }
     if (view === 'resolveIssue' && resolvingId) return <ResolveForm onSave={(d) => handleResolve(resolvingId, d)} onCancel={() => { setResolvingId(null); setView('detail'); }} />;
     if (view === 'progressNote') return (
       <ProgressNoteForm initial={item.progressNote ?? ''} onSave={(note) => { updateMiscEquip(unitId, itemId, { progressNote: note }); setView('detail'); }} onCancel={() => setView('detail')} />
@@ -420,6 +492,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
                 await deleteImage(uri);
                 updateMiscEquip(unitId, itemId, { progressImages: (item.progressImages ?? []).filter((i) => i !== uri) });
               }}
+              onView={setViewingPhoto}
               accentColor="#d29922"
             />
           </View>
@@ -440,6 +513,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
                 await deleteImage(uri);
                 updateMiscEquip(unitId, itemId, { goodImages: (item.goodImages ?? []).filter((i) => i !== uri) });
               }}
+              onView={setViewingPhoto}
               accentColor="#3fb950"
             />
           </View>
@@ -452,9 +526,11 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
           item.issues.map((issue) => (
             <IssueCard key={issue.id} issue={issue}
               onResolve={() => { setResolvingId(issue.id); setView('resolveIssue'); }}
+              onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}
               onDelete={() => handleDelete(issue.id)}
               onAddImage={(uri) => handleAddImage(issue.id, uri)}
               onRemoveImage={(uri) => handleRemoveImage(issue.id, uri)}
+              onViewImage={setViewingPhoto}
             />
           ))
         )}
@@ -495,6 +571,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
           <ScrollView contentContainerStyle={m.body} keyboardShouldPersistTaps="handled">{renderContent()}</ScrollView>
         </View>
       </KeyboardAvoidingView>
+      {viewingPhoto && <PhotoViewer uri={viewingPhoto} onClose={() => setViewingPhoto(null)} />}
     </Modal>
   );
 }
@@ -568,6 +645,7 @@ const ic = StyleSheet.create({
   actions: { flexDirection: 'row', marginTop: 10, flexWrap: 'wrap', gap: 8 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1 },
   resolveBtn: { borderColor: '#3fb950' }, resolveBtnText: { color: '#3fb950', fontSize: 12, fontWeight: '600' },
+  editBtn: { borderColor: '#d29922' }, editBtnText: { color: '#d29922', fontSize: 12, fontWeight: '600' },
   photoBtn: { borderColor: '#58a6ff' }, photoBtnText: { color: '#58a6ff', fontSize: 12, fontWeight: '600' },
   deleteBtn: { borderColor: '#f85149' }, deleteBtnText: { color: '#f85149', fontSize: 12, fontWeight: '600' },
 });
