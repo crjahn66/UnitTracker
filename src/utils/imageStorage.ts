@@ -48,11 +48,13 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
   const upload = async (uri: string): Promise<string> => {
     if (!uri || uri.startsWith('https://')) return uri;
     try {
+      const info = await FileSystem.getInfoAsync(uri);
+      if (!info.exists) return uri; // file missing — skip silently, keep existing path
+
       const ext = (uri.split('.').pop()?.toLowerCase() ?? 'jpg').slice(0, 4);
       const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
       const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
 
-      // Read via FileSystem — works with file:// URIs in native builds
       const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
       const binaryStr = atob(base64);
       const bytes = new Uint8Array(binaryStr.length);
