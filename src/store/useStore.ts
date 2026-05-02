@@ -352,6 +352,16 @@ export const useStore = create<StoreState>()(
           const merged = { ...state.units };
           const statusRank: Record<string, number> = { good: 3, bad: 2, inProgress: 1, unchecked: 0 };
 
+          // Merge two image URL arrays — prefer https:// (uploaded) over local file paths
+          const mergeImages = (a: string[] = [], b: string[] = []): string[] | undefined => {
+            const all = [...new Set([...a, ...b])];
+            const remote = all.filter(u => u.startsWith('https://'));
+            const local = all.filter(u => !u.startsWith('https://'));
+            // If remote URLs exist, drop local paths (they're stale pre-upload refs)
+            const result = remote.length > 0 ? remote : local;
+            return result.length ? result : undefined;
+          };
+
           for (const [uid, importUnit] of Object.entries(importUnits)) {
             if (!merged[uid]) { merged[uid] = importUnit as any; continue; }
 
@@ -376,16 +386,13 @@ export const useStore = create<StoreState>()(
               const mergedStatus = (statusRank[existComp.status] ?? 0) >= (statusRank[impComp.status] ?? 0)
                 ? existComp.status : impComp.status;
 
-              const progImgs = [...new Set([...(existComp.progressImages ?? []), ...(impComp.progressImages ?? [])])];
-              const goodImgs = [...new Set([...(existComp.goodImages ?? []), ...(impComp.goodImages ?? [])])];
-
               mergedComponents[comp] = {
                 status: mergedStatus,
                 issues: [...existComp.issues, ...newIssues],
                 progressNote: existComp.progressNote || impComp.progressNote || undefined,
                 goodNote: existComp.goodNote || impComp.goodNote || undefined,
-                progressImages: progImgs.length ? progImgs : undefined,
-                goodImages: goodImgs.length ? goodImgs : undefined,
+                progressImages: mergeImages(existComp.progressImages, impComp.progressImages),
+                goodImages: mergeImages(existComp.goodImages, impComp.goodImages),
               };
             }
 
@@ -398,15 +405,13 @@ export const useStore = create<StoreState>()(
               } else {
                 const existIds = new Set(existingMisc[idx].issues.map((i) => i.id));
                 const newIssues = importItem.issues.filter((i: any) => !existIds.has(i.id));
-                const progImgs = [...new Set([...(existingMisc[idx].progressImages ?? []), ...(importItem.progressImages ?? [])])];
-                const goodImgs = [...new Set([...(existingMisc[idx].goodImages ?? []), ...(importItem.goodImages ?? [])])];
                 existingMisc[idx] = {
                   ...existingMisc[idx],
                   issues: [...existingMisc[idx].issues, ...newIssues],
                   progressNote: existingMisc[idx].progressNote || importItem.progressNote || undefined,
                   goodNote: existingMisc[idx].goodNote || importItem.goodNote || undefined,
-                  progressImages: progImgs.length ? progImgs : undefined,
-                  goodImages: goodImgs.length ? goodImgs : undefined,
+                  progressImages: mergeImages(existingMisc[idx].progressImages, importItem.progressImages),
+                  goodImages: mergeImages(existingMisc[idx].goodImages, importItem.goodImages),
                 };
               }
             }
