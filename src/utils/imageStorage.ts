@@ -51,9 +51,14 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
       const ext = (uri.split('.').pop()?.toLowerCase() ?? 'jpg').slice(0, 4);
       const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
       const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
-      const response = await fetch(uri);
-      const arrayBuffer = await response.arrayBuffer();
-      const { error } = await supabase.storage.from('photos').upload(fileName, arrayBuffer, { contentType });
+
+      // Read via FileSystem — works with file:// URIs in native builds
+      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
+      const binaryStr = atob(base64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+      const { error } = await supabase.storage.from('photos').upload(fileName, bytes, { contentType, upsert: false });
       if (error) return uri;
       updated = true;
       return supabase.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
