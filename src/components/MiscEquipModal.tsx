@@ -190,7 +190,8 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
   const handleStatusChange = useCallback((status: ComponentStatus) => {
     updateMiscEquip(unitId, itemId, { status });
     if (status === 'bad') setView('addIssue');
-  }, [unitId, itemId, updateMiscEquip]);
+    if (status === 'good') onClose();
+  }, [unitId, itemId, updateMiscEquip, onClose]);
 
   const handleAddIssue = useCallback((data: { dateFound: string; foundBy: string; notes: string }) => {
     const issue: MiscIssue = {

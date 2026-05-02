@@ -197,8 +197,9 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
     (status: ComponentStatus) => {
       updateComponentStatus(unitId, componentKey, status);
       if (status === 'bad') setView('addIssue');
+      if (status === 'good') onClose();
     },
-    [unitId, componentKey, updateComponentStatus]
+    [unitId, componentKey, updateComponentStatus, onClose]
   );
 
   const handleAddIssue = useCallback(

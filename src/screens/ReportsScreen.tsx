@@ -31,20 +31,31 @@ export default function ReportsScreen() {
       southDone: south.filter((u) => u.stages[stage.key]).length,
     }));
 
-    const allIssues = all.flatMap((u) =>
-      Object.values(u.components).flatMap((c) => c.issues)
-    );
-    const allMiscIssues = all.flatMap((u) =>
-      (u.miscEquipment ?? []).flatMap((m) =>
-        m.issues.map((i) => ({ issue: i, unitId: u.id, compLabel: m.label || 'Misc Equipment' }))
-      )
-    );
-    const openIssues = allIssues.filter((i) => !i.resolved);
+    // Collect all open issues (component + misc) with their unit/label context
+    const issuesByUnit: { issue: { id: string; dateFound: string; foundBy: string; notes: string; resolved: boolean }; unitId: string; compLabel: string }[] = [];
+
+    for (const u of all) {
+      for (const comp of COMPONENTS) {
+        const compLabel = u.customComponentLabels?.[comp.key] ?? comp.label;
+        for (const issue of u.components[comp.key].issues) {
+          if (!issue.resolved) issuesByUnit.push({ issue, unitId: u.id, compLabel });
+        }
+      }
+      for (const m of (u.miscEquipment ?? [])) {
+        const compLabel = m.label || 'Misc Equipment';
+        for (const issue of (m.issues ?? [])) {
+          if (!issue.resolved) issuesByUnit.push({ issue, unitId: u.id, compLabel });
+        }
+      }
+    }
+    issuesByUnit.sort((a, b) => b.issue.dateFound.localeCompare(a.issue.dateFound));
+
+    const openIssueCount = issuesByUnit.length;
 
     const fullyComplete = all.filter((u) => {
       const hasOpen = [
         ...Object.values(u.components).flatMap((c) => c.issues),
-        ...(u.miscEquipment ?? []).flatMap((m) => m.issues),
+        ...(u.miscEquipment ?? []).flatMap((m) => m.issues ?? []),
       ].some((i) => !i.resolved);
       return STAGES.every((s) => u.stages[s.key]) && !hasOpen;
     }).length;
@@ -56,27 +67,7 @@ export default function ReportsScreen() {
       bad: all.filter((u) => u.components[comp.key].status === 'bad').length,
     }));
 
-    // Group open component issues by unit
-    const issuesByUnit = openIssues.map((issue) => {
-      const unit = all.find((u) =>
-        Object.values(u.components).some((c) => c.issues.some((i) => i.id === issue.id))
-      );
-      const comp = unit
-        ? COMPONENTS.find((c) => unit.components[c.key].issues.some((i) => i.id === issue.id))
-        : null;
-      return { issue, unitId: unit?.id ?? '?', compLabel: comp?.label ?? '?' };
-    });
-
-    // Add open misc equip issues
-    const miscOpenByUnit = allMiscIssues.filter(({ issue }) => !issue.resolved)
-      .map(({ issue, unitId, compLabel }) => ({ issue, unitId, compLabel }));
-
-    const allOpenByUnit = [...issuesByUnit, ...miscOpenByUnit]
-      .sort((a, b) => b.issue.dateFound.localeCompare(a.issue.dateFound));
-
-    const totalOpenIssues = openIssues.length + allMiscIssues.filter(({ issue }) => !issue.resolved).length;
-
-    return { stageStats, openIssues: { length: totalOpenIssues }, issuesByUnit: allOpenByUnit, fullyComplete, hasAnyWork, compStats, total: all.length };
+    return { stageStats, openIssueCount, issuesByUnit, fullyComplete, hasAnyWork, compStats, total: all.length };
   }, [units]);
 
   const handleExport = async () => {
@@ -170,7 +161,7 @@ export default function ReportsScreen() {
         <StatRow label="Fully Commissioned" value={`${stats.fullyComplete} / ${stats.total}`} valueColor="#3fb950" />
         <StatRow label="In Progress" value={stats.hasAnyWork - stats.fullyComplete} valueColor="#d29922" />
         <StatRow label="Not Started" value={stats.total - stats.hasAnyWork} valueColor="#6e7681" />
-        <StatRow label="Open Issues" value={stats.openIssues.length} valueColor={stats.openIssues.length > 0 ? '#f85149' : '#3fb950'} last />
+        <StatRow label="Open Issues" value={stats.openIssueCount} valueColor={stats.openIssueCount > 0 ? '#f85149' : '#3fb950'} last />
       </View>
 
       {/* Stage completion */}
@@ -215,7 +206,7 @@ export default function ReportsScreen() {
       {/* Open issues */}
       {stats.issuesByUnit.length > 0 && (
         <>
-          <SectionHeader title={`Open Issues (${stats.openIssues.length})`} />
+          <SectionHeader title={`Open Issues (${stats.openIssueCount})`} />
           {stats.issuesByUnit.map(({ issue, unitId, compLabel }) => (
             <View key={issue.id} style={s.issueCard}>
               <View style={s.issueCardHeader}>
