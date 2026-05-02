@@ -342,41 +342,77 @@ export const useStore = create<StoreState>()(
       mergeImport: (importUnits, importGeneralIssues) =>
         set((state) => {
           const merged = { ...state.units };
+          const statusRank: Record<string, number> = { good: 3, bad: 2, inProgress: 1, unchecked: 0 };
 
           for (const [uid, importUnit] of Object.entries(importUnits)) {
             if (!merged[uid]) { merged[uid] = importUnit as any; continue; }
 
             const existing = merged[uid];
+            const imp = importUnit as any;
 
-            // Merge component issues — skip any ID already present
+            // Merge stages — if either side has it checked, keep it checked
+            const mergedStages = { ...existing.stages };
+            for (const key of Object.keys(existing.stages) as StageKey[]) {
+              mergedStages[key] = existing.stages[key] || (imp.stages?.[key] ?? false);
+            }
+
+            // Merge components — issues, status, notes, images
             const mergedComponents = { ...existing.components };
             for (const comp of (Object.keys(existing.components) as ComponentKey[])) {
-              const existIds = new Set(existing.components[comp].issues.map((i) => i.id));
-              const newIssues = ((importUnit as any).components?.[comp]?.issues ?? []).filter((i: any) => !existIds.has(i.id));
-              const importStatus = (importUnit as any).components?.[comp]?.status;
-              const mergedStatus = existing.components[comp].status !== 'unchecked'
-                ? existing.components[comp].status
-                : (importStatus ?? 'unchecked');
+              const existComp = existing.components[comp];
+              const impComp = imp.components?.[comp] ?? {};
+
+              const existIds = new Set(existComp.issues.map((i: any) => i.id));
+              const newIssues = (impComp.issues ?? []).filter((i: any) => !existIds.has(i.id));
+
+              const mergedStatus = (statusRank[existComp.status] ?? 0) >= (statusRank[impComp.status] ?? 0)
+                ? existComp.status : impComp.status;
+
+              const progImgs = [...new Set([...(existComp.progressImages ?? []), ...(impComp.progressImages ?? [])])];
+              const goodImgs = [...new Set([...(existComp.goodImages ?? []), ...(impComp.goodImages ?? [])])];
+
               mergedComponents[comp] = {
                 status: mergedStatus,
-                issues: [...existing.components[comp].issues, ...newIssues],
+                issues: [...existComp.issues, ...newIssues],
+                progressNote: existComp.progressNote || impComp.progressNote || undefined,
+                goodNote: existComp.goodNote || impComp.goodNote || undefined,
+                progressImages: progImgs.length ? progImgs : undefined,
+                goodImages: goodImgs.length ? goodImgs : undefined,
               };
             }
 
             // Merge misc equipment — match by label (case-insensitive)
             const existingMisc = [...(existing.miscEquipment ?? [])];
-            for (const importItem of ((importUnit as any).miscEquipment ?? [])) {
+            for (const importItem of (imp.miscEquipment ?? [])) {
               const idx = existingMisc.findIndex((m) => m.label.toLowerCase() === importItem.label.toLowerCase());
               if (idx === -1) {
                 existingMisc.push(importItem);
               } else {
                 const existIds = new Set(existingMisc[idx].issues.map((i) => i.id));
                 const newIssues = importItem.issues.filter((i: any) => !existIds.has(i.id));
-                existingMisc[idx] = { ...existingMisc[idx], issues: [...existingMisc[idx].issues, ...newIssues] };
+                const progImgs = [...new Set([...(existingMisc[idx].progressImages ?? []), ...(importItem.progressImages ?? [])])];
+                const goodImgs = [...new Set([...(existingMisc[idx].goodImages ?? []), ...(importItem.goodImages ?? [])])];
+                existingMisc[idx] = {
+                  ...existingMisc[idx],
+                  issues: [...existingMisc[idx].issues, ...newIssues],
+                  progressNote: existingMisc[idx].progressNote || importItem.progressNote || undefined,
+                  goodNote: existingMisc[idx].goodNote || importItem.goodNote || undefined,
+                  progressImages: progImgs.length ? progImgs : undefined,
+                  goodImages: goodImgs.length ? goodImgs : undefined,
+                };
               }
             }
 
-            merged[uid] = { ...existing, components: mergedComponents, miscEquipment: existingMisc };
+            // Merge custom labels — existing takes priority
+            const mergedLabels = { ...(imp.customComponentLabels ?? {}), ...(existing.customComponentLabels ?? {}) };
+
+            merged[uid] = {
+              ...existing,
+              stages: mergedStages,
+              components: mergedComponents,
+              miscEquipment: existingMisc,
+              customComponentLabels: Object.keys(mergedLabels).length ? mergedLabels : undefined,
+            };
           }
 
           // Merge general issues — skip IDs already present
