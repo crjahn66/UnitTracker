@@ -9,6 +9,7 @@ import { useStore } from '../store/useStore';
 import { STAGES, COMPONENTS, UnitsStore, GeneralIssue } from '../types';
 import { exportToExcel } from '../utils/exportExcel';
 import { backupData, restoreData } from '../utils/backup';
+import { syncWithCloud } from '../utils/sync';
 import GeneralIssueModal from '../components/GeneralIssueModal';
 
 function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[]): string {
@@ -105,6 +106,9 @@ export default function ReportsScreen() {
   const [importing, setImporting]           = useState(false);
   const [generalModalOpen, setGeneralModalOpen] = useState(false);
   const [dailyReport, setDailyReport]       = useState<string | null>(null);
+  const [syncing, setSyncing]               = useState(false);
+  const [lastSync, setLastSync]             = useState<string | null>(null);
+  const [syncError, setSyncError]           = useState<string | null>(null);
 
   const openGeneralCount = generalIssues.filter((i) => !i.resolved).length;
 
@@ -200,6 +204,18 @@ export default function ReportsScreen() {
     }
   };
 
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncError(null);
+    const result = await syncWithCloud();
+    setSyncing(false);
+    if (result.success) {
+      setLastSync(format(new Date(), 'h:mm a'));
+    } else {
+      setSyncError(result.error ?? 'Sync failed');
+    }
+  };
+
   const handleImport = async () => {
     setImporting(true);
     try {
@@ -251,6 +267,20 @@ export default function ReportsScreen() {
         <Ionicons name="clipboard-outline" size={17} color="#e6edf3" style={{ marginRight: 6 }} />
         <Text style={s.dailyReportBtnText}>Daily Report</Text>
       </TouchableOpacity>
+
+      {/* Sync */}
+      <TouchableOpacity style={[s.syncBtn, syncing && s.btnDisabled]} onPress={handleSync} disabled={syncing} activeOpacity={0.8}>
+        {syncing
+          ? <ActivityIndicator color="#a371f7" size="small" style={{ marginRight: 8 }} />
+          : <Ionicons name="sync-outline" size={18} color="#a371f7" style={{ marginRight: 8 }} />}
+        <Text style={s.syncBtnText}>{syncing ? 'Syncing…' : 'Sync with Cloud'}</Text>
+      </TouchableOpacity>
+      {lastSync !== null && !syncError && (
+        <Text style={s.syncStatus}>Last synced at {lastSync}</Text>
+      )}
+      {syncError !== null && (
+        <Text style={s.syncError}>{syncError}</Text>
+      )}
 
       {/* Daily Report Modal */}
       {dailyReport !== null && (
@@ -420,10 +450,18 @@ const s = StyleSheet.create({
   importBtnText: { color: '#3fb950', fontSize: 14, fontWeight: '600' },
   dailyReportBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    borderRadius: 10, paddingVertical: 12, marginBottom: 24,
+    borderRadius: 10, paddingVertical: 12, marginBottom: 10,
     backgroundColor: '#30363d',
   },
   dailyReportBtnText: { color: '#e6edf3', fontSize: 14, fontWeight: '600' },
+  syncBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderRadius: 10, paddingVertical: 12, marginBottom: 6,
+    borderWidth: 1, borderColor: '#a371f7',
+  },
+  syncBtnText: { color: '#a371f7', fontSize: 14, fontWeight: '600' },
+  syncStatus: { color: '#3fb950', fontSize: 12, textAlign: 'center', marginBottom: 20 },
+  syncError:  { color: '#f85149', fontSize: 12, textAlign: 'center', marginBottom: 20 },
   drOverlay: { flex: 1, backgroundColor: '#00000099', justifyContent: 'center', padding: 20 },
   drSheet: { backgroundColor: '#161b22', borderRadius: 14, borderWidth: 1, borderColor: '#30363d', overflow: 'hidden' },
   drHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#21262d' },
