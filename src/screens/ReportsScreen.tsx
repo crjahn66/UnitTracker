@@ -1,13 +1,98 @@
 import React, { useMemo, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert,
+  Share, Modal, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { format } from 'date-fns';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS } from '../types';
+import { STAGES, COMPONENTS, UnitsStore, GeneralIssue } from '../types';
 import { exportToExcel } from '../utils/exportExcel';
 import { backupData, restoreData } from '../utils/backup';
 import GeneralIssueModal from '../components/GeneralIssueModal';
+
+function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[]): string {
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const sameDay = (iso?: string) => {
+    if (!iso) return false;
+    try { return format(new Date(iso), 'yyyy-MM-dd') === todayStr; } catch { return false; }
+  };
+
+  type Activity = { newIssues: string[]; resolved: string[] };
+  const byUnit: Record<string, Activity> = {};
+
+  for (const unit of Object.values(units)) {
+    const act: Activity = { newIssues: [], resolved: [] };
+
+    for (const comp of COMPONENTS) {
+      const label = unit.customComponentLabels?.[comp.key] ?? comp.label;
+      for (const issue of unit.components[comp.key].issues) {
+        if (sameDay(issue.dateFound)) act.newIssues.push(label);
+        if (issue.resolved && sameDay(issue.dateFixed)) act.resolved.push(label);
+      }
+    }
+    for (const item of (unit.miscEquipment ?? [])) {
+      const label = item.label || 'Misc Equipment';
+      for (const issue of item.issues) {
+        if (sameDay(issue.dateFound)) act.newIssues.push(label);
+        if (issue.resolved && sameDay(issue.dateFixed)) act.resolved.push(label);
+      }
+    }
+
+    if (act.newIssues.length || act.resolved.length) byUnit[unit.id] = act;
+  }
+
+  const newGeneral  = generalIssues.filter((i) => sameDay(i.dateFound)).length;
+  const doneGeneral = generalIssues.filter((i) => i.resolved && sameDay(i.dateFixed)).length;
+  const unitIds     = Object.keys(byUnit).sort();
+  const totalNew    = unitIds.reduce((s, id) => s + byUnit[id].newIssues.length, 0) + newGeneral;
+  const totalDone   = unitIds.reduce((s, id) => s + byUnit[id].resolved.length, 0) + doneGeneral;
+
+  const lines: string[] = [];
+  lines.push(`Daily Report — ${format(new Date(), 'MMMM d, yyyy')}`);
+  lines.push('');
+
+  if (!unitIds.length && !newGeneral && !doneGeneral) {
+    lines.push('No issue activity recorded today.');
+    return lines.join('\n');
+  }
+
+  const summary: string[] = [];
+  if (unitIds.length) summary.push(`${unitIds.length} unit${unitIds.length !== 1 ? 's' : ''} with activity`);
+  if (totalNew)  summary.push(`${totalNew} new issue${totalNew !== 1 ? 's' : ''}`);
+  if (totalDone) summary.push(`${totalDone} resolved`);
+  lines.push(summary.join(' · '));
+  lines.push('');
+
+  for (const id of unitIds) {
+    const { newIssues, resolved } = byUnit[id];
+    const parts: string[] = [];
+
+    if (newIssues.length) {
+      const counts: Record<string, number> = {};
+      for (const l of newIssues) counts[l] = (counts[l] ?? 0) + 1;
+      const desc = Object.entries(counts).map(([l, n]) => n > 1 ? `${l} ×${n}` : l).join(', ');
+      parts.push(`${newIssues.length} new (${desc})`);
+    }
+    if (resolved.length) {
+      const counts: Record<string, number> = {};
+      for (const l of resolved) counts[l] = (counts[l] ?? 0) + 1;
+      const desc = Object.entries(counts).map(([l, n]) => n > 1 ? `${l} ×${n}` : l).join(', ');
+      parts.push(`${resolved.length} resolved (${desc})`);
+    }
+    lines.push(`${id}: ${parts.join(' · ')}`);
+  }
+
+  if (newGeneral || doneGeneral) {
+    lines.push('');
+    const gp: string[] = [];
+    if (newGeneral)  gp.push(`${newGeneral} new`);
+    if (doneGeneral) gp.push(`${doneGeneral} resolved`);
+    lines.push(`General Issues: ${gp.join(', ')}`);
+  }
+
+  return lines.join('\n');
+}
 
 export default function ReportsScreen() {
   const units         = useStore((state) => state.units);
@@ -19,6 +104,7 @@ export default function ReportsScreen() {
   const [restoring, setRestoring]           = useState(false);
   const [importing, setImporting]           = useState(false);
   const [generalModalOpen, setGeneralModalOpen] = useState(false);
+  const [dailyReport, setDailyReport]       = useState<string | null>(null);
 
   const openGeneralCount = generalIssues.filter((i) => !i.resolved).length;
 
@@ -161,6 +247,36 @@ export default function ReportsScreen() {
         <Text style={s.importBtnText}>{importing ? 'Merging…' : 'Merge Import'}</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity style={s.dailyReportBtn} onPress={() => setDailyReport(generateDailyReport(units, generalIssues))} activeOpacity={0.8}>
+        <Ionicons name="clipboard-outline" size={17} color="#e6edf3" style={{ marginRight: 6 }} />
+        <Text style={s.dailyReportBtnText}>Daily Report</Text>
+      </TouchableOpacity>
+
+      {/* Daily Report Modal */}
+      {dailyReport !== null && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setDailyReport(null)}>
+          <View style={s.drOverlay}>
+            <View style={s.drSheet}>
+              <View style={s.drHeader}>
+                <Text style={s.drTitle}>Daily Report</Text>
+                <TouchableOpacity onPress={() => setDailyReport(null)} style={{ padding: 4 }}>
+                  <Ionicons name="close" size={22} color="#8b949e" />
+                </TouchableOpacity>
+              </View>
+              <Text selectable style={s.drBody}>{dailyReport}</Text>
+              <TouchableOpacity
+                style={s.drShareBtn}
+                onPress={() => Share.share({ message: dailyReport })}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="share-outline" size={18} color="#0d1117" style={{ marginRight: 8 }} />
+                <Text style={s.drShareBtnText}>Share / Copy</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
       {/* General Issues */}
       <TouchableOpacity style={s.generalIssuesBtn} onPress={() => setGeneralModalOpen(true)} activeOpacity={0.8}>
         <View style={s.generalIssuesBtnLeft}>
@@ -298,10 +414,23 @@ const s = StyleSheet.create({
   btnDisabled: { opacity: 0.5 },
   importBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    borderRadius: 10, paddingVertical: 12, marginBottom: 24,
+    borderRadius: 10, paddingVertical: 12, marginBottom: 10,
     borderWidth: 1, borderColor: '#3fb950',
   },
   importBtnText: { color: '#3fb950', fontSize: 14, fontWeight: '600' },
+  dailyReportBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderRadius: 10, paddingVertical: 12, marginBottom: 24,
+    backgroundColor: '#30363d',
+  },
+  dailyReportBtnText: { color: '#e6edf3', fontSize: 14, fontWeight: '600' },
+  drOverlay: { flex: 1, backgroundColor: '#00000099', justifyContent: 'center', padding: 20 },
+  drSheet: { backgroundColor: '#161b22', borderRadius: 14, borderWidth: 1, borderColor: '#30363d', overflow: 'hidden' },
+  drHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#21262d' },
+  drTitle: { color: '#e6edf3', fontSize: 16, fontWeight: '700' },
+  drBody: { color: '#e6edf3', fontSize: 13, lineHeight: 22, padding: 16, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+  drShareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#58a6ff', margin: 16, marginTop: 8, borderRadius: 10, paddingVertical: 13 },
+  drShareBtnText: { color: '#0d1117', fontSize: 15, fontWeight: '700' },
   generalIssuesBtn: {
     flexDirection: 'row',
     alignItems: 'center',
