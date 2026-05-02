@@ -1,3 +1,4 @@
+import { Image } from 'react-native';
 import { supabase } from './supabase';
 import { useStore } from '../store/useStore';
 import { UnitsStore, GeneralIssue } from '../types';
@@ -7,6 +8,21 @@ export interface SyncResult {
   success: boolean;
   error?: string;
   timestamp?: string;
+}
+
+function collectRemoteImageUrls(units: UnitsStore): string[] {
+  const urls: string[] = [];
+  for (const unit of Object.values(units)) {
+    for (const comp of Object.values(unit.components)) {
+      for (const issue of comp.issues) urls.push(...(issue.images ?? []));
+      urls.push(...(comp.progressImages ?? []), ...(comp.goodImages ?? []));
+    }
+    for (const item of (unit.miscEquipment ?? [])) {
+      for (const issue of item.issues) urls.push(...(issue.images ?? []));
+      urls.push(...(item.progressImages ?? []), ...(item.goodImages ?? []));
+    }
+  }
+  return urls.filter((u) => u?.startsWith('https://'));
 }
 
 export async function syncWithCloud(): Promise<SyncResult> {
@@ -45,6 +61,10 @@ export async function syncWithCloud(): Promise<SyncResult> {
       .eq('id', 1);
 
     if (pushError) throw pushError;
+
+    // 5. Prefetch all remote photos to local cache for offline access
+    const remoteUrls = collectRemoteImageUrls(mergedUnits);
+    await Promise.allSettled(remoteUrls.map((url) => Image.prefetch(url)));
 
     return { success: true, timestamp: now };
   } catch (err: any) {
