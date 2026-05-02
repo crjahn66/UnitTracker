@@ -14,7 +14,7 @@ interface Props {
   onClose: () => void;
 }
 
-type ModalView = 'detail' | 'addIssue' | 'resolveIssue' | 'progressNote';
+type ModalView = 'detail' | 'addIssue' | 'resolveIssue' | 'progressNote' | 'goodNote';
 
 const today = () => format(new Date(), 'MM/dd/yyyy');
 const EMPTY_ISSUE = () => ({ dateFound: today(), foundBy: '', notes: '' });
@@ -183,6 +183,28 @@ function ProgressNoteForm({ initial, onSave, onCancel }: {
   );
 }
 
+// ─── Good Note Form ───────────────────────────────────────────────────────────
+
+function GoodNoteForm({ initial, onSave, onSkip }: {
+  initial: string; onSave: (note: string) => void; onSkip: () => void;
+}) {
+  const [note, setNote] = useState(initial);
+  return (
+    <View>
+      <Text style={f.formTitle}>Commissioning Note</Text>
+      <FormField label="Notes (optional)" value={note} onChangeText={setNote} placeholder="Any notes about this item…" multiline />
+      <View style={f.buttonRow}>
+        <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={onSkip}>
+          <Text style={f.btnOutlineText}>Skip</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[f.btn, f.btnGreen]} onPress={() => onSave(note)}>
+          <Text style={f.btnPrimaryText}>Save &amp; Close</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 // ─── Main Modal ────────────────────────────────────────────────────────────────
 
 export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
@@ -213,10 +235,23 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
 
   const handleStatusChange = useCallback((status: ComponentStatus) => {
     updateMiscEquip(unitId, itemId, { status });
-    if (status === 'inProgress') { setView('progressNote'); return; }
-    if (status === 'bad') { setView('addIssue'); return; }
-    if (status !== 'inProgress') updateMiscEquip(unitId, itemId, { progressNote: '' });
-    if (status === 'good') onClose();
+    if (status === 'inProgress') {
+      updateMiscEquip(unitId, itemId, { goodNote: '' });
+      setView('progressNote');
+      return;
+    }
+    if (status === 'bad') {
+      updateMiscEquip(unitId, itemId, { progressNote: '', goodNote: '' });
+      setView('addIssue');
+      return;
+    }
+    if (status === 'good') {
+      updateMiscEquip(unitId, itemId, { progressNote: '' });
+      setView('goodNote');
+      return;
+    }
+    // unchecked
+    updateMiscEquip(unitId, itemId, { progressNote: '', goodNote: '' });
   }, [unitId, itemId, updateMiscEquip, onClose]);
 
   const handleAddIssue = useCallback((data: { dateFound: string; foundBy: string; notes: string }) => {
@@ -278,6 +313,16 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
       );
     }
 
+    if (view === 'goodNote') {
+      return (
+        <GoodNoteForm
+          initial={item.goodNote ?? ''}
+          onSave={(note) => { updateMiscEquip(unitId, itemId, { goodNote: note }); onClose(); }}
+          onSkip={onClose}
+        />
+      );
+    }
+
     return (
       <View>
         <Text style={m.sectionLabel}>STATUS</Text>
@@ -301,6 +346,16 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
               <Text style={m.progressNoteText}>{item.progressNote || '(tap to add note)'}</Text>
             </View>
             <Ionicons name="pencil-outline" size={14} color="#d29922" />
+          </TouchableOpacity>
+        )}
+
+        {item.status === 'good' && (
+          <TouchableOpacity style={m.goodNoteBox} onPress={() => setView('goodNote')} activeOpacity={0.7}>
+            <View style={{ flex: 1 }}>
+              <Text style={m.goodNoteLabel}>COMMISSIONING NOTE</Text>
+              <Text style={m.goodNoteText}>{item.goodNote || '(tap to add note)'}</Text>
+            </View>
+            <Ionicons name="pencil-outline" size={14} color="#3fb950" />
           </TouchableOpacity>
         )}
 
@@ -441,6 +496,9 @@ const m = StyleSheet.create({
   progressNoteBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#d2992211', borderRadius: 8, borderWidth: 1, borderColor: '#d2992244', padding: 10, marginBottom: 20 },
   progressNoteLabel: { color: '#d29922', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 3 },
   progressNoteText: { color: '#e6edf3', fontSize: 13 },
+  goodNoteBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#3fb95011', borderRadius: 8, borderWidth: 1, borderColor: '#3fb95044', padding: 10, marginBottom: 20 },
+  goodNoteLabel: { color: '#3fb950', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 3 },
+  goodNoteText: { color: '#e6edf3', fontSize: 13 },
 });
 
 const ic = StyleSheet.create({

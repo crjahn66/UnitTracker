@@ -109,7 +109,9 @@ function sheetComponents(sorted: Unit[]): any {
       ? '—'
       : misc.map((m) => {
           const v = m.status === 'good' ? '✓' : m.status === 'bad' ? '✗' : m.status === 'inProgress' ? '⏳' : '?';
-          const note = m.status === 'inProgress' && m.progressNote ? ` (${m.progressNote})` : '';
+          const note = m.status === 'inProgress' && m.progressNote ? ` (${m.progressNote})`
+                     : m.status === 'good' && m.goodNote ? ` (${m.goodNote})`
+                     : '';
           return `${v} ${m.label || 'Unnamed'}${note}`;
         }).join(', ');
     const miscBg = misc.some((m) => m.status === 'bad') ? RED_BG : misc.some((m) => m.status === 'inProgress') ? AMB_BG : misc.some((m) => m.status === 'good') ? GRN_BG : GRY_BG;
@@ -120,8 +122,13 @@ function sheetComponents(sorted: Unit[]): any {
       cell(u.unitNumber, bg, fg, false, true),
       ...COMPONENTS.map((comp) => {
         const s = u.components[comp.key].status;
-        const note = u.components[comp.key].progressNote;
-        const v = s === 'good' ? '✓ Good' : s === 'bad' ? '✗ Bad' : s === 'inProgress' ? `⏳ ${note || 'In Progress'}` : '—';
+        const progressNote = u.components[comp.key].progressNote;
+        const goodNote = u.components[comp.key].goodNote;
+        const v = s === 'good'
+          ? (goodNote ? `✓ ${goodNote}` : '✓ Good')
+          : s === 'bad' ? '✗ Bad'
+          : s === 'inProgress' ? `⏳ ${progressNote || 'In Progress'}`
+          : '—';
         const cb = s === 'good' ? GRN_BG : s === 'bad' ? RED_BG : s === 'inProgress' ? AMB_BG : GRY_BG;
         const cf = s === 'good' ? GRN_TXT : s === 'bad' ? RED_TXT : s === 'inProgress' ? AMB_TXT : GRY_TXT;
         return cell(v, cb, cf, s !== 'unchecked', true);

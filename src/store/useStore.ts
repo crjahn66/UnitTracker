@@ -20,6 +20,7 @@ interface StoreState {
   updateStage: (unitId: string, stage: StageKey, value: boolean) => void;
   updateComponentStatus: (unitId: string, component: ComponentKey, status: ComponentStatus) => void;
   setComponentProgressNote: (unitId: string, component: ComponentKey, note: string) => void;
+  setComponentGoodNote: (unitId: string, component: ComponentKey, note: string) => void;
   addIssue: (unitId: string, issue: Issue) => void;
   updateIssue: (unitId: string, componentKey: ComponentKey, issueId: string, updates: Partial<Issue>) => void;
   deleteIssue: (unitId: string, componentKey: ComponentKey, issueId: string) => void;
@@ -81,6 +82,20 @@ export const useStore = create<StoreState>()(
               components: {
                 ...state.units[unitId].components,
                 [component]: { ...state.units[unitId].components[component], progressNote: note || undefined },
+              },
+            },
+          },
+        })),
+
+      setComponentGoodNote: (unitId, component, note) =>
+        set((state) => ({
+          units: {
+            ...state.units,
+            [unitId]: {
+              ...state.units[unitId],
+              components: {
+                ...state.units[unitId].components,
+                [component]: { ...state.units[unitId].components[component], goodNote: note || undefined },
               },
             },
           },

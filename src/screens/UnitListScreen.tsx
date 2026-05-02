@@ -11,8 +11,9 @@ type Props = NativeStackScreenProps<UnitStackParamList, 'UnitList'>;
 
 function unitStatusColor(unit: Unit): string {
   const comps = Object.values(unit.components);
-  const openIssues = comps.flatMap((c) => c.issues).filter((i) => !i.resolved).length;
-  const hasBad = comps.some((c) => c.status === 'bad');
+  const miscIssues = (unit.miscEquipment ?? []).flatMap((m) => m.issues ?? []);
+  const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues].filter((i) => !i.resolved).length;
+  const hasBad = comps.some((c) => c.status === 'bad') || (unit.miscEquipment ?? []).some((m) => m.status === 'bad');
   if (hasBad || openIssues > 0) return '#f85149';
 
   const stagesComplete = STAGES.filter((s) => unit.stages[s.key]).length;
@@ -26,7 +27,8 @@ function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
   const stagesComplete = STAGES.filter((s) => unit.stages[s.key]).length;
   const good = comps.filter((c) => c.status === 'good').length;
   const bad = comps.filter((c) => c.status === 'bad').length;
-  const openIssues = comps.flatMap((c) => c.issues).filter((i) => !i.resolved).length;
+  const miscIssues = (unit.miscEquipment ?? []).flatMap((m) => m.issues ?? []);
+  const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues].filter((i) => !i.resolved).length;
   const color = unitStatusColor(unit);
 
   return (
@@ -70,9 +72,11 @@ export default function UnitListScreen({ navigation, route }: Props) {
     const complete = sideUnits.filter((u) =>
       STAGES.every((st) => u.stages[st.key])
     ).length;
-    const hasIssue = sideUnits.filter((u) =>
-      Object.values(u.components).flatMap((c) => c.issues).some((i) => !i.resolved)
-    ).length;
+    const hasIssue = sideUnits.filter((u) => {
+      const compIssues = Object.values(u.components).flatMap((c) => c.issues);
+      const miscIssues = (u.miscEquipment ?? []).flatMap((m) => m.issues ?? []);
+      return [...compIssues, ...miscIssues].some((i) => !i.resolved);
+    }).length;
     return { complete, hasIssue };
   }, [sideUnits]);
 
