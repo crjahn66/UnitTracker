@@ -18,13 +18,6 @@
       },
       "package": "com.redgroup.unittracker"
     },
-    "plugins": [
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Allow UnitTracker to access photos for issue documentation."
-        }
-      ]
-    ]
+    "plugins": []
   }
 }

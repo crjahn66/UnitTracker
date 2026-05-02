@@ -5,7 +5,7 @@ import {
   FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { format, parse, isValid } from 'date-fns';
 import { useStore } from '../store/useStore';
 import { COMPONENTS, ComponentKey, ComponentStatus, Issue } from '../types';
@@ -93,12 +93,12 @@ function AddIssueForm({ onSave, onCancel }: AddIssueFormProps) {
     setForm((prev) => ({ ...prev, [key]: val }));
 
   const pickImages = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsMultipleSelection: true,
-      quality: 0.7,
+    const result = await DocumentPicker.getDocumentAsync({
+      type: 'image/*',
+      multiple: true,
+      copyToCacheDirectory: true,
     });
-    if (!result.canceled) setImages((prev) => [...prev, ...result.assets.map((a) => a.uri)]);
+    if (!result.canceled)setImages((prev) => [...prev, ...result.assets.map((a) => a.uri)]);
   };
 
   const removeImage = (uri: string) => setImages((prev) => prev.filter((i) => i !== uri));
@@ -175,12 +175,12 @@ function IssueCard({ issue, onResolve, onDelete, onAddImage, onRemoveImage }: {
   const [expanded, setExpanded] = useState(false);
 
   const pickImages = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsMultipleSelection: true,
-      quality: 0.7,
+    const result = await DocumentPicker.getDocumentAsync({
+      type: 'image/*',
+      multiple: true,
+      copyToCacheDirectory: true,
     });
-    if (!result.canceled) result.assets.forEach((a) => onAddImage(a.uri));
+    if (!result.canceled)result.assets.forEach((a) => onAddImage(a.uri));
   };
 
   return (
