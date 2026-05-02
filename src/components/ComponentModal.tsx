@@ -261,7 +261,7 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
       }
       if (status === 'good') {
         setComponentProgressNote(unitId, componentKey, '');
-        setView('goodNote');
+        onClose();
         return;
       }
       // unchecked

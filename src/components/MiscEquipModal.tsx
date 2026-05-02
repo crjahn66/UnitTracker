@@ -247,7 +247,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
     }
     if (status === 'good') {
       updateMiscEquip(unitId, itemId, { progressNote: '' });
-      setView('goodNote');
+      onClose();
       return;
     }
     // unchecked
