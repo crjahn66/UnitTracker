@@ -17,6 +17,22 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ hashFiles('package.json') }}
+          restore-keys: npm-
+
+      - name: Cache Gradle wrapper and dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('package.json') }}
+          restore-keys: gradle-
+
       - name: Install dependencies
         run: npm install --legacy-peer-deps --no-package-lock
 
