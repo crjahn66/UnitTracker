@@ -27,6 +27,7 @@ export const createInitialUnits = (): UnitsStore => {
       unitNumber: i,
       stages: createDefaultStages(),
       components: createDefaultComponents(),
+      miscEquipment: [],
     };
   }
 
@@ -38,6 +39,7 @@ export const createInitialUnits = (): UnitsStore => {
       unitNumber: i,
       stages: createDefaultStages(),
       components: createDefaultComponents(),
+      miscEquipment: [],
     };
   }
 

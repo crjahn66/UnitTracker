@@ -6,11 +6,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { format, parse, isValid } from 'date-fns';
 import { useStore } from '../store/useStore';
-import { COMPONENTS, ComponentKey, ComponentStatus, Issue } from '../types';
+import { ComponentStatus, MiscIssue, MiscEquipItem } from '../types';
 
 interface Props {
   unitId: string;
-  componentKey: ComponentKey;
+  itemId: string;
   onClose: () => void;
 }
 
@@ -19,18 +19,6 @@ type ModalView = 'detail' | 'addIssue' | 'resolveIssue';
 const today = () => format(new Date(), 'MM/dd/yyyy');
 const EMPTY_ISSUE = () => ({ dateFound: today(), foundBy: '', notes: '' });
 const EMPTY_RESOLVE = () => ({ dateFixed: today(), fixedBy: '', howFixed: '' });
-
-function statusColor(s: ComponentStatus) {
-  if (s === 'good') return '#3fb950';
-  if (s === 'bad') return '#f85149';
-  return '#6e7681';
-}
-
-function statusLabel(s: ComponentStatus) {
-  if (s === 'good') return 'Good';
-  if (s === 'bad') return 'Bad';
-  return 'Unchecked';
-}
 
 function genId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -41,14 +29,23 @@ function fmtDate(iso?: string) {
   try { return format(new Date(iso), 'MMM d, yyyy'); } catch { return iso; }
 }
 
-// ─── Add Issue Form ────────────────────────────────────────────────────────────
-
-interface AddIssueFormProps {
-  onSave: (data: { dateFound: string; foundBy: string; notes: string }) => void;
-  onCancel: () => void;
+function statusColor(s: ComponentStatus) {
+  if (s === 'good') return '#3fb950';
+  if (s === 'bad') return '#f85149';
+  return '#6e7681';
+}
+function statusLabel(s: ComponentStatus) {
+  if (s === 'good') return 'Good';
+  if (s === 'bad') return 'Bad';
+  return 'Unchecked';
 }
 
-function AddIssueForm({ onSave, onCancel }: AddIssueFormProps) {
+// ─── Add Issue Form ────────────────────────────────────────────────────────────
+
+function AddIssueForm({ onSave, onCancel }: {
+  onSave: (d: { dateFound: string; foundBy: string; notes: string }) => void;
+  onCancel: () => void;
+}) {
   const [form, setForm] = useState(EMPTY_ISSUE);
   const set = (key: 'dateFound' | 'foundBy' | 'notes', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
@@ -79,12 +76,10 @@ function AddIssueForm({ onSave, onCancel }: AddIssueFormProps) {
 
 // ─── Resolve Issue Form ────────────────────────────────────────────────────────
 
-interface ResolveFormProps {
-  onSave: (data: { dateFixed: string; fixedBy: string; howFixed: string }) => void;
+function ResolveForm({ onSave, onCancel }: {
+  onSave: (d: { dateFixed: string; fixedBy: string; howFixed: string }) => void;
   onCancel: () => void;
-}
-
-function ResolveForm({ onSave, onCancel }: ResolveFormProps) {
+}) {
   const [form, setForm] = useState(EMPTY_RESOLVE);
   const set = (key: 'dateFixed' | 'fixedBy' | 'howFixed', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
@@ -115,13 +110,11 @@ function ResolveForm({ onSave, onCancel }: ResolveFormProps) {
 
 // ─── Issue Card ────────────────────────────────────────────────────────────────
 
-interface IssueCardProps {
-  issue: Issue;
+function IssueCard({ issue, onResolve, onDelete }: {
+  issue: MiscIssue;
   onResolve: () => void;
   onDelete: () => void;
-}
-
-function IssueCard({ issue, onResolve, onDelete }: IssueCardProps) {
+}) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -138,15 +131,14 @@ function IssueCard({ issue, onResolve, onDelete }: IssueCardProps) {
           <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color="#6e7681" style={{ marginLeft: 4 }} />
         </View>
       </TouchableOpacity>
-
       {expanded && (
         <View style={ic.body}>
-          <DetailRow label="Notes" value={issue.notes} />
+          {!!issue.notes && <View style={ic.detailRow}><Text style={ic.detailLabel}>Notes:</Text><Text style={ic.detailValue}>{issue.notes}</Text></View>}
           {issue.resolved && (
             <>
-              <DetailRow label="Fixed" value={fmtDate(issue.dateFixed)} />
-              <DetailRow label="Fixed By" value={issue.fixedBy} />
-              <DetailRow label="How Fixed" value={issue.howFixed} />
+              <View style={ic.detailRow}><Text style={ic.detailLabel}>Fixed:</Text><Text style={ic.detailValue}>{fmtDate(issue.dateFixed)}</Text></View>
+              {!!issue.fixedBy && <View style={ic.detailRow}><Text style={ic.detailLabel}>Fixed By:</Text><Text style={ic.detailValue}>{issue.fixedBy}</Text></View>}
+              {!!issue.howFixed && <View style={ic.detailRow}><Text style={ic.detailLabel}>How Fixed:</Text><Text style={ic.detailValue}>{issue.howFixed}</Text></View>}
             </>
           )}
           {!issue.resolved && (
@@ -167,114 +159,97 @@ function IssueCard({ issue, onResolve, onDelete }: IssueCardProps) {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value?: string }) {
-  if (!value) return null;
-  return (
-    <View style={ic.detailRow}>
-      <Text style={ic.detailLabel}>{label}:</Text>
-      <Text style={ic.detailValue}>{value}</Text>
-    </View>
-  );
-}
-
 // ─── Main Modal ────────────────────────────────────────────────────────────────
 
-export default function ComponentModal({ unitId, componentKey, onClose }: Props) {
-  const unit = useStore((state) => state.units[unitId]);
-  const updateComponentStatus = useStore((state) => state.updateComponentStatus);
-  const addIssue = useStore((state) => state.addIssue);
-  const updateIssue = useStore((state) => state.updateIssue);
-  const deleteIssue = useStore((state) => state.deleteIssue);
+export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
+  const unit         = useStore((state) => state.units[unitId]);
+  const updateMiscEquip = useStore((state) => state.updateMiscEquip);
+  const deleteMiscEquip = useStore((state) => state.deleteMiscEquip);
+  const addMiscEquip    = useStore((state) => state.addMiscEquip);
+  const addMiscIssue    = useStore((state) => state.addMiscIssue);
+  const updateMiscIssue = useStore((state) => state.updateMiscIssue);
+  const deleteMiscIssue = useStore((state) => state.deleteMiscIssue);
+
+  const item = (unit.miscEquipment ?? []).find((i) => i.id === itemId);
 
   const [view, setView] = useState<ModalView>('detail');
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [labelValue, setLabelValue] = useState(item?.label ?? '');
 
-  const compInfo    = COMPONENTS.find((c) => c.key === componentKey) ?? { key: componentKey, label: componentKey };
-  const compData    = unit.components[componentKey];
-  const displayLabel = unit.customComponentLabels?.[componentKey] ?? compInfo.label;
+  const handleSaveLabel = useCallback(() => {
+    const trimmed = labelValue.trim();
+    updateMiscEquip(unitId, itemId, { label: trimmed });
+    setEditingLabel(false);
+    // If a label was set and there are no other blank items, auto-add a new blank slot
+    const misc = unit.miscEquipment ?? [];
+    const hasBlank = misc.some((i) => i.id !== itemId && !i.label.trim());
+    if (trimmed && !hasBlank) addMiscEquip(unitId);
+  }, [labelValue, unitId, itemId, updateMiscEquip, addMiscEquip, unit.miscEquipment]);
 
-  const handleStatusChange = useCallback(
-    (status: ComponentStatus) => {
-      updateComponentStatus(unitId, componentKey, status);
-      if (status === 'bad') setView('addIssue');
-    },
-    [unitId, componentKey, updateComponentStatus]
-  );
+  const handleStatusChange = useCallback((status: ComponentStatus) => {
+    updateMiscEquip(unitId, itemId, { status });
+    if (status === 'bad') setView('addIssue');
+  }, [unitId, itemId, updateMiscEquip]);
 
-  const handleAddIssue = useCallback(
-    (data: { dateFound: string; foundBy: string; notes: string }) => {
-      const issue: Issue = {
-        id: genId(),
-        componentKey,
-        dateFound: (() => { const p = parse(data.dateFound, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : new Date().toISOString(); })(),
-        foundBy: data.foundBy,
-        notes: data.notes,
-        resolved: false,
-      };
-      addIssue(unitId, issue);
-      setView('detail');
-    },
-    [unitId, componentKey, addIssue]
-  );
+  const handleAddIssue = useCallback((data: { dateFound: string; foundBy: string; notes: string }) => {
+    const issue: MiscIssue = {
+      id: genId(),
+      dateFound: (() => { const p = parse(data.dateFound, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : new Date().toISOString(); })(),
+      foundBy: data.foundBy,
+      notes: data.notes,
+      resolved: false,
+    };
+    addMiscIssue(unitId, itemId, issue);
+    setView('detail');
+  }, [unitId, itemId, addMiscIssue]);
 
-  const handleResolve = useCallback(
-    (issueId: string, data: { dateFixed: string; fixedBy: string; howFixed: string }) => {
-      updateIssue(unitId, componentKey, issueId, {
-        resolved: true,
-        dateFixed: (() => { const p = parse(data.dateFixed, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : new Date().toISOString(); })(),
-        fixedBy: data.fixedBy,
-        howFixed: data.howFixed,
-      });
-      setResolvingId(null);
-      setView('detail');
-    },
-    [unitId, componentKey, updateIssue]
-  );
+  const handleResolve = useCallback((issueId: string, data: { dateFixed: string; fixedBy: string; howFixed: string }) => {
+    updateMiscIssue(unitId, itemId, issueId, {
+      resolved: true,
+      dateFixed: (() => { const p = parse(data.dateFixed, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : new Date().toISOString(); })(),
+      fixedBy: data.fixedBy,
+      howFixed: data.howFixed,
+    });
+    setResolvingId(null);
+    setView('detail');
+  }, [unitId, itemId, updateMiscIssue]);
 
-  const handleDelete = useCallback(
-    (issueId: string) => {
-      Alert.alert('Delete Issue', 'This will permanently remove this issue log. Continue?', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => deleteIssue(unitId, componentKey, issueId) },
-      ]);
-    },
-    [unitId, componentKey, deleteIssue]
-  );
+  const handleDelete = useCallback((issueId: string) => {
+    Alert.alert('Delete Issue', 'This will permanently remove this issue log. Continue?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => deleteMiscIssue(unitId, itemId, issueId) },
+    ]);
+  }, [unitId, itemId, deleteMiscIssue]);
 
-  const openIssues = compData.issues.filter((i) => !i.resolved).length;
-  const color = statusColor(compData.status);
+  const handleDeleteItem = useCallback(() => {
+    Alert.alert('Delete Equipment', 'Remove this misc equipment entry and all its issues?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => { deleteMiscEquip(unitId, itemId); onClose(); } },
+    ]);
+  }, [unitId, itemId, deleteMiscEquip, onClose]);
+
+  if (!item) return null;
+
+  const openIssues = item.issues.filter((i) => !i.resolved).length;
+  const color = statusColor(item.status);
 
   const renderContent = () => {
     if (view === 'addIssue') {
-      return (
-        <AddIssueForm
-          onSave={handleAddIssue}
-          onCancel={() => setView('detail')}
-        />
-      );
+      return <AddIssueForm onSave={handleAddIssue} onCancel={() => setView('detail')} />;
     }
-
     if (view === 'resolveIssue' && resolvingId) {
-      return (
-        <ResolveForm
-          onSave={(data) => handleResolve(resolvingId, data)}
-          onCancel={() => { setResolvingId(null); setView('detail'); }}
-        />
-      );
+      return <ResolveForm onSave={(d) => handleResolve(resolvingId, d)} onCancel={() => { setResolvingId(null); setView('detail'); }} />;
     }
 
     return (
       <View>
-        {/* Status selector */}
         <Text style={m.sectionLabel}>STATUS</Text>
         <View style={m.statusRow}>
           {(['good', 'bad', 'unchecked'] as ComponentStatus[]).map((status) => (
             <TouchableOpacity
               key={status}
-              style={[
-                m.statusBtn,
-                compData.status === status && { backgroundColor: statusColor(status) + '33', borderColor: statusColor(status) },
-              ]}
+              style={[m.statusBtn, item.status === status && { backgroundColor: statusColor(status) + '33', borderColor: statusColor(status) }]}
               onPress={() => handleStatusChange(status)}
               activeOpacity={0.75}
             >
@@ -283,7 +258,6 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
           ))}
         </View>
 
-        {/* Issues section */}
         <View style={m.issueSectionHeader}>
           <Text style={m.sectionLabel}>ISSUES</Text>
           {openIssues > 0 && (
@@ -293,10 +267,10 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
           )}
         </View>
 
-        {compData.issues.length === 0 ? (
-          <Text style={m.noIssues}>No issues logged for this component.</Text>
+        {item.issues.length === 0 ? (
+          <Text style={m.noIssues}>No issues logged.</Text>
         ) : (
-          compData.issues.map((issue) => (
+          item.issues.map((issue) => (
             <IssueCard
               key={issue.id}
               issue={issue}
@@ -310,22 +284,50 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
           <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 6 }} />
           <Text style={m.addIssueBtnText}>Log New Issue</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity style={m.deleteItemBtn} onPress={handleDeleteItem}>
+          <Ionicons name="trash-outline" size={15} color="#f85149" style={{ marginRight: 6 }} />
+          <Text style={m.deleteItemBtnText}>Remove Equipment</Text>
+        </TouchableOpacity>
       </View>
     );
   };
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={m.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <KeyboardAvoidingView style={m.overlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={m.sheet}>
-          {/* Modal header */}
           <View style={m.header}>
             <View style={{ flex: 1, marginRight: 8 }}>
-              <Text style={m.compName}>{displayLabel}</Text>
-              <Text style={[m.statusTag, { color }]}>● {statusLabel(compData.status)}</Text>
+              {editingLabel ? (
+                <View style={m.labelEditRow}>
+                  <TextInput
+                    style={m.labelInput}
+                    value={labelValue}
+                    onChangeText={setLabelValue}
+                    autoFocus
+                    returnKeyType="done"
+                    onSubmitEditing={handleSaveLabel}
+                    selectTextOnFocus
+                    placeholder="Equipment name…"
+                    placeholderTextColor="#6e7681"
+                  />
+                  <TouchableOpacity onPress={handleSaveLabel} style={m.labelEditBtn}>
+                    <Ionicons name="checkmark" size={20} color="#3fb950" />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setEditingLabel(false)} style={m.labelEditBtn}>
+                    <Ionicons name="close" size={20} color="#f85149" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity style={m.labelRow} onPress={() => { setLabelValue(item.label); setEditingLabel(true); }} activeOpacity={0.7}>
+                  <Text style={[m.compName, !item.label && m.compNamePlaceholder]}>
+                    {item.label || 'Tap to name equipment…'}
+                  </Text>
+                  <Ionicons name="pencil-outline" size={14} color="#8b949e" style={{ marginLeft: 6 }} />
+                </TouchableOpacity>
+              )}
+              <Text style={[m.statusTag, { color }]}>● {statusLabel(item.status)}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={m.closeBtn}>
               <Ionicons name="close" size={22} color="#8b949e" />
@@ -343,14 +345,8 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
 
 // ─── FormField ─────────────────────────────────────────────────────────────────
 
-function FormField({
-  label, value, onChangeText, placeholder, multiline,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (v: string) => void;
-  placeholder?: string;
-  multiline?: boolean;
+function FormField({ label, value, onChangeText, placeholder, multiline }: {
+  label: string; value: string; onChangeText: (v: string) => void; placeholder?: string; multiline?: boolean;
 }) {
   return (
     <View style={f.field}>
@@ -373,109 +369,50 @@ function FormField({
 
 const m = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#00000099' },
-  sheet: {
-    backgroundColor: '#161b22',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    maxHeight: '90%',
-    borderTopWidth: 1,
-    borderColor: '#21262d',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#21262d',
-  },
+  sheet: { backgroundColor: '#161b22', borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '90%', borderTopWidth: 1, borderColor: '#21262d' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 16, borderBottomWidth: 1, borderBottomColor: '#21262d' },
   compName: { color: '#e6edf3', fontSize: 18, fontWeight: '700' },
+  compNamePlaceholder: { color: '#6e7681', fontWeight: '400', fontSize: 15 },
   statusTag: { fontSize: 13, marginTop: 3, fontWeight: '600' },
   closeBtn: { padding: 4 },
   labelRow: { flexDirection: 'row', alignItems: 'center' },
-  labelEditIcon: { marginLeft: 8, padding: 4 },
   labelEditRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
-  labelInput: {
-    flex: 1, color: '#e6edf3', fontSize: 17, fontWeight: '700',
-    backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#58a6ff',
-    borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4,
-  },
+  labelInput: { flex: 1, color: '#e6edf3', fontSize: 17, fontWeight: '700', backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#58a6ff', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   labelEditBtn: { padding: 6, marginLeft: 4 },
   body: { padding: 16, paddingBottom: 40 },
   sectionLabel: { color: '#8b949e', fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 10, marginTop: 4 },
   statusRow: { flexDirection: 'row', marginBottom: 24 },
-  statusBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#30363d',
-    alignItems: 'center',
-    marginHorizontal: 5,
-  },
+  statusBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#30363d', alignItems: 'center', marginHorizontal: 5 },
   statusBtnText: { fontSize: 13, fontWeight: '700' },
   issueSectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  openBadge: {
-    marginLeft: 8,
-    backgroundColor: '#f8514922',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: '#f85149',
-  },
+  openBadge: { marginLeft: 8, backgroundColor: '#f8514922', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: '#f85149' },
   openBadgeText: { color: '#f85149', fontSize: 10, fontWeight: '700' },
   noIssues: { color: '#6e7681', fontSize: 13, textAlign: 'center', paddingVertical: 20 },
-  addIssueBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#58a6ff',
-  },
+  addIssueBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 16, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: '#58a6ff' },
   addIssueBtnText: { color: '#58a6ff', fontSize: 14, fontWeight: '600' },
+  deleteItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: '#f8514944' },
+  deleteItemBtnText: { color: '#f85149', fontSize: 14, fontWeight: '600' },
 });
 
 const ic = StyleSheet.create({
-  card: {
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 8,
-    overflow: 'hidden',
-  },
+  card: { borderRadius: 8, borderWidth: 1, marginBottom: 8, overflow: 'hidden' },
   cardOpen: { borderColor: '#f85149', backgroundColor: '#f8514911' },
   cardResolved: { borderColor: '#3fb95044', backgroundColor: '#3fb95011' },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 10,
-  },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 10 },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
   headerRight: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'flex-end' },
   badge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
   badgeOpen: { backgroundColor: '#f85149' },
   badgeResolved: { backgroundColor: '#3fb950' },
   badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
-  dateText: { color: '#8b949e', fontSize: 12 },
+  dateText: { color: '#8b949e', fontSize: 12, marginLeft: 6 },
   foundBy: { color: '#8b949e', fontSize: 12, maxWidth: 120 },
   body: { paddingHorizontal: 10, paddingBottom: 10 },
   detailRow: { flexDirection: 'row', marginBottom: 4 },
   detailLabel: { color: '#6e7681', fontSize: 12, width: 70 },
   detailValue: { color: '#e6edf3', fontSize: 12, flex: 1 },
   actions: { flexDirection: 'row', marginTop: 10 },
-  actionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    borderWidth: 1,
-    marginRight: 8,
-  },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, marginRight: 8 },
   resolveBtn: { borderColor: '#3fb950' },
   resolveBtnText: { color: '#3fb950', fontSize: 12, fontWeight: '600' },
   deleteBtn: { borderColor: '#f85149' },
@@ -483,32 +420,13 @@ const ic = StyleSheet.create({
 });
 
 const f = StyleSheet.create({
-  formTitle: {
-    color: '#e6edf3',
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 16,
-  },
+  formTitle: { color: '#e6edf3', fontSize: 16, fontWeight: '700', marginBottom: 16 },
   field: { marginBottom: 14 },
   label: { color: '#8b949e', fontSize: 12, marginBottom: 6, fontWeight: '600' },
-  input: {
-    backgroundColor: '#0d1117',
-    borderWidth: 1,
-    borderColor: '#30363d',
-    borderRadius: 8,
-    padding: 10,
-    color: '#e6edf3',
-    fontSize: 14,
-  },
+  input: { backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#30363d', borderRadius: 8, padding: 10, color: '#e6edf3', fontSize: 14 },
   inputMulti: { minHeight: 90 },
   buttonRow: { flexDirection: 'row', marginTop: 6 },
-  btn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  btn: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   btnOutline: { borderWidth: 1, borderColor: '#30363d', marginRight: 10 },
   btnOutlineText: { color: '#8b949e', fontWeight: '600', fontSize: 14 },
   btnPrimary: { backgroundColor: '#58a6ff' },

@@ -34,9 +34,20 @@ export default function ReportsScreen() {
     const allIssues = all.flatMap((u) =>
       Object.values(u.components).flatMap((c) => c.issues)
     );
+    const allMiscIssues = all.flatMap((u) =>
+      (u.miscEquipment ?? []).flatMap((m) =>
+        m.issues.map((i) => ({ issue: i, unitId: u.id, compLabel: m.label || 'Misc Equipment' }))
+      )
+    );
     const openIssues = allIssues.filter((i) => !i.resolved);
 
-    const fullyComplete = all.filter((u) => STAGES.every((s) => u.stages[s.key])).length;
+    const fullyComplete = all.filter((u) => {
+      const hasOpen = [
+        ...Object.values(u.components).flatMap((c) => c.issues),
+        ...(u.miscEquipment ?? []).flatMap((m) => m.issues),
+      ].some((i) => !i.resolved);
+      return STAGES.every((s) => u.stages[s.key]) && !hasOpen;
+    }).length;
     const hasAnyWork = all.filter((u) => STAGES.some((s) => u.stages[s.key])).length;
 
     const compStats = COMPONENTS.map((comp) => ({
@@ -45,7 +56,7 @@ export default function ReportsScreen() {
       bad: all.filter((u) => u.components[comp.key].status === 'bad').length,
     }));
 
-    // Group open issues by unit for the issue list
+    // Group open component issues by unit
     const issuesByUnit = openIssues.map((issue) => {
       const unit = all.find((u) =>
         Object.values(u.components).some((c) => c.issues.some((i) => i.id === issue.id))
@@ -54,9 +65,18 @@ export default function ReportsScreen() {
         ? COMPONENTS.find((c) => unit.components[c.key].issues.some((i) => i.id === issue.id))
         : null;
       return { issue, unitId: unit?.id ?? '?', compLabel: comp?.label ?? '?' };
-    }).sort((a, b) => b.issue.dateFound.localeCompare(a.issue.dateFound));
+    });
 
-    return { stageStats, openIssues, issuesByUnit, fullyComplete, hasAnyWork, compStats, total: all.length };
+    // Add open misc equip issues
+    const miscOpenByUnit = allMiscIssues.filter(({ issue }) => !issue.resolved)
+      .map(({ issue, unitId, compLabel }) => ({ issue, unitId, compLabel }));
+
+    const allOpenByUnit = [...issuesByUnit, ...miscOpenByUnit]
+      .sort((a, b) => b.issue.dateFound.localeCompare(a.issue.dateFound));
+
+    const totalOpenIssues = openIssues.length + allMiscIssues.filter(({ issue }) => !issue.resolved).length;
+
+    return { stageStats, openIssues: { length: totalOpenIssues }, issuesByUnit: allOpenByUnit, fullyComplete, hasAnyWork, compStats, total: all.length };
   }, [units]);
 
   const handleExport = async () => {

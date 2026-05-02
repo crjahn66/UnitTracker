@@ -52,9 +52,10 @@ function makeSheet(rows: any[][], colWidths: number[]): any {
 
 // ─── Row colour based on unit health ─────────────────────────────────────────
 function rowClr(unit: Unit): { bg: string; fg: string } {
-  const issues    = Object.values(unit.components).flatMap((c) => c.issues);
-  const openCount = issues.filter((i) => !i.resolved).length;
-  const doneCount = STAGES.filter((s) => unit.stages[s.key]).length;
+  const compIssues = Object.values(unit.components).flatMap((c) => c.issues);
+  const miscIssues = (unit.miscEquipment ?? []).flatMap((m) => m.issues);
+  const openCount  = [...compIssues, ...miscIssues].filter((i) => !i.resolved).length;
+  const doneCount  = STAGES.filter((s) => unit.stages[s.key]).length;
   if (doneCount === STAGES.length && openCount === 0) return { bg: GRN_BG, fg: GRN_TXT };
   if (openCount > 0)  return { bg: RED_BG, fg: RED_TXT };
   if (doneCount > 0)  return { bg: AMB_BG, fg: AMB_TXT };
@@ -99,25 +100,34 @@ function sheetComponents(sorted: Unit[]): any {
   const rows = [[
     hdr('Unit ID'), hdr('Side'), hdr('Unit #'),
     ...COMPONENTS.map((c) => hdr(c.label)),
+    hdr('Misc Equipment'),
   ]];
   for (const u of sorted) {
     const { bg, fg } = rowClr(u);
+    const misc = u.miscEquipment ?? [];
+    const miscSummary = misc.length === 0
+      ? '—'
+      : misc.map((m) => {
+          const v = m.status === 'good' ? '✓' : m.status === 'bad' ? '✗' : '?';
+          return `${v} ${m.label || 'Unnamed'}`;
+        }).join(', ');
+    const miscBg = misc.some((m) => m.status === 'bad') ? RED_BG : misc.some((m) => m.status === 'good') ? GRN_BG : GRY_BG;
+    const miscFg = misc.some((m) => m.status === 'bad') ? RED_TXT : misc.some((m) => m.status === 'good') ? GRN_TXT : GRY_TXT;
     rows.push([
       cell(u.id, bg, fg, true),
       cell(u.side, bg, fg),
       cell(u.unitNumber, bg, fg, false, true),
       ...COMPONENTS.map((comp) => {
         const s = u.components[comp.key].status;
-        const lbl = (u.customComponentLabels?.[comp.key]) ?? comp.label;
-        const display = comp.key === 'micsEquip' && lbl !== comp.label ? lbl : undefined;
         const v = s === 'good' ? '✓ Good' : s === 'bad' ? '✗ Bad' : '—';
         const cb = s === 'good' ? GRN_BG : s === 'bad' ? RED_BG : GRY_BG;
         const cf = s === 'good' ? GRN_TXT : s === 'bad' ? RED_TXT : GRY_TXT;
-        return cell(display ? `${v} (${display})` : v, cb, cf, s !== 'unchecked', true);
+        return cell(v, cb, cf, s !== 'unchecked', true);
       }),
+      cell(miscSummary, miscBg, miscFg),
     ]);
   }
-  return makeSheet(rows, [9, 7, 7, ...COMPONENTS.map(() => 14)]);
+  return makeSheet(rows, [9, 7, 7, ...COMPONENTS.map(() => 14), 40]);
 }
 
 // ─── Sheet 3 : Issues Log ─────────────────────────────────────────────────────
@@ -148,6 +158,26 @@ function sheetIssues(sorted: Unit[]): any {
         ]);
       }
     }
+    for (const item of (u.miscEquipment ?? [])) {
+      const compLabel = item.label || 'Misc Equipment';
+      for (const issue of item.issues) {
+        const bg = issue.resolved ? GRN_BG : RED_BG;
+        const fg = issue.resolved ? GRN_TXT : RED_TXT;
+        rows.push([
+          cell(u.id, bg, fg, true),
+          cell(u.side, bg, fg),
+          cell(u.unitNumber, bg, fg, false, true),
+          cell(compLabel, bg, fg),
+          cell(fmtDate(issue.dateFound), bg, fg, false, true),
+          cell(issue.foundBy, bg, fg),
+          cell(issue.notes, bg, fg),
+          cell(issue.resolved ? 'Resolved' : 'Open', bg, fg, true, true),
+          cell(fmtDate(issue.dateFixed), bg, fg, false, true),
+          cell(issue.fixedBy ?? '', bg, fg),
+          cell(issue.howFixed ?? '', bg, fg),
+        ]);
+      }
+    }
   }
   if (rows.length === 1) rows.push([cell('No issues logged', WHT_BG, GRY_TXT)]);
   return makeSheet(rows, [9, 7, 7, 18, 12, 14, 40, 10, 12, 14, 40]);
@@ -156,8 +186,9 @@ function sheetIssues(sorted: Unit[]): any {
 // ─── Sheet 4 : Completed Units ────────────────────────────────────────────────
 function sheetCompleted(sorted: Unit[]): any {
   const done = sorted.filter((u) => {
-    const open = Object.values(u.components).flatMap((c) => c.issues).filter((i) => !i.resolved).length;
-    return STAGES.every((s) => u.stages[s.key]) && open === 0;
+    const compOpen = Object.values(u.components).flatMap((c) => c.issues).filter((i) => !i.resolved).length;
+    const miscOpen = (u.miscEquipment ?? []).flatMap((m) => m.issues).filter((i) => !i.resolved).length;
+    return STAGES.every((s) => u.stages[s.key]) && compOpen === 0 && miscOpen === 0;
   });
   const rows = [[
     hdr('Unit ID'), hdr('Side'), hdr('Unit #'),
@@ -186,17 +217,26 @@ function sheetWithIssues(sorted: Unit[]): any {
     hdr('Open Issues'), hdr('Total Issues'), hdr('Components Affected'),
     hdr('Stages Done'), hdr('Status'),
   ]];
-  const affected = sorted.filter((u) =>
-    Object.values(u.components).flatMap((c) => c.issues).some((i) => !i.resolved)
-  );
+  const affected = sorted.filter((u) => {
+    const compOpen = Object.values(u.components).flatMap((c) => c.issues).some((i) => !i.resolved);
+    const miscOpen = (u.miscEquipment ?? []).flatMap((m) => m.issues).some((i) => !i.resolved);
+    return compOpen || miscOpen;
+  });
   for (const u of affected) {
-    const allIssues  = Object.values(u.components).flatMap((c) => c.issues);
+    const allIssues  = [
+      ...Object.values(u.components).flatMap((c) => c.issues),
+      ...(u.miscEquipment ?? []).flatMap((m) => m.issues),
+    ];
     const open       = allIssues.filter((i) => !i.resolved).length;
     const stagesDone = STAGES.filter((s) => u.stages[s.key]).length;
-    const compNames  = COMPONENTS
-      .filter((comp) => u.components[comp.key].issues.some((i) => !i.resolved))
-      .map((comp) => (u.customComponentLabels?.[comp.key]) ?? comp.label)
-      .join(', ');
+    const compNames  = [
+      ...COMPONENTS
+        .filter((comp) => u.components[comp.key].issues.some((i) => !i.resolved))
+        .map((comp) => (u.customComponentLabels?.[comp.key]) ?? comp.label),
+      ...(u.miscEquipment ?? [])
+        .filter((m) => m.issues.some((i) => !i.resolved))
+        .map((m) => m.label || 'Misc Equipment'),
+    ].join(', ');
     rows.push([
       cell(u.id, RED_BG, RED_TXT, true),
       cell(u.side, RED_BG, RED_TXT),

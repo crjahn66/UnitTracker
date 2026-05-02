@@ -22,7 +22,6 @@ export const COMPONENTS = [
   { key: 'chillerInterlocks', label: 'Chiller Interlocks' },
   { key: 'fieldServer', label: 'Field Server' },
   { key: 'plc', label: 'PLC' },
-  { key: 'micsEquip', label: 'MICS Equip' },
 ] as const;
 
 export type ComponentKey = (typeof COMPONENTS)[number]['key'];
@@ -49,12 +48,31 @@ export interface ComponentData {
 export type StagesData = Record<StageKey, boolean>;
 export type ComponentsData = Record<ComponentKey, ComponentData>;
 
+export interface MiscIssue {
+  id: string;
+  dateFound: string;
+  foundBy: string;
+  notes: string;
+  resolved: boolean;
+  dateFixed?: string;
+  fixedBy?: string;
+  howFixed?: string;
+}
+
+export interface MiscEquipItem {
+  id: string;
+  label: string;
+  status: ComponentStatus;
+  issues: MiscIssue[];
+}
+
 export interface Unit {
   id: string;
   side: Side;
   unitNumber: number;
   stages: StagesData;
   components: ComponentsData;
+  miscEquipment?: MiscEquipItem[];
   customComponentLabels?: Partial<Record<ComponentKey, string>>;
 }
 

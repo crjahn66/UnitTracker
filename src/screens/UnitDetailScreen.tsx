@@ -9,6 +9,7 @@ import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
 import { STAGES, COMPONENTS, ComponentKey, StageKey } from '../types';
 import ComponentModal from '../components/ComponentModal';
+import MiscEquipModal from '../components/MiscEquipModal';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitDetail'>;
 
@@ -18,6 +19,8 @@ export default function UnitDetailScreen({ route }: Props) {
   const updateStage = useStore((state) => state.updateStage);
 
   const [selectedComponent, setSelectedComponent] = useState<ComponentKey | null>(null);
+  const [selectedMiscItem, setSelectedMiscItem] = useState<string | null>(null);
+  const addMiscEquip = useStore((state) => state.addMiscEquip);
 
   const handleStageToggle = useCallback(
     (key: StageKey, current: boolean) => {
@@ -54,9 +57,11 @@ export default function UnitDetailScreen({ route }: Props) {
 
   const stagesComplete = STAGES.filter((st) => unit.stages[st.key]).length;
   const allComps = Object.values(unit.components);
-  const goodCount = allComps.filter((c) => c.status === 'good').length;
-  const badCount = allComps.filter((c) => c.status === 'bad').length;
-  const openIssues = allComps.flatMap((c) => c.issues).filter((i) => !i.resolved).length;
+  const miscItems = unit.miscEquipment ?? [];
+  const goodCount = allComps.filter((c) => c.status === 'good').length + miscItems.filter((m) => m.status === 'good').length;
+  const badCount = allComps.filter((c) => c.status === 'bad').length + miscItems.filter((m) => m.status === 'bad').length;
+  const openIssues = allComps.flatMap((c) => c.issues).filter((i) => !i.resolved).length
+    + miscItems.flatMap((m) => m.issues).filter((i) => !i.resolved).length;
 
   return (
     <View style={s.container}>
@@ -133,6 +138,46 @@ export default function UnitDetailScreen({ route }: Props) {
             );
           })}
         </View>
+
+        {/* Misc Equipment */}
+        <SectionHeader title="Misc Equipment" icon="cube-outline" />
+        <View style={s.card}>
+          {miscItems.map((item, idx) => {
+            const openCount = item.issues.filter((i) => !i.resolved).length;
+            return (
+              <TouchableOpacity
+                key={item.id}
+                style={[s.compRow, s.compRowBorder]}
+                onPress={() => setSelectedMiscItem(item.id)}
+                activeOpacity={0.7}
+              >
+                <StatusIcon status={item.status} />
+                <View style={s.compInfo}>
+                  <Text style={[s.compLabel, !item.label && s.compLabelPlaceholder]}>
+                    {item.label || 'Unnamed Equipment'}
+                  </Text>
+                  {item.issues.length > 0 && (
+                    <Text style={[s.issueMeta, { color: openCount > 0 ? '#f85149' : '#3fb950' }]}>
+                      {openCount > 0
+                        ? `${openCount} open issue${openCount !== 1 ? 's' : ''}`
+                        : `${item.issues.length} resolved`}
+                    </Text>
+                  )}
+                </View>
+                <View style={s.compRight}>
+                  <Text style={[s.compStatusText, { color: statusColor(item.status) }]}>
+                    {item.status === 'good' ? 'Good' : item.status === 'bad' ? 'Bad' : '—'}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={14} color="#6e7681" style={s.chevron} />
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+          <TouchableOpacity style={s.addMiscRow} onPress={() => addMiscEquip(unitId)} activeOpacity={0.7}>
+            <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 8 }} />
+            <Text style={s.addMiscText}>Add Equipment</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       {selectedComponent && (
@@ -140,6 +185,13 @@ export default function UnitDetailScreen({ route }: Props) {
           unitId={unitId}
           componentKey={selectedComponent}
           onClose={() => setSelectedComponent(null)}
+        />
+      )}
+      {selectedMiscItem && (
+        <MiscEquipModal
+          unitId={unitId}
+          itemId={selectedMiscItem}
+          onClose={() => setSelectedMiscItem(null)}
         />
       )}
     </View>
@@ -240,7 +292,10 @@ const s = StyleSheet.create({
   statusIcon: { marginRight: 12 },
   compInfo: { flex: 1 },
   compLabel: { color: '#e6edf3', fontSize: 14, fontWeight: '500' },
+  compLabelPlaceholder: { color: '#6e7681', fontStyle: 'italic' },
   issueMeta: { fontSize: 11, marginTop: 2 },
+  addMiscRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 13, paddingHorizontal: 14 },
+  addMiscText: { color: '#58a6ff', fontSize: 14, fontWeight: '600' },
   compRight: { flexDirection: 'row', alignItems: 'center' },
   compStatusText: { fontSize: 12, fontWeight: '600', marginRight: 4 },
   chevron: { marginLeft: 2 },

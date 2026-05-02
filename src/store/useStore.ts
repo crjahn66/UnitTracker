@@ -9,6 +9,8 @@ import {
   ComponentStatus,
   Issue,
   GeneralIssue,
+  MiscEquipItem,
+  MiscIssue,
 } from '../types';
 import { createInitialUnits } from '../utils/initialData';
 
@@ -22,6 +24,12 @@ interface StoreState {
   deleteIssue: (unitId: string, componentKey: ComponentKey, issueId: string) => void;
   resetUnit: (unitId: string) => void;
   setCustomComponentLabel: (unitId: string, componentKey: ComponentKey, label: string) => void;
+  addMiscEquip: (unitId: string) => void;
+  updateMiscEquip: (unitId: string, itemId: string, updates: { label?: string; status?: ComponentStatus }) => void;
+  deleteMiscEquip: (unitId: string, itemId: string) => void;
+  addMiscIssue: (unitId: string, itemId: string, issue: MiscIssue) => void;
+  updateMiscIssue: (unitId: string, itemId: string, issueId: string, updates: Partial<MiscIssue>) => void;
+  deleteMiscIssue: (unitId: string, itemId: string, issueId: string) => void;
   addGeneralIssue: (issue: GeneralIssue) => void;
   updateGeneralIssue: (issueId: string, updates: Partial<GeneralIssue>) => void;
   deleteGeneralIssue: (issueId: string) => void;
@@ -131,7 +139,7 @@ export const useStore = create<StoreState>()(
           return {
             units: {
               ...state.units,
-              [unitId]: { ...fresh, id: existing.id, side: existing.side, unitNumber: existing.unitNumber },
+              [unitId]: { ...fresh, id: existing.id, side: existing.side, unitNumber: existing.unitNumber, miscEquipment: [] },
             },
           };
         }),
@@ -150,6 +158,107 @@ export const useStore = create<StoreState>()(
             units: {
               ...state.units,
               [unitId]: { ...state.units[unitId], customComponentLabels: updated },
+            },
+          };
+        }),
+
+      addMiscEquip: (unitId) =>
+        set((state) => {
+          const u = state.units[unitId];
+          const newItem: MiscEquipItem = {
+            id: `misc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            label: '',
+            status: 'unchecked',
+            issues: [],
+          };
+          return {
+            units: {
+              ...state.units,
+              [unitId]: { ...u, miscEquipment: [...(u.miscEquipment ?? []), newItem] },
+            },
+          };
+        }),
+
+      updateMiscEquip: (unitId, itemId, updates) =>
+        set((state) => {
+          const u = state.units[unitId];
+          return {
+            units: {
+              ...state.units,
+              [unitId]: {
+                ...u,
+                miscEquipment: (u.miscEquipment ?? []).map((item) =>
+                  item.id === itemId ? { ...item, ...updates } : item
+                ),
+              },
+            },
+          };
+        }),
+
+      deleteMiscEquip: (unitId, itemId) =>
+        set((state) => {
+          const u = state.units[unitId];
+          return {
+            units: {
+              ...state.units,
+              [unitId]: {
+                ...u,
+                miscEquipment: (u.miscEquipment ?? []).filter((item) => item.id !== itemId),
+              },
+            },
+          };
+        }),
+
+      addMiscIssue: (unitId, itemId, issue) =>
+        set((state) => {
+          const u = state.units[unitId];
+          return {
+            units: {
+              ...state.units,
+              [unitId]: {
+                ...u,
+                miscEquipment: (u.miscEquipment ?? []).map((item) =>
+                  item.id === itemId
+                    ? { ...item, issues: [...item.issues, issue] }
+                    : item
+                ),
+              },
+            },
+          };
+        }),
+
+      updateMiscIssue: (unitId, itemId, issueId, updates) =>
+        set((state) => {
+          const u = state.units[unitId];
+          return {
+            units: {
+              ...state.units,
+              [unitId]: {
+                ...u,
+                miscEquipment: (u.miscEquipment ?? []).map((item) =>
+                  item.id === itemId
+                    ? { ...item, issues: item.issues.map((i) => i.id === issueId ? { ...i, ...updates } : i) }
+                    : item
+                ),
+              },
+            },
+          };
+        }),
+
+      deleteMiscIssue: (unitId, itemId, issueId) =>
+        set((state) => {
+          const u = state.units[unitId];
+          return {
+            units: {
+              ...state.units,
+              [unitId]: {
+                ...u,
+                miscEquipment: (u.miscEquipment ?? []).map((item) =>
+                  item.id === itemId
+                    ? { ...item, issues: item.issues.filter((i) => i.id !== issueId) }
+                    : item
+                ),
+              },
             },
           };
         }),
