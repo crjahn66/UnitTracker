@@ -45,7 +45,9 @@ export interface ComponentData {
   status: ComponentStatus;
   issues: Issue[];
   progressNote?: string;
+  progressImages?: string[];
   goodNote?: string;
+  goodImages?: string[];
 }
 
 export type StagesData = Record<StageKey, boolean>;
@@ -69,7 +71,9 @@ export interface MiscEquipItem {
   status: ComponentStatus;
   issues: MiscIssue[];
   progressNote?: string;
+  progressImages?: string[];
   goodNote?: string;
+  goodImages?: string[];
 }
 
 export interface Unit {

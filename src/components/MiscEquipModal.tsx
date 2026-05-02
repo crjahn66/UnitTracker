@@ -205,6 +205,51 @@ function IssueCard({ issue, onResolve, onDelete, onAddImage, onRemoveImage }: {
   );
 }
 
+// ─── Status Image Strip (for good/inProgress note boxes) ─────────────────────
+
+function StatusImageStrip({ images, onAdd, onRemove, accentColor }: {
+  images: string[]; onAdd: (uri: string) => void; onRemove: (uri: string) => void; accentColor: string;
+}) {
+  const pick = async () => {
+    const result = await DocumentPicker.getDocumentAsync({ type: 'image/*', multiple: true, copyToCacheDirectory: true });
+    if (!result.canceled) result.assets.forEach((a) => onAdd(a.uri));
+  };
+  if (images.length === 0) {
+    return (
+      <TouchableOpacity style={[img.statusAddBtn, { borderColor: accentColor + '66' }]} onPress={pick} activeOpacity={0.7}>
+        <Ionicons name="camera-outline" size={14} color={accentColor} />
+        <Text style={[img.statusAddBtnText, { color: accentColor }]}>Add Photo</Text>
+      </TouchableOpacity>
+    );
+  }
+  return (
+    <FlatList
+      horizontal
+      data={[...images, '__add__']}
+      keyExtractor={(item) => item}
+      style={{ marginTop: 8 }}
+      renderItem={({ item }) => {
+        if (item === '__add__') {
+          return (
+            <TouchableOpacity style={[img.addBtn, { borderColor: accentColor + '66' }]} onPress={pick}>
+              <Ionicons name="camera-outline" size={20} color={accentColor} />
+            </TouchableOpacity>
+          );
+        }
+        return (
+          <View style={img.thumb}>
+            <Image source={{ uri: item }} style={img.thumbImg} />
+            <TouchableOpacity style={img.removeBtn} onPress={() => onRemove(item)}>
+              <Ionicons name="close-circle" size={18} color="#f85149" />
+            </TouchableOpacity>
+          </View>
+        );
+      }}
+      showsHorizontalScrollIndicator={false}
+    />
+  );
+}
+
 // ─── Progress / Good Note Forms ───────────────────────────────────────────────
 
 function ProgressNoteForm({ initial, onSave, onCancel }: {
@@ -360,16 +405,44 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
           ))}
         </View>
         {item.status === 'inProgress' && (
-          <TouchableOpacity style={m.progressNoteBox} onPress={() => setView('progressNote')} activeOpacity={0.7}>
-            <View style={{ flex: 1 }}><Text style={m.progressNoteLabel}>IN PROGRESS NOTE</Text><Text style={m.progressNoteText}>{item.progressNote || '(tap to add note)'}</Text></View>
-            <Ionicons name="pencil-outline" size={14} color="#d29922" />
-          </TouchableOpacity>
+          <View style={m.progressNoteBox}>
+            <TouchableOpacity style={m.noteBoxTop} onPress={() => setView('progressNote')} activeOpacity={0.7}>
+              <View style={{ flex: 1 }}><Text style={m.progressNoteLabel}>IN PROGRESS NOTE</Text><Text style={m.progressNoteText}>{item.progressNote || '(tap to add note)'}</Text></View>
+              <Ionicons name="pencil-outline" size={14} color="#d29922" />
+            </TouchableOpacity>
+            <StatusImageStrip
+              images={item.progressImages ?? []}
+              onAdd={async (uri) => {
+                const saved = await saveImage(`${unitId}_${itemId}_prog`, uri);
+                updateMiscEquip(unitId, itemId, { progressImages: [...(item.progressImages ?? []), saved] });
+              }}
+              onRemove={async (uri) => {
+                await deleteImage(uri);
+                updateMiscEquip(unitId, itemId, { progressImages: (item.progressImages ?? []).filter((i) => i !== uri) });
+              }}
+              accentColor="#d29922"
+            />
+          </View>
         )}
         {item.status === 'good' && (
-          <TouchableOpacity style={m.goodNoteBox} onPress={() => setView('goodNote')} activeOpacity={0.7}>
-            <View style={{ flex: 1 }}><Text style={m.goodNoteLabel}>COMMISSIONING NOTE</Text><Text style={m.goodNoteText}>{item.goodNote || '(tap to add note)'}</Text></View>
-            <Ionicons name="pencil-outline" size={14} color="#3fb950" />
-          </TouchableOpacity>
+          <View style={m.goodNoteBox}>
+            <TouchableOpacity style={m.noteBoxTop} onPress={() => setView('goodNote')} activeOpacity={0.7}>
+              <View style={{ flex: 1 }}><Text style={m.goodNoteLabel}>COMMISSIONING NOTE</Text><Text style={m.goodNoteText}>{item.goodNote || '(tap to add note)'}</Text></View>
+              <Ionicons name="pencil-outline" size={14} color="#3fb950" />
+            </TouchableOpacity>
+            <StatusImageStrip
+              images={item.goodImages ?? []}
+              onAdd={async (uri) => {
+                const saved = await saveImage(`${unitId}_${itemId}_good`, uri);
+                updateMiscEquip(unitId, itemId, { goodImages: [...(item.goodImages ?? []), saved] });
+              }}
+              onRemove={async (uri) => {
+                await deleteImage(uri);
+                updateMiscEquip(unitId, itemId, { goodImages: (item.goodImages ?? []).filter((i) => i !== uri) });
+              }}
+              accentColor="#3fb950"
+            />
+          </View>
         )}
         <View style={m.issueSectionHeader}>
           <Text style={m.sectionLabel}>ISSUES</Text>
@@ -466,10 +539,11 @@ const m = StyleSheet.create({
   addIssueBtnText: { color: '#58a6ff', fontSize: 14, fontWeight: '600' },
   deleteItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: '#f8514944' },
   deleteItemBtnText: { color: '#f85149', fontSize: 14, fontWeight: '600' },
-  progressNoteBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#d2992211', borderRadius: 8, borderWidth: 1, borderColor: '#d2992244', padding: 10, marginBottom: 20 },
+  progressNoteBox: { backgroundColor: '#d2992211', borderRadius: 8, borderWidth: 1, borderColor: '#d2992244', padding: 10, marginBottom: 20 },
+  noteBoxTop: { flexDirection: 'row', alignItems: 'center' },
   progressNoteLabel: { color: '#d29922', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 3 },
   progressNoteText: { color: '#e6edf3', fontSize: 13 },
-  goodNoteBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#3fb95011', borderRadius: 8, borderWidth: 1, borderColor: '#3fb95044', padding: 10, marginBottom: 20 },
+  goodNoteBox: { backgroundColor: '#3fb95011', borderRadius: 8, borderWidth: 1, borderColor: '#3fb95044', padding: 10, marginBottom: 20 },
   goodNoteLabel: { color: '#3fb950', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 3 },
   goodNoteText: { color: '#e6edf3', fontSize: 13 },
 });
@@ -505,6 +579,8 @@ const img = StyleSheet.create({
   removeBtn: { position: 'absolute', top: 2, right: 2, backgroundColor: '#0d1117aa', borderRadius: 9 },
   addBtn: { width: 80, height: 80, borderRadius: 6, borderWidth: 1, borderColor: '#58a6ff', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   addBtnText: { color: '#58a6ff', fontSize: 11, marginTop: 2 },
+  statusAddBtn: { flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingVertical: 5, paddingHorizontal: 8, borderRadius: 6, borderWidth: 1, alignSelf: 'flex-start' },
+  statusAddBtnText: { fontSize: 12, fontWeight: '600', marginLeft: 4 },
 });
 
 const f = StyleSheet.create({

@@ -21,13 +21,15 @@ interface StoreState {
   updateComponentStatus: (unitId: string, component: ComponentKey, status: ComponentStatus) => void;
   setComponentProgressNote: (unitId: string, component: ComponentKey, note: string) => void;
   setComponentGoodNote: (unitId: string, component: ComponentKey, note: string) => void;
+  setComponentProgressImages: (unitId: string, component: ComponentKey, images: string[]) => void;
+  setComponentGoodImages: (unitId: string, component: ComponentKey, images: string[]) => void;
   addIssue: (unitId: string, issue: Issue) => void;
   updateIssue: (unitId: string, componentKey: ComponentKey, issueId: string, updates: Partial<Issue>) => void;
   deleteIssue: (unitId: string, componentKey: ComponentKey, issueId: string) => void;
   resetUnit: (unitId: string) => void;
   setCustomComponentLabel: (unitId: string, componentKey: ComponentKey, label: string) => void;
   addMiscEquip: (unitId: string) => void;
-  updateMiscEquip: (unitId: string, itemId: string, updates: { label?: string; status?: ComponentStatus; progressNote?: string }) => void;
+  updateMiscEquip: (unitId: string, itemId: string, updates: { label?: string; status?: ComponentStatus; progressNote?: string; goodNote?: string; progressImages?: string[]; goodImages?: string[] }) => void;
   deleteMiscEquip: (unitId: string, itemId: string) => void;
   addMiscIssue: (unitId: string, itemId: string, issue: MiscIssue) => void;
   updateMiscIssue: (unitId: string, itemId: string, issueId: string, updates: Partial<MiscIssue>) => void;
@@ -96,6 +98,34 @@ export const useStore = create<StoreState>()(
               components: {
                 ...state.units[unitId].components,
                 [component]: { ...state.units[unitId].components[component], goodNote: note || undefined },
+              },
+            },
+          },
+        })),
+
+      setComponentProgressImages: (unitId, component, images) =>
+        set((state) => ({
+          units: {
+            ...state.units,
+            [unitId]: {
+              ...state.units[unitId],
+              components: {
+                ...state.units[unitId].components,
+                [component]: { ...state.units[unitId].components[component], progressImages: images.length ? images : undefined },
+              },
+            },
+          },
+        })),
+
+      setComponentGoodImages: (unitId, component, images) =>
+        set((state) => ({
+          units: {
+            ...state.units,
+            [unitId]: {
+              ...state.units[unitId],
+              components: {
+                ...state.units[unitId].components,
+                [component]: { ...state.units[unitId].components[component], goodImages: images.length ? images : undefined },
               },
             },
           },
