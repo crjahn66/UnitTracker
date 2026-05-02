@@ -82,7 +82,8 @@ export default function ReportsScreen() {
             text: 'Restore', style: 'destructive',
             onPress: () => { loadBackup(restored); setRestoring(false); Alert.alert('Restored', 'Data restored successfully.'); },
           },
-        ]
+        ],
+        { onDismiss: () => setRestoring(false) }
       );
     } catch (e) {
       Alert.alert('Restore Failed', String(e));

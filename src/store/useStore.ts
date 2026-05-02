@@ -131,18 +131,22 @@ export const useStore = create<StoreState>()(
         }),
 
       setCustomComponentLabel: (unitId, componentKey, label) =>
-        set((state) => ({
-          units: {
-            ...state.units,
-            [unitId]: {
-              ...state.units[unitId],
-              customComponentLabels: {
-                ...(state.units[unitId].customComponentLabels ?? {}),
-                [componentKey]: label.trim() || undefined,
-              },
+        set((state) => {
+          const existing = state.units[unitId].customComponentLabels ?? {};
+          const trimmed = label.trim();
+          const updated = { ...existing };
+          if (trimmed) {
+            updated[componentKey] = trimmed;
+          } else {
+            delete updated[componentKey];
+          }
+          return {
+            units: {
+              ...state.units,
+              [unitId]: { ...state.units[unitId], customComponentLabels: updated },
             },
-          },
-        })),
+          };
+        }),
 
       loadBackup: (units) => set({ units }),
     }),

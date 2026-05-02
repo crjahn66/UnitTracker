@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Modal, View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Alert, KeyboardAvoidingView, Platform,
@@ -16,9 +16,9 @@ interface Props {
 
 type ModalView = 'detail' | 'addIssue' | 'resolveIssue';
 
-const TODAY = format(new Date(), 'MM/dd/yyyy');
-const EMPTY_ISSUE = { dateFound: TODAY, foundBy: '', notes: '' };
-const EMPTY_RESOLVE = { dateFixed: TODAY, fixedBy: '', howFixed: '' };
+const today = () => format(new Date(), 'MM/dd/yyyy');
+const EMPTY_ISSUE = () => ({ dateFound: today(), foundBy: '', notes: '' });
+const EMPTY_RESOLVE = () => ({ dateFixed: today(), fixedBy: '', howFixed: '' });
 
 function statusColor(s: ComponentStatus) {
   if (s === 'good') return '#3fb950';
@@ -50,7 +50,7 @@ interface AddIssueFormProps {
 
 function AddIssueForm({ onSave, onCancel }: AddIssueFormProps) {
   const [form, setForm] = useState(EMPTY_ISSUE);
-  const set = (key: keyof typeof EMPTY_ISSUE, val: string) =>
+  const set = (key: 'dateFound' | 'foundBy' | 'notes', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
   const handleSave = () => {
@@ -86,7 +86,7 @@ interface ResolveFormProps {
 
 function ResolveForm({ onSave, onCancel }: ResolveFormProps) {
   const [form, setForm] = useState(EMPTY_RESOLVE);
-  const set = (key: keyof typeof EMPTY_RESOLVE, val: string) =>
+  const set = (key: 'dateFixed' | 'fixedBy' | 'howFixed', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
   const handleSave = () => {
