@@ -6,10 +6,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
 import { STAGES, COMPONENTS } from '../types';
 import { exportToExcel } from '../utils/exportExcel';
+import { backupData, restoreData } from '../utils/backup';
 
 export default function ReportsScreen() {
-  const units = useStore((state) => state.units);
-  const [exporting, setExporting] = useState(false);
+  const units      = useStore((state) => state.units);
+  const loadBackup = useStore((state) => state.loadBackup);
+  const [exporting, setExporting]   = useState(false);
+  const [backingUp, setBackingUp]   = useState(false);
+  const [restoring, setRestoring]   = useState(false);
 
   const stats = useMemo(() => {
     const all = Object.values(units);
@@ -52,12 +56,37 @@ export default function ReportsScreen() {
 
   const handleExport = async () => {
     setExporting(true);
+    try { await exportToExcel(units); }
+    catch (e) { Alert.alert('Export Failed', String(e)); }
+    finally { setExporting(false); }
+  };
+
+  const handleBackup = async () => {
+    setBackingUp(true);
+    try { await backupData(units); }
+    catch (e) { Alert.alert('Backup Failed', String(e)); }
+    finally { setBackingUp(false); }
+  };
+
+  const handleRestore = async () => {
+    setRestoring(true);
     try {
-      await exportToExcel(units);
+      const restored = await restoreData();
+      if (!restored) { setRestoring(false); return; }
+      Alert.alert(
+        'Restore Backup',
+        'This will replace ALL current data with the backup. This cannot be undone.',
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => setRestoring(false) },
+          {
+            text: 'Restore', style: 'destructive',
+            onPress: () => { loadBackup(restored); setRestoring(false); Alert.alert('Restored', 'Data restored successfully.'); },
+          },
+        ]
+      );
     } catch (e) {
-      Alert.alert('Export Failed', String(e));
-    } finally {
-      setExporting(false);
+      Alert.alert('Restore Failed', String(e));
+      setRestoring(false);
     }
   };
 
@@ -65,13 +94,21 @@ export default function ReportsScreen() {
     <ScrollView style={s.container} contentContainerStyle={s.content}>
       {/* Export button */}
       <TouchableOpacity style={s.exportBtn} onPress={handleExport} disabled={exporting} activeOpacity={0.8}>
-        {exporting ? (
-          <ActivityIndicator color="#0d1117" size="small" />
-        ) : (
-          <Ionicons name="download-outline" size={20} color="#0d1117" style={{ marginRight: 8 }} />
-        )}
+        {exporting ? <ActivityIndicator color="#0d1117" size="small" /> : <Ionicons name="download-outline" size={20} color="#0d1117" style={{ marginRight: 8 }} />}
         <Text style={s.exportBtnText}>{exporting ? 'Generating…' : 'Export to Excel'}</Text>
       </TouchableOpacity>
+
+      {/* Backup / Restore */}
+      <View style={s.backupRow}>
+        <TouchableOpacity style={[s.backupBtn, backingUp && s.btnDisabled]} onPress={handleBackup} disabled={backingUp} activeOpacity={0.8}>
+          {backingUp ? <ActivityIndicator color="#58a6ff" size="small" /> : <Ionicons name="cloud-upload-outline" size={17} color="#58a6ff" style={{ marginRight: 6 }} />}
+          <Text style={s.backupBtnText}>{backingUp ? 'Saving…' : 'Backup Data'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[s.restoreBtn, restoring && s.btnDisabled]} onPress={handleRestore} disabled={restoring} activeOpacity={0.8}>
+          {restoring ? <ActivityIndicator color="#d29922" size="small" /> : <Ionicons name="cloud-download-outline" size={17} color="#d29922" style={{ marginRight: 6 }} />}
+          <Text style={s.restoreBtnText}>{restoring ? 'Loading…' : 'Restore Backup'}</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Overall progress */}
       <SectionHeader title="Overall Progress" />
@@ -162,15 +199,24 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0d1117' },
   content: { padding: 16, paddingBottom: 50 },
   exportBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#3fb950',
-    borderRadius: 10,
-    paddingVertical: 14,
-    marginBottom: 24,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#3fb950', borderRadius: 10, paddingVertical: 14, marginBottom: 10,
   },
   exportBtnText: { color: '#0d1117', fontSize: 16, fontWeight: '700' },
+  backupRow: { flexDirection: 'row', marginBottom: 24 },
+  backupBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderRadius: 10, paddingVertical: 12, marginRight: 8,
+    borderWidth: 1, borderColor: '#58a6ff',
+  },
+  restoreBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderRadius: 10, paddingVertical: 12,
+    borderWidth: 1, borderColor: '#d29922',
+  },
+  backupBtnText: { color: '#58a6ff', fontSize: 14, fontWeight: '600' },
+  restoreBtnText: { color: '#d29922', fontSize: 14, fontWeight: '600' },
+  btnDisabled: { opacity: 0.5 },
   sectionHeader: {
     color: '#8b949e',
     fontSize: 11,

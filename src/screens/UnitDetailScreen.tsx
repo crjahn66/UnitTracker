@@ -103,6 +103,7 @@ export default function UnitDetailScreen({ route }: Props) {
             const data = unit.components[comp.key];
             const issueCount = data.issues.length;
             const openCount = data.issues.filter((i) => !i.resolved).length;
+            const label = unit.customComponentLabels?.[comp.key] ?? comp.label;
 
             return (
               <TouchableOpacity
@@ -113,7 +114,7 @@ export default function UnitDetailScreen({ route }: Props) {
               >
                 <StatusIcon status={data.status} />
                 <View style={s.compInfo}>
-                  <Text style={s.compLabel}>{comp.label}</Text>
+                  <Text style={s.compLabel}>{label}</Text>
                   {issueCount > 0 && (
                     <Text style={[s.issueMeta, { color: openCount > 0 ? '#f85149' : '#3fb950' }]}>
                       {openCount > 0

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   Modal, View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Alert, KeyboardAvoidingView, Platform,
@@ -189,8 +189,20 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
   const [view, setView] = useState<ModalView>('detail');
   const [resolvingId, setResolvingId] = useState<string | null>(null);
 
-  const compInfo = COMPONENTS.find((c) => c.key === componentKey)!;
-  const compData = unit.components[componentKey];
+  const setCustomComponentLabel = useStore((state) => state.setCustomComponentLabel);
+
+  const compInfo    = COMPONENTS.find((c) => c.key === componentKey)!;
+  const compData    = unit.components[componentKey];
+  const displayLabel = unit.customComponentLabels?.[componentKey] ?? compInfo.label;
+
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const [editLabelValue, setEditLabelValue] = useState('');
+
+  const handleSaveLabel = useCallback(() => {
+    const trimmed = editLabelValue.trim();
+    if (trimmed) setCustomComponentLabel(unitId, componentKey, trimmed);
+    setIsEditingLabel(false);
+  }, [editLabelValue, unitId, componentKey, setCustomComponentLabel]);
 
   const handleStatusChange = useCallback(
     (status: ComponentStatus) => {
@@ -322,8 +334,38 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
         <View style={m.sheet}>
           {/* Modal header */}
           <View style={m.header}>
-            <View>
-              <Text style={m.compName}>{compInfo.label}</Text>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              {isEditingLabel ? (
+                <View style={m.labelEditRow}>
+                  <TextInput
+                    style={m.labelInput}
+                    value={editLabelValue}
+                    onChangeText={setEditLabelValue}
+                    autoFocus
+                    returnKeyType="done"
+                    onSubmitEditing={handleSaveLabel}
+                    selectTextOnFocus
+                  />
+                  <TouchableOpacity onPress={handleSaveLabel} style={m.labelEditBtn}>
+                    <Ionicons name="checkmark" size={20} color="#3fb950" />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setIsEditingLabel(false)} style={m.labelEditBtn}>
+                    <Ionicons name="close" size={20} color="#f85149" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={m.labelRow}>
+                  <Text style={m.compName}>{displayLabel}</Text>
+                  {componentKey === 'micsEquip' && (
+                    <TouchableOpacity
+                      onPress={() => { setEditLabelValue(displayLabel); setIsEditingLabel(true); }}
+                      style={m.labelEditIcon}
+                    >
+                      <Ionicons name="pencil-outline" size={15} color="#8b949e" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
               <Text style={[m.statusTag, { color }]}>● {statusLabel(compData.status)}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={m.closeBtn}>
@@ -391,6 +433,15 @@ const m = StyleSheet.create({
   compName: { color: '#e6edf3', fontSize: 18, fontWeight: '700' },
   statusTag: { fontSize: 13, marginTop: 3, fontWeight: '600' },
   closeBtn: { padding: 4 },
+  labelRow: { flexDirection: 'row', alignItems: 'center' },
+  labelEditIcon: { marginLeft: 8, padding: 4 },
+  labelEditRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
+  labelInput: {
+    flex: 1, color: '#e6edf3', fontSize: 17, fontWeight: '700',
+    backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#58a6ff',
+    borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4,
+  },
+  labelEditBtn: { padding: 6, marginLeft: 4 },
   body: { padding: 16, paddingBottom: 40 },
   sectionLabel: { color: '#8b949e', fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 10, marginTop: 4 },
   statusRow: { flexDirection: 'row', marginBottom: 24 },

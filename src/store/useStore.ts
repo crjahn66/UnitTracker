@@ -19,6 +19,8 @@ interface StoreState {
   updateIssue: (unitId: string, componentKey: ComponentKey, issueId: string, updates: Partial<Issue>) => void;
   deleteIssue: (unitId: string, componentKey: ComponentKey, issueId: string) => void;
   resetUnit: (unitId: string) => void;
+  setCustomComponentLabel: (unitId: string, componentKey: ComponentKey, label: string) => void;
+  loadBackup: (units: UnitsStore) => void;
 }
 
 export const useStore = create<StoreState>()(
@@ -127,6 +129,22 @@ export const useStore = create<StoreState>()(
             },
           };
         }),
+
+      setCustomComponentLabel: (unitId, componentKey, label) =>
+        set((state) => ({
+          units: {
+            ...state.units,
+            [unitId]: {
+              ...state.units[unitId],
+              customComponentLabels: {
+                ...(state.units[unitId].customComponentLabels ?? {}),
+                [componentKey]: label.trim() || undefined,
+              },
+            },
+          },
+        })),
+
+      loadBackup: (units) => set({ units }),
     }),
     {
       name: 'unit-tracker-v1',

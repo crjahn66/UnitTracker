@@ -55,6 +55,7 @@ export interface Unit {
   unitNumber: number;
   stages: StagesData;
   components: ComponentsData;
+  customComponentLabels?: Partial<Record<ComponentKey, string>>;
 }
 
 export type UnitsStore = Record<string, Unit>;
