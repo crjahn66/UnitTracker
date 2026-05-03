@@ -372,6 +372,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelValue, setLabelValue] = useState(item?.label ?? '');
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
   const handleSaveLabel = useCallback(() => {
     const trimmed = labelValue.trim();
@@ -475,7 +476,9 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
   if (!item) return null;
 
   const visibleIssues = item.issues.filter((i) => !i.deleted);
-  const openIssues = visibleIssues.filter((i) => !i.resolved).length;
+  const openIssuesList = visibleIssues.filter((i) => !i.resolved);
+  const resolvedIssuesList = visibleIssues.filter((i) => i.resolved);
+  const openIssues = openIssuesList.length;
   const color = statusColor(item.status);
 
   const renderContent = () => {
@@ -549,16 +552,36 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
           {openIssues > 0 && <View style={m.openBadge}><Text style={m.openBadgeText}>{openIssues} open</Text></View>}
         </View>
         {visibleIssues.length === 0 ? <Text style={m.noIssues}>No issues logged.</Text> : (
-          visibleIssues.map((issue) => (
-            <IssueCard key={issue.id} issue={issue}
-              onResolve={() => { setResolvingId(issue.id); setView('resolveIssue'); }}
-              onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}
-              onDelete={() => handleDelete(issue.id)}
-              onAddImage={(uri) => handleAddImage(issue.id, uri)}
-              onRemoveImage={(uri) => handleRemoveImage(issue.id, uri)}
-              onViewImage={setViewingPhoto}
-            />
-          ))
+          <>
+            {openIssuesList.map((issue) => (
+              <IssueCard key={issue.id} issue={issue}
+                onResolve={() => { setResolvingId(issue.id); setView('resolveIssue'); }}
+                onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}
+                onDelete={() => handleDelete(issue.id)}
+                onAddImage={(uri) => handleAddImage(issue.id, uri)}
+                onRemoveImage={(uri) => handleRemoveImage(issue.id, uri)}
+                onViewImage={setViewingPhoto}
+              />
+            ))}
+            {resolvedIssuesList.length > 0 && (
+              <>
+                <TouchableOpacity style={m.archiveToggle} onPress={() => setArchiveOpen((o) => !o)} activeOpacity={0.7}>
+                  <Ionicons name={archiveOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#6e7681" style={{ marginRight: 6 }} />
+                  <Text style={m.archiveToggleText}>{resolvedIssuesList.length} resolved issue{resolvedIssuesList.length !== 1 ? 's' : ''}</Text>
+                </TouchableOpacity>
+                {archiveOpen && resolvedIssuesList.map((issue) => (
+                  <IssueCard key={issue.id} issue={issue}
+                    onResolve={() => { setResolvingId(issue.id); setView('resolveIssue'); }}
+                    onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}
+                    onDelete={() => handleDelete(issue.id)}
+                    onAddImage={(uri) => handleAddImage(issue.id, uri)}
+                    onRemoveImage={(uri) => handleRemoveImage(issue.id, uri)}
+                    onViewImage={setViewingPhoto}
+                  />
+                ))}
+              </>
+            )}
+          </>
         )}
         <TouchableOpacity style={m.addIssueBtn} onPress={() => setView('addIssue')}>
           <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 6 }} />
@@ -640,6 +663,8 @@ const m = StyleSheet.create({
   noIssues: { color: '#6e7681', fontSize: 13, textAlign: 'center', paddingVertical: 20 },
   addIssueBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 16, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: '#58a6ff' },
   addIssueBtnText: { color: '#58a6ff', fontSize: 14, fontWeight: '600' },
+  archiveToggle: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, marginBottom: 4 },
+  archiveToggleText: { color: '#6e7681', fontSize: 13, fontWeight: '600' },
   deleteItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: '#f8514944' },
   deleteItemBtnText: { color: '#f85149', fontSize: 14, fontWeight: '600' },
   progressNoteBox: { backgroundColor: '#d2992211', borderRadius: 8, borderWidth: 1, borderColor: '#d2992244', padding: 10, marginBottom: 20 },
