@@ -35,6 +35,7 @@ function UnitStack({ side, title }: { side: Side; title: string }) {
         headerStyle: HEADER_STYLE,
         headerTintColor: '#e6edf3',
         headerTitleStyle: { fontWeight: '600' },
+        headerRight: () => <SyncStatusBar />,
       }}
     >
       <Stack.Screen
@@ -63,7 +64,6 @@ function SouthStack() {
 export default function Navigation() {
   return (
     <NavigationContainer>
-      <SyncStatusBar />
       <Tab.Navigator
         screenOptions={({ route }) => ({
           headerShown: false,
@@ -98,6 +98,7 @@ export default function Navigation() {
             headerStyle: HEADER_STYLE,
             headerTintColor: '#e6edf3',
             title: 'Reports & Export',
+            headerRight: () => <SyncStatusBar />,
           }}
         />
       </Tab.Navigator>

@@ -40,16 +40,7 @@ export default function SyncStatusBar() {
 }
 
 const s = StyleSheet.create({
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    backgroundColor: '#0d1117',
-    borderBottomWidth: 1,
-    borderBottomColor: '#21262d',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
+  bar: { flexDirection: 'row', alignItems: 'center', paddingRight: 14 },
   dot: { width: 6, height: 6, borderRadius: 3, marginRight: 5 },
   text: { fontSize: 11, fontWeight: '500' },
 });
