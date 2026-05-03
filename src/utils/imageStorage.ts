@@ -1,5 +1,4 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase } from './supabase';
 
 const IMAGES_DIR = (FileSystem.documentDirectory ?? '') + 'issue_images/';
@@ -14,14 +13,22 @@ function isHeic(uri: string): boolean {
   return ext === 'heic' || ext === 'heif';
 }
 
-// Returns a JPEG URI, or null if conversion fails
-async function toJpeg(uri: string): Promise<string | null> {
+// Convert a HEIC file (given as base64) to JPEG bytes using pure JS.
+// Returns null if conversion fails.
+async function heicBase64ToJpeg(base64: string): Promise<Uint8Array | null> {
   try {
-    const r = await ImageManipulator.manipulateAsync(uri, [], {
-      compress: 0.9,
-      format: ImageManipulator.SaveFormat.JPEG,
-    });
-    return r.uri;
+    const heicDecode = require('heic-decode');
+    const jpegJs = require('jpeg-js');
+
+    const binaryStr = atob(base64);
+    const heicBytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) heicBytes[i] = binaryStr.charCodeAt(i);
+
+    const images = await heicDecode.all({ buffer: heicBytes.buffer });
+    if (!images?.length) return null;
+    const { width, height, data } = await images[0].decode();
+    const encoded = jpegJs.encode({ width, height, data }, 85);
+    return new Uint8Array(encoded.data);
   } catch {
     return null;
   }
@@ -29,11 +36,22 @@ async function toJpeg(uri: string): Promise<string | null> {
 
 export async function saveImage(issueId: string, sourceUri: string, _file?: unknown): Promise<string> {
   await ensureImagesDir();
-  const converted = isHeic(sourceUri) ? await toJpeg(sourceUri) : null;
-  const src = converted ?? sourceUri;
-  const ext = src.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg';
+
+  if (isHeic(sourceUri)) {
+    try {
+      const b64 = await FileSystem.readAsStringAsync(sourceUri, { encoding: 'base64' as any });
+      const jpegBytes = await heicBase64ToJpeg(b64);
+      if (jpegBytes) {
+        const dest = IMAGES_DIR + `${issueId}_${Date.now()}.jpg`;
+        await FileSystem.writeAsStringAsync(dest, btoa(String.fromCharCode(...jpegBytes)), { encoding: 'base64' as any });
+        return dest;
+      }
+    } catch { /* fall through to copy original */ }
+  }
+
+  const ext = sourceUri.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg';
   const dest = IMAGES_DIR + `${issueId}_${Date.now()}.${ext}`;
-  await FileSystem.copyAsync({ from: src, to: dest });
+  await FileSystem.copyAsync({ from: sourceUri, to: dest });
   return dest;
 }
 
@@ -71,32 +89,36 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
     if (!uri || uri.startsWith('https://')) return uri;
     try {
       const info = await FileSystem.getInfoAsync(uri);
-      if (!info.exists) return uri; // file missing — skip silently, retry next sync
+      if (!info.exists) return uri;
 
-      // Convert HEIC to JPEG before uploading so browsers can display it
-      // If conversion fails, skip this photo (keep local path, retry next sync)
-      let src = uri;
+      let bytes: Uint8Array;
+      let ext: string;
+      let contentType: string;
+
       if (isHeic(uri)) {
-        const converted = await toJpeg(uri);
-        if (!converted) { heicFailed++; return uri; }
-        src = converted;
+        const b64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
+        const jpegBytes = await heicBase64ToJpeg(b64);
+        if (!jpegBytes) { heicFailed++; return uri; }
+        bytes = jpegBytes;
+        ext = 'jpg';
+        contentType = 'image/jpeg';
+      } else {
+        ext = (uri.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg').slice(0, 4);
+        contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+        const b64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
+        const binaryStr = atob(b64);
+        bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
       }
-      const ext = (src.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg').slice(0, 4);
+
       const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
-      const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
-
-      const base64 = await FileSystem.readAsStringAsync(src, { encoding: 'base64' as any });
-      const binaryStr = atob(base64);
-      const bytes = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-
       const { error } = await supabase.storage.from('photos').upload(fileName, bytes, { contentType, upsert: false });
       if (error) throw new Error(`Storage upload failed: ${error.message}`);
       updated = true;
       return supabase.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
     } catch (e) {
       console.warn('Photo upload skipped:', uri, e);
-      return uri; // keep local path, retry on next sync
+      return uri;
     }
   };
 
