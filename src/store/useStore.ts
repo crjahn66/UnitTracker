@@ -388,6 +388,12 @@ export const useStore = create<StoreState>()(
               const existComp = existing.components[comp];
               const impComp = imp.components?.[comp] ?? {};
 
+              const impIssueMap = new Map((impComp.issues ?? []).map((i: any) => [i.id, i]));
+              const mergedIssues = existComp.issues.map((existIssue: any) => {
+                const impIssue = impIssueMap.get(existIssue.id);
+                if (!impIssue) return existIssue;
+                return { ...existIssue, images: mergeImages(existIssue.images, impIssue.images) ?? [] };
+              });
               const existIds = new Set(existComp.issues.map((i: any) => i.id));
               const newIssues = (impComp.issues ?? []).filter((i: any) => !existIds.has(i.id));
 
@@ -396,7 +402,7 @@ export const useStore = create<StoreState>()(
 
               mergedComponents[comp] = {
                 status: mergedStatus,
-                issues: [...existComp.issues, ...newIssues],
+                issues: [...mergedIssues, ...newIssues],
                 progressNote: existComp.progressNote || impComp.progressNote || undefined,
                 goodNote: existComp.goodNote || impComp.goodNote || undefined,
                 progressImages: mergeImages(existComp.progressImages, impComp.progressImages),
@@ -411,11 +417,17 @@ export const useStore = create<StoreState>()(
               if (idx === -1) {
                 existingMisc.push(importItem);
               } else {
+                const impMiscIssueMap = new Map(importItem.issues.map((i: any) => [i.id, i]));
+                const mergedMiscIssues = existingMisc[idx].issues.map((existIssue) => {
+                  const impIssue = impMiscIssueMap.get(existIssue.id);
+                  if (!impIssue) return existIssue;
+                  return { ...existIssue, images: mergeImages(existIssue.images, impIssue.images) ?? [] };
+                });
                 const existIds = new Set(existingMisc[idx].issues.map((i) => i.id));
                 const newIssues = importItem.issues.filter((i: any) => !existIds.has(i.id));
                 existingMisc[idx] = {
                   ...existingMisc[idx],
-                  issues: [...existingMisc[idx].issues, ...newIssues],
+                  issues: [...mergedMiscIssues, ...newIssues],
                   progressNote: existingMisc[idx].progressNote || importItem.progressNote || undefined,
                   goodNote: existingMisc[idx].goodNote || importItem.goodNote || undefined,
                   progressImages: mergeImages(existingMisc[idx].progressImages, importItem.progressImages),
