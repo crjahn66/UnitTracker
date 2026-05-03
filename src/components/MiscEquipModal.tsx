@@ -25,6 +25,11 @@ const EMPTY_ISSUE = () => ({ dateFound: today(), foundBy: '', notes: '' });
 const EMPTY_RESOLVE = () => ({ dateFixed: today(), fixedBy: '', howFixed: '' });
 
 function genId() { return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`; }
+
+const showAlert = (title: string, msg: string) => {
+  if (Platform.OS === 'web') { (window as any).alert(`${title}\n${msg}`); }
+  else { Alert.alert(title, msg); }
+};
 function fmtDate(iso?: string) {
   if (!iso) return '—';
   try { return format(new Date(iso), 'MMM d, yyyy'); } catch { return iso; }
@@ -92,8 +97,8 @@ function AddIssueForm({ onSave, onCancel }: {
   };
 
   const handleSave = () => {
-    if (!form.foundBy.trim()) { Alert.alert('Required', 'Please enter who found the issue.'); return; }
-    if (!form.notes.trim()) { Alert.alert('Required', 'Please enter issue notes.'); return; }
+    if (!form.foundBy.trim()) { showAlert('Required', 'Please enter who found the issue.'); return; }
+    if (!form.notes.trim()) { showAlert('Required', 'Please enter issue notes.'); return; }
     onSave({ ...form, images });
   };
 
@@ -122,8 +127,8 @@ function ResolveForm({ onSave, onCancel }: {
   const set = (key: 'dateFixed' | 'fixedBy' | 'howFixed', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
   const handleSave = () => {
-    if (!form.fixedBy.trim()) { Alert.alert('Required', 'Please enter who fixed the issue.'); return; }
-    if (!form.howFixed.trim()) { Alert.alert('Required', 'Please describe how it was fixed.'); return; }
+    if (!form.fixedBy.trim()) { showAlert('Required', 'Please enter who fixed the issue.'); return; }
+    if (!form.howFixed.trim()) { showAlert('Required', 'Please describe how it was fixed.'); return; }
     onSave(form);
   };
   return (
@@ -232,8 +237,8 @@ function EditIssueForm({ issue, onSave, onCancel }: {
   const parseDate = (s: string, fallback: string) => { const p = parse(s, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : fallback; };
 
   const handleSave = () => {
-    if (!form.foundBy.trim()) { Alert.alert('Required', 'Please enter who found the issue.'); return; }
-    if (!form.notes.trim()) { Alert.alert('Required', 'Please enter issue notes.'); return; }
+    if (!form.foundBy.trim()) { showAlert('Required', 'Please enter who found the issue.'); return; }
+    if (!form.notes.trim()) { showAlert('Required', 'Please enter issue notes.'); return; }
     const updates: Partial<MiscIssue> = {
       dateFound: parseDate(form.dateFound, issue.dateFound),
       foundBy: form.foundBy, notes: form.notes,
