@@ -34,17 +34,11 @@ export async function syncWithCloud(): Promise<SyncResult> {
     let photoStatus: string | undefined;
     try {
       const result = await uploadLocalPhotos(localUnits);
-      if (result.uploaded > 0) {
+      if (result.updated) {
         useStore.getState().loadBackup(result.units as UnitsStore, localGeneralIssues);
         uploadedUnits = result.units;
       }
-      const parts: string[] = [];
-      if (result.uploaded > 0) parts.push(`${result.uploaded} photo(s) uploaded`);
-      if (result.skippedMissing > 0) parts.push(`${result.skippedMissing} missing`);
-      if (result.skippedHeic > 0) parts.push(`${result.skippedHeic} HEIC unconverted`);
-      if (result.failed > 0) parts.push(`${result.failed} failed`);
-      if (result.errors.length > 0) parts.push(result.errors.slice(0, 2).join('; '));
-      if (parts.length > 0) photoStatus = parts.join(' | ');
+      if (result.status) photoStatus = result.status;
     } catch (photoErr: any) {
       return { success: false, error: `Photo upload failed: ${photoErr?.message ?? photoErr}` };
     }

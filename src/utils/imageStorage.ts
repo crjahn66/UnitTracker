@@ -1,45 +1,35 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from './supabase';
 
-// Safe load — if expo-image-manipulator fails to init, HEIC conversion is
-// skipped but sync still works for all other photos.
-let ImageManipulator: typeof import('expo-image-manipulator') | null = null;
-try {
-  ImageManipulator = require('expo-image-manipulator');
-} catch (e) {
-  console.warn('[imageStorage] expo-image-manipulator unavailable:', e);
-}
-
 const IMAGES_DIR = (FileSystem.documentDirectory ?? '') + 'issue_images/';
+
+// Safe load — if unavailable, HEIC photos upload as-is, everything else unchanged
+let ImageManipulator: any = null;
+try { ImageManipulator = require('expo-image-manipulator'); } catch {}
 
 export async function ensureImagesDir(): Promise<void> {
   const info = await FileSystem.getInfoAsync(IMAGES_DIR);
   if (!info.exists) await FileSystem.makeDirectoryAsync(IMAGES_DIR, { intermediates: true });
 }
 
-function isHeic(uri: string): boolean {
+async function toJpegUri(uri: string): Promise<string> {
+  if (!ImageManipulator) return uri;
   const ext = uri.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
-  return ext === 'heic' || ext === 'heif';
-}
-
-async function toJpeg(uri: string): Promise<string | null> {
-  if (!ImageManipulator) return null;
+  if (ext !== 'heic' && ext !== 'heif') return uri;
   try {
     const r = await ImageManipulator.manipulateAsync(uri, [], {
       compress: 0.9,
       format: ImageManipulator.SaveFormat.JPEG,
     });
     return r.uri;
-  } catch (e) {
-    console.warn('[imageStorage] HEIC conversion failed:', e);
-    return null;
+  } catch {
+    return uri;
   }
 }
 
 export async function saveImage(issueId: string, sourceUri: string, _file?: unknown): Promise<string> {
   await ensureImagesDir();
-  const converted = isHeic(sourceUri) ? await toJpeg(sourceUri) : null;
-  const src = converted ?? sourceUri;
+  const src = await toJpegUri(sourceUri);
   const ext = src.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg';
   const dest = IMAGES_DIR + `${issueId}_${Date.now()}.${ext}`;
   await FileSystem.copyAsync({ from: src, to: dest });
@@ -55,7 +45,7 @@ export async function deleteImage(uri: string): Promise<void> {
       const info = await FileSystem.getInfoAsync(uri);
       if (info.exists) await FileSystem.deleteAsync(uri, { idempotent: true });
     }
-  } catch { /* ignore */ }
+  } catch {}
 }
 
 export async function readAsBase64(uri: string): Promise<string | null> {
@@ -71,42 +61,19 @@ export async function readAsBase64(uri: string): Promise<string | null> {
   } catch { return null; }
 }
 
-export interface UploadResult {
-  units: Record<string, any>;
-  uploaded: number;
-  skippedMissing: number;
-  skippedHeic: number;
-  failed: number;
-  errors: string[];
-}
-
-export async function uploadLocalPhotos(units: Record<string, any>): Promise<UploadResult> {
-  let uploaded = 0;
-  let skippedMissing = 0;
-  let skippedHeic = 0;
-  let failed = 0;
-  const errors: string[] = [];
+export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; updated: boolean; status: string }> {
+  let updated = false;
+  let uploaded = 0, skipped = 0, failed = 0;
   const result = JSON.parse(JSON.stringify(units));
 
   const upload = async (uri: string): Promise<string> => {
     if (!uri || uri.startsWith('https://')) return uri;
     try {
       const info = await FileSystem.getInfoAsync(uri);
-      if (!info.exists) {
-        skippedMissing++;
-        return uri;
-      }
+      if (!info.exists) { skipped++; return uri; }
 
-      let src = uri;
-      if (isHeic(uri)) {
-        const converted = await toJpeg(uri);
-        if (!converted) {
-          skippedHeic++;
-          errors.push(`HEIC conversion failed: ${uri.split('/').pop()}`);
-          return uri;
-        }
-        src = converted;
-      }
+      // Convert HEIC→JPEG if possible; falls back to original on failure
+      const src = await toJpegUri(uri);
 
       const ext = (src.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg').slice(0, 4);
       const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
@@ -118,12 +85,12 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<Upl
       const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
       const { error } = await supabase.storage.from('photos').upload(fileName, bytes, { contentType, upsert: false });
       if (error) throw new Error(error.message);
-
+      updated = true;
       uploaded++;
       return supabase.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
     } catch (e: any) {
       failed++;
-      errors.push(`Upload failed: ${uri.split('/').pop()} — ${e?.message ?? e}`);
+      console.warn('Photo upload failed:', uri, e?.message);
       return uri;
     }
   };
@@ -145,5 +112,11 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<Upl
     }
   }
 
-  return { units: result, uploaded, skippedMissing, skippedHeic, failed, errors };
+  const parts = [];
+  if (uploaded > 0) parts.push(`${uploaded} uploaded`);
+  if (skipped > 0) parts.push(`${skipped} missing`);
+  if (failed > 0) parts.push(`${failed} failed`);
+  const status = parts.join(', ');
+
+  return { units: result, updated, status };
 }
