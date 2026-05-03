@@ -60,6 +60,6 @@ export async function readAsBase64(uri: string): Promise<string | null> {
   } catch { return null; }
 }
 
-export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; updated: boolean }> {
-  return { units, updated: false };
+export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; updated: boolean; heicFailed: number }> {
+  return { units, updated: false, heicFailed: 0 };
 }
