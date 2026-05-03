@@ -1,13 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
 import { Unit, STAGES, COMPONENTS } from '../types';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitList'>;
+type Filter = 'all' | 'issues' | 'inProgress' | 'complete';
 
 function unitStatusColor(unit: Unit): string {
   const comps = Object.values(unit.components);
@@ -25,6 +27,23 @@ function unitStatusColor(unit: Unit): string {
     || miscItems.some((m) => m.status !== 'unchecked');
   if (hasWork) return '#d29922';
   return '#30363d';
+}
+
+function hasOpenIssues(unit: Unit): boolean {
+  const compIssues = Object.values(unit.components).flatMap((c) => c.issues);
+  const miscIssues = (unit.miscEquipment ?? []).flatMap((m) => m.issues ?? []);
+  return [...compIssues, ...miscIssues].some((i) => !i.resolved && !i.deleted);
+}
+
+function isComplete(unit: Unit): boolean {
+  return STAGES.every((s) => unit.stages[s.key]) && !hasOpenIssues(unit);
+}
+
+function isInProgress(unit: Unit): boolean {
+  if (isComplete(unit)) return false;
+  return STAGES.some((s) => unit.stages[s.key])
+    || Object.values(unit.components).some((c) => c.status !== 'unchecked')
+    || (unit.miscEquipment ?? []).some((m) => m.status !== 'unchecked');
 }
 
 function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
@@ -64,6 +83,8 @@ function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
 export default function UnitListScreen({ navigation, route }: Props) {
   const { side } = route.params;
   const units = useStore((state) => state.units);
+  const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState<Filter>('all');
 
   const sideUnits = useMemo(
     () =>
@@ -74,22 +95,30 @@ export default function UnitListScreen({ navigation, route }: Props) {
   );
 
   const stats = useMemo(() => {
-    const complete = sideUnits.filter((u) =>
-      STAGES.every((st) => u.stages[st.key])
-    ).length;
-    const hasIssue = sideUnits.filter((u) => {
-      const compIssues = Object.values(u.components).flatMap((c) => c.issues);
-      const miscIssues = (u.miscEquipment ?? []).flatMap((m) => m.issues ?? []);
-      return [...compIssues, ...miscIssues].some((i) => !i.resolved && !i.deleted);
-    }).length;
-    const inProgress = sideUnits.filter((u) => {
-      if (STAGES.every((st) => u.stages[st.key])) return false;
-      return STAGES.some((st) => u.stages[st.key])
-        || Object.values(u.components).some((c) => c.status !== 'unchecked')
-        || (u.miscEquipment ?? []).some((m) => m.status !== 'unchecked');
-    }).length;
+    const complete = sideUnits.filter(isComplete).length;
+    const hasIssue = sideUnits.filter(hasOpenIssues).length;
+    const inProgress = sideUnits.filter(isInProgress).length;
     return { complete, hasIssue, inProgress };
   }, [sideUnits]);
+
+  const filteredUnits = useMemo(() => {
+    let result = sideUnits;
+    if (activeFilter === 'issues') result = result.filter(hasOpenIssues);
+    else if (activeFilter === 'inProgress') result = result.filter(isInProgress);
+    else if (activeFilter === 'complete') result = result.filter(isComplete);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      result = result.filter((u) => u.id.toLowerCase().includes(q));
+    }
+    return result;
+  }, [sideUnits, activeFilter, search]);
+
+  const FILTERS: { key: Filter; label: string; color: string; count: number }[] = [
+    { key: 'all',        label: 'All',        color: '#58a6ff', count: sideUnits.length },
+    { key: 'issues',     label: 'Issues',     color: '#f85149', count: stats.hasIssue },
+    { key: 'inProgress', label: 'In Progress',color: '#d29922', count: stats.inProgress },
+    { key: 'complete',   label: 'Complete',   color: '#3fb950', count: stats.complete },
+  ];
 
   return (
     <View style={s.container}>
@@ -99,11 +128,57 @@ export default function UnitListScreen({ navigation, route }: Props) {
         <SumItem label="Open Issues" value={stats.hasIssue} color="#f85149" />
         <SumItem label="In Progress" value={stats.inProgress} color="#d29922" />
       </View>
+
+      {/* Search bar */}
+      <View style={s.searchRow}>
+        <Ionicons name="search-outline" size={16} color="#6e7681" style={s.searchIcon} />
+        <TextInput
+          style={s.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search units…"
+          placeholderTextColor="#6e7681"
+          clearButtonMode="while-editing"
+          autoCapitalize="characters"
+          returnKeyType="search"
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')} style={s.searchClear}>
+            <Ionicons name="close-circle" size={16} color="#6e7681" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Filter chips */}
+      <View style={s.filterRow}>
+        {FILTERS.map(({ key, label, color, count }) => {
+          const active = activeFilter === key;
+          return (
+            <TouchableOpacity
+              key={key}
+              style={[s.filterChip, active && { backgroundColor: color + '22', borderColor: color }]}
+              onPress={() => setActiveFilter(key)}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.filterChipText, { color: active ? color : '#6e7681' }]}>
+                {label}
+              </Text>
+              <Text style={[s.filterChipCount, { color: active ? color : '#6e7681' }]}>
+                {count}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       <FlatList
-        data={sideUnits}
+        data={filteredUnits}
         keyExtractor={(item) => item.id}
         numColumns={2}
         contentContainerStyle={s.list}
+        ListEmptyComponent={
+          <Text style={s.emptyText}>No units match this filter.</Text>
+        }
         renderItem={({ item }) => (
           <UnitCard
             unit={item}
@@ -137,7 +212,45 @@ const s = StyleSheet.create({
   sumItem: { flex: 1, alignItems: 'center' },
   sumValue: { fontSize: 22, fontWeight: '700' },
   sumLabel: { color: '#8b949e', fontSize: 11, marginTop: 2 },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#161b22',
+    borderBottomWidth: 1,
+    borderBottomColor: '#21262d',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  searchIcon: { marginRight: 8 },
+  searchInput: {
+    flex: 1,
+    color: '#e6edf3',
+    fontSize: 14,
+    paddingVertical: 4,
+  },
+  searchClear: { padding: 4 },
+  filterRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    backgroundColor: '#0d1117',
+    gap: 6,
+  },
+  filterChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#30363d',
+    gap: 4,
+  },
+  filterChipText: { fontSize: 11, fontWeight: '600' },
+  filterChipCount: { fontSize: 11, fontWeight: '700' },
   list: { padding: 8 },
+  emptyText: { color: '#6e7681', textAlign: 'center', marginTop: 40, fontSize: 14 },
   card: {
     flex: 1,
     margin: 5,
