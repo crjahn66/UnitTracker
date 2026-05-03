@@ -23,6 +23,11 @@ function genId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+const showAlert = (title: string, msg: string) => {
+  if (Platform.OS === 'web') { (window as any).alert(`${title}\n${msg}`); }
+  else { Alert.alert(title, msg); }
+};
+
 function fmtDate(iso?: string) {
   if (!iso) return '—';
   try { return format(new Date(iso), 'MMM d, yyyy'); } catch { return iso; }
@@ -44,8 +49,8 @@ function AddIssueForm({ onSave, onCancel }: {
     setForm((prev) => ({ ...prev, [key]: val }));
 
   const handleSave = () => {
-    if (!form.foundBy.trim()) { Alert.alert('Required', 'Please enter who found the issue.'); return; }
-    if (!form.notes.trim())   { Alert.alert('Required', 'Please enter issue notes.'); return; }
+    if (!form.foundBy.trim()) { showAlert('Required', 'Please enter who found the issue.'); return; }
+    if (!form.notes.trim())   { showAlert('Required', 'Please enter issue notes.'); return; }
     onSave(form);
   };
 
@@ -78,8 +83,8 @@ function ResolveForm({ onSave, onCancel }: {
     setForm((prev) => ({ ...prev, [key]: val }));
 
   const handleSave = () => {
-    if (!form.fixedBy.trim())  { Alert.alert('Required', 'Please enter who fixed the issue.'); return; }
-    if (!form.howFixed.trim()) { Alert.alert('Required', 'Please describe how it was fixed.'); return; }
+    if (!form.fixedBy.trim())  { showAlert('Required', 'Please enter who fixed the issue.'); return; }
+    if (!form.howFixed.trim()) { showAlert('Required', 'Please describe how it was fixed.'); return; }
     onSave(form);
   };
 

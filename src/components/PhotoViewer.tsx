@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal, View, Image, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { Modal, View, Image, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { downloadPhoto } from '../utils/imageStorage';
 
@@ -14,7 +14,8 @@ export default function PhotoViewer({ uri, onClose }: Props) {
     try {
       await downloadPhoto(uri);
     } catch (e: any) {
-      Alert.alert('Download Failed', e?.message ?? String(e));
+      if (Platform.OS === 'web') { (window as any).alert(`Download Failed\n${e?.message ?? String(e)}`); }
+      else { Alert.alert('Download Failed', e?.message ?? String(e)); }
     } finally {
       setDownloading(false);
     }
