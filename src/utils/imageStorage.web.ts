@@ -63,3 +63,8 @@ export async function readAsBase64(uri: string): Promise<string | null> {
 export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; updated: boolean; status: string }> {
   return { units, updated: false, status: '' };
 }
+
+export async function verifyAndRepairPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; repaired: number; status: string }> {
+  // On web, photos upload directly to Supabase — no local files to repair from
+  return { units, repaired: 0, status: '' };
+}

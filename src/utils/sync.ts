@@ -2,7 +2,7 @@ import { Image } from 'react-native';
 import { supabase } from './supabase';
 import { useStore } from '../store/useStore';
 import { UnitsStore, GeneralIssue } from '../types';
-import { uploadLocalPhotos } from './imageStorage';
+import { uploadLocalPhotos, verifyAndRepairPhotos } from './imageStorage';
 
 export interface SyncResult {
   success: boolean;
@@ -33,12 +33,21 @@ export async function syncWithCloud(): Promise<SyncResult> {
     let uploadedUnits = localUnits as any;
     let photoStatus: string | undefined;
     try {
-      const result = await uploadLocalPhotos(localUnits);
-      if (result.updated) {
-        useStore.getState().loadBackup(result.units as UnitsStore, localGeneralIssues);
-        uploadedUnits = result.units;
+      // Upload any new local photos
+      const uploadResult = await uploadLocalPhotos(localUnits);
+      let workingUnits = uploadResult.updated ? uploadResult.units : localUnits;
+      if (uploadResult.updated) useStore.getState().loadBackup(uploadResult.units as UnitsStore, localGeneralIssues);
+
+      // Verify existing https:// photos still exist in Supabase; re-upload from device if missing
+      const repairResult = await verifyAndRepairPhotos(workingUnits);
+      if (repairResult.repaired > 0) {
+        useStore.getState().loadBackup(repairResult.units as UnitsStore, useStore.getState().generalIssues);
+        workingUnits = repairResult.units;
       }
-      if (result.status) photoStatus = result.status;
+      uploadedUnits = workingUnits;
+
+      const parts = [uploadResult.status, repairResult.status].filter(Boolean);
+      if (parts.length) photoStatus = parts.join(' | ');
     } catch (photoErr: any) {
       return { success: false, error: `Photo upload failed: ${photoErr?.message ?? photoErr}` };
     }

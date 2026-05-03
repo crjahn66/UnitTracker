@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from './supabase';
 
 const IMAGES_DIR = (FileSystem.documentDirectory ?? '') + 'issue_images/';
+const SUPABASE_PUBLIC = '/storage/v1/object/public/photos/';
 
 let ImageManipulator: any = null;
 try { ImageManipulator = require('expo-image-manipulator'); } catch {}
@@ -11,7 +12,13 @@ export async function ensureImagesDir(): Promise<void> {
   if (!info.exists) await FileSystem.makeDirectoryAsync(IMAGES_DIR, { intermediates: true });
 }
 
-// Returns converted JPEG uri, original uri (non-HEIC), or null (HEIC that failed conversion)
+// Extract filename from a Supabase photo URL
+function remoteFileName(url: string): string | null {
+  const part = url.split(SUPABASE_PUBLIC)[1];
+  return part ? decodeURIComponent(part) : null;
+}
+
+// Returns converted JPEG uri, original uri (non-HEIC), or null (HEIC that failed)
 async function prepareUri(uri: string): Promise<string | null> {
   const ext = uri.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
   if (ext !== 'heic' && ext !== 'heif') return uri;
@@ -39,8 +46,13 @@ export async function saveImage(issueId: string, sourceUri: string, _file?: unkn
 export async function deleteImage(uri: string): Promise<void> {
   try {
     if (uri.startsWith('https://')) {
-      const fileName = uri.split('/storage/v1/object/public/photos/')[1];
-      if (fileName) await supabase.storage.from('photos').remove([decodeURIComponent(fileName)]);
+      // Delete from Supabase
+      const fileName = remoteFileName(uri);
+      if (fileName) await supabase.storage.from('photos').remove([fileName]);
+      // Also delete the local backup file (same filename)
+      const localPath = IMAGES_DIR + fileName;
+      const info = await FileSystem.getInfoAsync(localPath).catch(() => ({ exists: false }));
+      if (info.exists) await FileSystem.deleteAsync(localPath, { idempotent: true });
     } else {
       const info = await FileSystem.getInfoAsync(uri);
       if (info.exists) await FileSystem.deleteAsync(uri, { idempotent: true });
@@ -61,6 +73,27 @@ export async function readAsBase64(uri: string): Promise<string | null> {
   } catch { return null; }
 }
 
+// Upload a local file to Supabase using its own filename so we can always map back
+async function uploadFile(localPath: string): Promise<string | null> {
+  const src = await prepareUri(localPath);
+  if (src === null) return null; // HEIC that couldn't be converted
+
+  const ext = (src.split('?')[0].split('/').pop()?.split('.').pop()?.toLowerCase() ?? 'jpg').slice(0, 4);
+  const localName = localPath.split('/').pop() ?? `${Date.now()}.${ext}`;
+  // Use the same base name but with correct extension (handles HEIC→jpg conversion)
+  const fileName = localName.replace(/\.(heic|heif)$/i, '.jpg');
+  const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+
+  const base64 = await FileSystem.readAsStringAsync(src, { encoding: 'base64' as any });
+  const binaryStr = atob(base64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+  const { error } = await supabase.storage.from('photos').upload(fileName, bytes, { contentType, upsert: true });
+  if (error) throw new Error(error.message);
+  return supabase.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
+}
+
 export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; updated: boolean; status: string }> {
   let updated = false;
   let uploaded = 0, skippedMissing = 0, skippedHeic = 0, failed = 0;
@@ -72,27 +105,12 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
       const info = await FileSystem.getInfoAsync(uri);
       if (!info.exists) { skippedMissing++; return uri; }
 
-      const src = await prepareUri(uri);
-      if (src === null) {
-        // HEIC that couldn't be converted — skip rather than upload unconvertible file
-        skippedHeic++;
-        return uri;
-      }
-
-      const ext = (src.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg').slice(0, 4);
-      const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
-      const base64 = await FileSystem.readAsStringAsync(src, { encoding: 'base64' as any });
-      const binaryStr = atob(base64);
-      const bytes = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-
-      const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
-      const { error } = await supabase.storage.from('photos').upload(fileName, bytes, { contentType, upsert: false });
-      if (error) throw new Error(error.message);
+      const url = await uploadFile(uri);
+      if (url === null) { skippedHeic++; return uri; }
 
       uploaded++;
       updated = true;
-      return supabase.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
+      return url;
     } catch (e: any) {
       failed++;
       console.warn('Photo upload failed:', uri, e?.message);
@@ -119,9 +137,78 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
 
   const parts: string[] = [];
   if (uploaded > 0) parts.push(`${uploaded} photo(s) uploaded`);
-  if (skippedHeic > 0) parts.push(`${skippedHeic} HEIC not converted (retry later)`);
+  if (skippedHeic > 0) parts.push(`${skippedHeic} HEIC not converted`);
   if (skippedMissing > 0) parts.push(`${skippedMissing} file(s) missing`);
-  if (failed > 0) parts.push(`${failed} upload(s) failed`);
+  if (failed > 0) parts.push(`${failed} failed`);
 
   return { units: result, updated, status: parts.join(' | ') };
+}
+
+// Verify all https:// photos still exist in Supabase; re-upload from local if missing
+export async function verifyAndRepairPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; repaired: number; status: string }> {
+  const result = JSON.parse(JSON.stringify(units));
+  let repaired = 0;
+
+  // Collect all unique remote filenames
+  const allUrls = new Set<string>();
+  for (const unit of Object.values(result) as any[]) {
+    for (const comp of Object.values(unit.components) as any[]) {
+      (comp.issues ?? []).forEach((i: any) => (i.images ?? []).forEach((u: string) => allUrls.add(u)));
+      (comp.progressImages ?? []).forEach((u: string) => allUrls.add(u));
+      (comp.goodImages ?? []).forEach((u: string) => allUrls.add(u));
+    }
+    for (const item of (unit.miscEquipment ?? []) as any[]) {
+      (item.issues ?? []).forEach((i: any) => (i.images ?? []).forEach((u: string) => allUrls.add(u)));
+      (item.progressImages ?? []).forEach((u: string) => allUrls.add(u));
+      (item.goodImages ?? []).forEach((u: string) => allUrls.add(u));
+    }
+  }
+
+  const remoteUrls = [...allUrls].filter(u => u?.startsWith('https://'));
+  if (remoteUrls.length === 0) return { units: result, repaired: 0, status: '' };
+
+  // Get list of files currently in Supabase
+  const { data: existing } = await supabase.storage.from('photos').list('', { limit: 1000 });
+  const existingNames = new Set((existing ?? []).map(f => f.name));
+
+  // Find missing ones we can repair from local
+  const missingUrls = remoteUrls.filter(u => {
+    const name = remoteFileName(u);
+    return name && !existingNames.has(name);
+  });
+
+  if (missingUrls.length === 0) return { units: result, repaired: 0, status: '' };
+
+  // Build a URL→newURL map for repaired photos
+  const repairMap = new Map<string, string>();
+  for (const url of missingUrls) {
+    const fileName = remoteFileName(url);
+    if (!fileName) continue;
+    const localPath = IMAGES_DIR + fileName;
+    const info = await FileSystem.getInfoAsync(localPath).catch(() => ({ exists: false }));
+    if (!info.exists) continue;
+    try {
+      const newUrl = await uploadFile(localPath);
+      if (newUrl) { repairMap.set(url, newUrl); repaired++; }
+    } catch {}
+  }
+
+  if (repairMap.size === 0) return { units: result, repaired: 0, status: '' };
+
+  // Apply repaired URLs back into the result
+  const fix = (u: string) => repairMap.get(u) ?? u;
+  for (const unit of Object.values(result) as any[]) {
+    for (const comp of Object.values(unit.components) as any[]) {
+      (comp.issues ?? []).forEach((i: any) => { if (i.images) i.images = i.images.map(fix); });
+      if (comp.progressImages) comp.progressImages = comp.progressImages.map(fix);
+      if (comp.goodImages) comp.goodImages = comp.goodImages.map(fix);
+    }
+    for (const item of (unit.miscEquipment ?? []) as any[]) {
+      (item.issues ?? []).forEach((i: any) => { if (i.images) i.images = i.images.map(fix); });
+      if (item.progressImages) item.progressImages = item.progressImages.map(fix);
+      if (item.goodImages) item.goodImages = item.goodImages.map(fix);
+    }
+  }
+
+  return { units: result, repaired, status: `${repaired} photo(s) restored from device` };
 }
