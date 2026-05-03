@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { getSyncStatus, subscribeSyncStatus } from '../utils/sync';
+import { useStore } from '../store/useStore';
 
 function timeAgo(ms: number): string {
   const secs = Math.floor((Date.now() - ms) / 1000);
@@ -12,16 +13,46 @@ function timeAgo(ms: number): string {
   return `${hrs}h ago`;
 }
 
+const isLocal = (u: string) => !!u && !u.startsWith('https://');
+
 export default function SyncStatusBar() {
   const [status, setStatus] = useState(getSyncStatus);
   const [, tick] = useState(0);
 
+  const hasPendingPhotos = useStore((state) => {
+    for (const unit of Object.values(state.units)) {
+      for (const comp of Object.values(unit.components)) {
+        if ((comp.progressImages ?? []).some(isLocal)) return true;
+        if ((comp.goodImages ?? []).some(isLocal)) return true;
+        for (const issue of comp.issues) {
+          if ((issue.images ?? []).some(isLocal)) return true;
+        }
+      }
+      for (const item of (unit.miscEquipment ?? [])) {
+        if ((item.progressImages ?? []).some(isLocal)) return true;
+        if ((item.goodImages ?? []).some(isLocal)) return true;
+        for (const issue of item.issues) {
+          if ((issue.images ?? []).some(isLocal)) return true;
+        }
+      }
+    }
+    return false;
+  });
+
   useEffect(() => {
     const unsub = subscribeSyncStatus(() => setStatus(getSyncStatus()));
-    // Re-render every 15s so "X ago" stays fresh
     const interval = setInterval(() => tick((n) => n + 1), 15000);
     return () => { unsub(); clearInterval(interval); };
   }, []);
+
+  if (hasPendingPhotos) {
+    return (
+      <View style={s.bar}>
+        <View style={[s.dot, { backgroundColor: '#d29922' }]} />
+        <Text style={[s.text, { color: '#d29922' }]}>Sync needed</Text>
+      </View>
+    );
+  }
 
   const online = status.isOnline;
   const dotColor = online ? '#3fb950' : '#f85149';
