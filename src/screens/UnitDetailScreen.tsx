@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Alert,
+  Alert, Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,24 +24,22 @@ export default function UnitDetailScreen({ route }: Props) {
 
   const handleStageToggle = useCallback(
     (key: StageKey, current: boolean) => {
-      if (current) {
-        Alert.alert(
-          'Unmark Stage',
-          `Are you sure you want to unmark "${STAGES.find((s) => s.key === key)?.label}"?`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Unmark', style: 'destructive', onPress: () => updateStage(unitId, key, false) },
-          ]
-        );
+      const label = STAGES.find((s) => s.key === key)?.label ?? '';
+      if (Platform.OS === 'web') {
+        const msg = current
+          ? `Unmark "${label}" as complete?`
+          : `Mark "${label}" as complete?`;
+        if ((window as any).confirm(msg)) updateStage(unitId, key, !current);
+      } else if (current) {
+        Alert.alert('Unmark Stage', `Are you sure you want to unmark "${label}"?`, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Unmark', style: 'destructive', onPress: () => updateStage(unitId, key, false) },
+        ]);
       } else {
-        Alert.alert(
-          'Confirm Stage Complete',
-          `Mark "${STAGES.find((s) => s.key === key)?.label}" as complete?`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Confirm', onPress: () => updateStage(unitId, key, true) },
-          ]
-        );
+        Alert.alert('Confirm Stage Complete', `Mark "${label}" as complete?`, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Confirm', onPress: () => updateStage(unitId, key, true) },
+        ]);
       }
     },
     [unitId, updateStage]
