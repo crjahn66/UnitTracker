@@ -28,25 +28,16 @@ function collectRemoteImageUrls(units: UnitsStore): string[] {
 
 export async function syncWithCloud(): Promise<SyncResult> {
   try {
-    // 1. Upload any locally stored photos to Supabase Storage
     const { units: localUnits, generalIssues: localGeneralIssues } = useStore.getState();
-    let uploadedUnits = localUnits as any;
-    let photoStatus: string | undefined;
+    let uploadStatus = '';
+
+    // 1. Upload any local file-path photos to Supabase Storage
     try {
-      // Upload any new local photos
       const uploadResult = await uploadLocalPhotos(localUnits);
-      let workingUnits = uploadResult.updated ? uploadResult.units : localUnits;
-      if (uploadResult.updated) useStore.getState().loadBackup(uploadResult.units as UnitsStore, localGeneralIssues);
-
-      // Verify existing https:// photos still exist in Supabase; re-upload from device if missing
-      const repairResult = await verifyAndRepairPhotos(workingUnits);
-      if (repairResult.repaired > 0) {
-        useStore.getState().loadBackup(repairResult.units as UnitsStore, useStore.getState().generalIssues);
-        workingUnits = repairResult.units;
+      if (uploadResult.updated) {
+        useStore.getState().loadBackup(uploadResult.units as UnitsStore, localGeneralIssues);
       }
-      uploadedUnits = workingUnits;
-
-      photoStatus = [uploadResult.status, repairResult.status].filter(Boolean).join(' | ') || 'No photos to process';
+      uploadStatus = uploadResult.status;
     } catch (photoErr: any) {
       return { success: false, error: `Photo upload failed: ${photoErr?.message ?? photoErr}` };
     }
@@ -68,21 +59,35 @@ export async function syncWithCloud(): Promise<SyncResult> {
       useStore.getState().mergeImport(remoteUnits, remoteGeneralIssues);
     }
 
-    // 4. Push merged state back up
-    const { units: mergedUnits, generalIssues: mergedGeneralIssues } = useStore.getState();
+    // 4. Verify photos AFTER merge — drops/repairs any https:// URLs that don't exist in the
+    //    bucket, including ones the merge just restored from stale sync_state data (e.g. a photo
+    //    the user deleted before this sync ran).
+    const { units: postMergeUnits, generalIssues: postMergeGeneral } = useStore.getState();
+    let repairStatus = '';
+    try {
+      const repairResult = await verifyAndRepairPhotos(postMergeUnits);
+      if (repairResult.repaired > 0 || repairResult.dropped > 0) {
+        useStore.getState().loadBackup(repairResult.units as UnitsStore, postMergeGeneral);
+      }
+      repairStatus = repairResult.status;
+    } catch { /* non-fatal — push whatever we have */ }
+
+    // 5. Push merged + repaired state back to cloud
+    const { units: finalUnits, generalIssues: finalGeneralIssues } = useStore.getState();
     const now = new Date().toISOString();
 
     const { error: pushError } = await supabase
       .from('sync_state')
-      .update({ units: mergedUnits, general_issues: mergedGeneralIssues, updated_at: now })
+      .update({ units: finalUnits, general_issues: finalGeneralIssues, updated_at: now })
       .eq('id', 1);
 
     if (pushError) throw pushError;
 
-    // 5. Prefetch all remote photos to local cache for offline access
-    const remoteUrls = collectRemoteImageUrls(mergedUnits);
+    // 6. Prefetch confirmed remote photos to local cache for offline access
+    const remoteUrls = collectRemoteImageUrls(finalUnits);
     await Promise.allSettled(remoteUrls.map((url) => Image.prefetch(url)));
 
+    const photoStatus = [uploadStatus, repairStatus].filter(Boolean).join(' | ') || 'No photos to process';
     return { success: true, timestamp: now, warning: photoStatus };
   } catch (err: any) {
     return { success: false, error: err?.message ?? 'Sync failed' };

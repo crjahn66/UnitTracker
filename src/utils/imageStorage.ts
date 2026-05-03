@@ -164,7 +164,7 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
 }
 
 // Verify all https:// photos still exist in Supabase; re-upload from local if missing
-export async function verifyAndRepairPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; repaired: number; status: string }> {
+export async function verifyAndRepairPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; repaired: number; dropped: number; status: string }> {
   const result = JSON.parse(JSON.stringify(units));
   let repaired = 0;
 
@@ -184,7 +184,7 @@ export async function verifyAndRepairPhotos(units: Record<string, any>): Promise
   }
 
   const remoteUrls = [...allUrls].filter(u => u?.startsWith('https://'));
-  if (remoteUrls.length === 0) return { units: result, repaired: 0, status: '' };
+  if (remoteUrls.length === 0) return { units: result, repaired: 0, dropped: 0, status: '' };
 
   // Get list of files currently in Supabase
   const { data: existing } = await supabase.storage.from('photos').list('', { limit: 1000 });
@@ -196,7 +196,7 @@ export async function verifyAndRepairPhotos(units: Record<string, any>): Promise
     return name && !existingNames.has(name);
   });
 
-  if (missingUrls.length === 0) return { units: result, repaired: 0, status: '' };
+  if (missingUrls.length === 0) return { units: result, repaired: 0, dropped: 0, status: '' };
 
   // Build a URL→newURL map for repaired photos, and a drop set for unrecoverable ones
   const repairMap = new Map<string, string>();
@@ -214,7 +214,7 @@ export async function verifyAndRepairPhotos(units: Record<string, any>): Promise
     } catch { dropSet.add(url); }
   }
 
-  if (repairMap.size === 0 && dropSet.size === 0) return { units: result, repaired: 0, status: '' };
+  if (repairMap.size === 0 && dropSet.size === 0) return { units: result, repaired: 0, dropped: 0, status: '' };
 
   // Apply repairs and drop unrecoverable stale URLs
   const fix = (u: string): string | null => {
@@ -242,5 +242,5 @@ export async function verifyAndRepairPhotos(units: Record<string, any>): Promise
   const parts: string[] = [];
   if (repaired > 0) parts.push(`${repaired} photo(s) restored from device`);
   if (dropSet.size > 0) parts.push(`${dropSet.size} stale photo ref(s) removed`);
-  return { units: result, repaired, status: parts.join(' | ') };
+  return { units: result, repaired, dropped: dropSet.size, status: parts.join(' | ') };
 }
