@@ -461,10 +461,15 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
   }, [unitId, itemId, updateMiscIssue]);
 
   const handleDeleteItem = useCallback(() => {
-    Alert.alert('Delete Equipment', 'Remove this misc equipment entry and all its issues?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => { deleteMiscEquip(unitId, itemId); onClose(); } },
-    ]);
+    const doDelete = () => { deleteMiscEquip(unitId, itemId); pushToCloud().catch(() => {}); onClose(); };
+    if (Platform.OS === 'web') {
+      if ((window as any).confirm('Remove this misc equipment entry and all its issues?')) doDelete();
+    } else {
+      Alert.alert('Delete Equipment', 'Remove this misc equipment entry and all its issues?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: doDelete },
+      ]);
+    }
   }, [unitId, itemId, deleteMiscEquip, onClose]);
 
   if (!item) return null;

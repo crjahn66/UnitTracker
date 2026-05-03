@@ -57,7 +57,7 @@ export default function UnitDetailScreen({ route }: Props) {
 
   const stagesComplete = STAGES.filter((st) => unit.stages[st.key]).length;
   const allComps = Object.values(unit.components);
-  const miscItems = unit.miscEquipment ?? [];
+  const miscItems = (unit.miscEquipment ?? []).filter((m) => !m.deleted);
   const goodCount = allComps.filter((c) => c.status === 'good').length + miscItems.filter((m) => m.status === 'good').length;
   const badCount = allComps.filter((c) => c.status === 'bad').length + miscItems.filter((m) => m.status === 'bad').length;
   const openIssues = allComps.flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted).length

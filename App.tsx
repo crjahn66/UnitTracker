@@ -10,11 +10,9 @@ import { supabase } from './src/utils/supabase';
 import { downloadPhotosToDevice } from './src/utils/imageStorage';
 import { UnitsStore, GeneralIssue } from './src/types';
 
-// On web, auto-push store state to sync_state 2s after any change so other
-// devices see updates without needing a manual sync.
-function useWebAutoPush() {
+// Auto-push store state to sync_state 2s after any change on both platforms.
+function useAutoPush() {
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
     let timer: ReturnType<typeof setTimeout>;
     const unsubscribe = useStore.subscribe(() => {
       clearTimeout(timer);
@@ -60,7 +58,7 @@ function useNativeAutoSync() {
 }
 
 export default function App() {
-  useWebAutoPush();
+  useAutoPush();
   useNativeAutoSync();
   return (
     <ErrorBoundary>

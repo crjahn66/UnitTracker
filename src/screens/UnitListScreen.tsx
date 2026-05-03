@@ -11,7 +11,7 @@ type Props = NativeStackScreenProps<UnitStackParamList, 'UnitList'>;
 
 function unitStatusColor(unit: Unit): string {
   const comps = Object.values(unit.components);
-  const miscItems = unit.miscEquipment ?? [];
+  const miscItems = (unit.miscEquipment ?? []).filter((m) => !m.deleted);
   const miscIssues = miscItems.flatMap((m) => m.issues ?? []);
   const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
   const hasBad = comps.some((c) => c.status === 'bad') || miscItems.some((m) => m.status === 'bad');
@@ -32,7 +32,7 @@ function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
   const stagesComplete = STAGES.filter((s) => unit.stages[s.key]).length;
   const good = comps.filter((c) => c.status === 'good').length;
   const bad = comps.filter((c) => c.status === 'bad').length;
-  const miscIssues = (unit.miscEquipment ?? []).flatMap((m) => m.issues ?? []);
+  const miscIssues = (unit.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues ?? []);
   const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
   const color = unitStatusColor(unit);
 

@@ -78,6 +78,7 @@ export interface MiscEquipItem {
   goodNote?: string;
   goodImages?: string[];
   goodDate?: string;
+  deleted?: boolean;
 }
 
 export interface Unit {
@@ -102,4 +103,5 @@ export interface GeneralIssue {
   dateFixed?: string;
   fixedBy?: string;
   howFixed?: string;
+  deleted?: boolean;
 }

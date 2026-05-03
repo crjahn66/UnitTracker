@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { format, parse, isValid } from 'date-fns';
 import { useStore } from '../store/useStore';
+import { pushToCloud } from '../utils/sync';
 import { GeneralIssue } from '../types';
 
 interface Props {
@@ -186,14 +187,20 @@ export default function GeneralIssueModal({ onClose }: Props) {
   }, [updateGeneralIssue]);
 
   const handleDelete = useCallback((issueId: string) => {
-    Alert.alert('Delete Issue', 'Permanently remove this issue?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteGeneralIssue(issueId) },
-    ]);
+    const doDelete = () => { deleteGeneralIssue(issueId); pushToCloud().catch(() => {}); };
+    if (Platform.OS === 'web') {
+      if ((window as any).confirm('Permanently remove this issue?')) doDelete();
+    } else {
+      Alert.alert('Delete Issue', 'Permanently remove this issue?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: doDelete },
+      ]);
+    }
   }, [deleteGeneralIssue]);
 
-  const sorted    = [...generalIssues].sort((a, b) => b.dateFound.localeCompare(a.dateFound));
-  const openCount = generalIssues.filter((i) => !i.resolved).length;
+  const active    = generalIssues.filter((i) => !i.deleted);
+  const sorted    = [...active].sort((a, b) => b.dateFound.localeCompare(a.dateFound));
+  const openCount = active.filter((i) => !i.resolved).length;
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
@@ -205,7 +212,7 @@ export default function GeneralIssueModal({ onClose }: Props) {
               <Text style={m.title}>General Issues</Text>
               <Text style={m.subtitle}>
                 {openCount > 0 ? `${openCount} open` : 'No open issues'}
-                {generalIssues.length > 0 ? `  ·  ${generalIssues.length} total` : ''}
+                {active.length > 0 ? `  ·  ${active.length} total` : ''}
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={m.closeBtn}>

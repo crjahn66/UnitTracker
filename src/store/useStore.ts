@@ -273,7 +273,9 @@ export const useStore = create<StoreState>()(
               ...state.units,
               [unitId]: {
                 ...u,
-                miscEquipment: (u.miscEquipment ?? []).filter((item) => item.id !== itemId),
+                miscEquipment: (u.miscEquipment ?? []).map((item) =>
+                  item.id === itemId ? { ...item, deleted: true } : item
+                ),
               },
             },
           };
@@ -345,7 +347,7 @@ export const useStore = create<StoreState>()(
 
       deleteGeneralIssue: (issueId) =>
         set((state) => ({
-          generalIssues: state.generalIssues.filter((i) => i.id !== issueId),
+          generalIssues: state.generalIssues.map((i) => i.id === issueId ? { ...i, deleted: true } : i),
         })),
 
       mergeImport: (importUnits, importGeneralIssues) =>
@@ -424,8 +426,10 @@ export const useStore = create<StoreState>()(
                 });
                 const existIds = new Set(existingMisc[idx].issues.map((i) => i.id));
                 const newIssues = importItem.issues.filter((i: any) => !existIds.has(i.id));
+                const miscDeleted = existingMisc[idx].deleted || importItem.deleted || undefined;
                 existingMisc[idx] = {
                   ...existingMisc[idx],
+                  ...(miscDeleted ? { deleted: miscDeleted } : {}),
                   status: importItem.status ?? existingMisc[idx].status,
                   issues: [...mergedMiscIssues, ...newIssues],
                   progressNote: 'progressNote' in importItem ? importItem.progressNote : existingMisc[idx].progressNote,
@@ -449,11 +453,18 @@ export const useStore = create<StoreState>()(
             };
           }
 
-          // Merge general issues — skip IDs already present
+          // Merge general issues — propagate deleted flag, add new ones
+          const importGeneralMap = new Map(importGeneralIssues.map((i) => [i.id, i]));
+          const mergedGeneral = state.generalIssues.map((i) => {
+            const imp = importGeneralMap.get(i.id);
+            if (!imp) return i;
+            const deleted = i.deleted || imp.deleted || undefined;
+            return { ...i, ...(deleted ? { deleted } : {}) };
+          });
           const existGeneralIds = new Set(state.generalIssues.map((i) => i.id));
           const newGeneral = importGeneralIssues.filter((i) => !existGeneralIds.has(i.id));
 
-          return { units: merged, generalIssues: [...state.generalIssues, ...newGeneral] };
+          return { units: merged, generalIssues: [...mergedGeneral, ...newGeneral] };
         }),
 
       clearAllPhotos: () =>
