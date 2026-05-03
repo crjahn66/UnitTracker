@@ -12,7 +12,10 @@ export interface SyncResult {
 }
 
 // Module-level sync status — read via getSyncStatus(), updated after each push/sync
-let _lastSyncedAt: number | null = null;
+const LS_KEY = 'syncLastSyncedAt';
+let _lastSyncedAt: number | null = (() => {
+  try { const v = (globalThis as any).localStorage?.getItem(LS_KEY); return v ? Number(v) : null; } catch { return null; }
+})();
 let _isOnline: boolean = true;
 type SyncStatusListener = () => void;
 const _listeners = new Set<SyncStatusListener>();
@@ -31,6 +34,7 @@ export function subscribeSyncStatus(listener: SyncStatusListener) {
 function markSuccess() {
   _lastSyncedAt = Date.now();
   _isOnline = true;
+  try { (globalThis as any).localStorage?.setItem(LS_KEY, String(_lastSyncedAt)); } catch {}
   notifyListeners();
 }
 
