@@ -8,31 +8,11 @@ export async function ensureImagesDir(): Promise<void> {
   if (!info.exists) await FileSystem.makeDirectoryAsync(IMAGES_DIR, { intermediates: true });
 }
 
-function isHeic(uri: string): boolean {
-  const ext = uri.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
-  return ext === 'heic' || ext === 'heif';
-}
-
-async function convertToJpeg(uri: string): Promise<string> {
-  try {
-    const ImageManipulator = await import('expo-image-manipulator');
-    const result = await ImageManipulator.manipulateAsync(uri, [], {
-      compress: 0.9,
-      format: ImageManipulator.SaveFormat.JPEG,
-    });
-    return result.uri;
-  } catch {
-    return uri; // conversion failed — use original, upload will proceed
-  }
-}
-
 export async function saveImage(issueId: string, sourceUri: string, _file?: unknown): Promise<string> {
   await ensureImagesDir();
-  let src = sourceUri;
-  if (isHeic(src)) src = await convertToJpeg(src);
-  const ext = src.split('.').pop()?.toLowerCase() ?? 'jpg';
+  const ext = sourceUri.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg';
   const dest = IMAGES_DIR + `${issueId}_${Date.now()}.${ext}`;
-  await FileSystem.copyAsync({ from: src, to: dest });
+  await FileSystem.copyAsync({ from: sourceUri, to: dest });
   return dest;
 }
 
@@ -71,12 +51,11 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
       const info = await FileSystem.getInfoAsync(uri);
       if (!info.exists) return uri; // file missing — skip silently, keep existing path
 
-      const src = isHeic(uri) ? await convertToJpeg(uri) : uri;
-      const ext = (src.split('.').pop()?.toLowerCase() ?? 'jpg').slice(0, 4);
+      const ext = (uri.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg').slice(0, 4);
       const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
       const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
 
-      const base64 = await FileSystem.readAsStringAsync(src, { encoding: 'base64' as any });
+      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
       const binaryStr = atob(base64);
       const bytes = new Uint8Array(binaryStr.length);
       for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
