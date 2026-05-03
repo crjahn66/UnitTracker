@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Alert, Platform,
 } from 'react-native';
+import { format } from 'date-fns';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { UnitStackParamList } from '../navigation';
@@ -77,6 +78,9 @@ export default function UnitDetailScreen({ route }: Props) {
         <View style={s.card}>
           {STAGES.map((stage, idx) => {
             const done = unit.stages[stage.key];
+            const dateStr = done && unit.stagesDates?.[stage.key]
+              ? (() => { try { return format(new Date(unit.stagesDates![stage.key]!), 'MMM d'); } catch { return null; } })()
+              : null;
             return (
               <TouchableOpacity
                 key={stage.key}
@@ -91,9 +95,12 @@ export default function UnitDetailScreen({ route }: Props) {
                   <Text style={[s.stageLabel, done && s.stageLabelDone]}>{stage.label}</Text>
                   <Text style={s.stageNum}>Stage {idx + 1} of {STAGES.length}</Text>
                 </View>
-                <Text style={[s.stageStatus, { color: done ? '#3fb950' : '#6e7681' }]}>
-                  {done ? 'Complete' : 'Pending'}
-                </Text>
+                <View style={s.stageRight}>
+                  <Text style={[s.stageStatus, { color: done ? '#3fb950' : '#6e7681' }]}>
+                    {done ? 'Complete' : 'Pending'}
+                  </Text>
+                  {dateStr && <Text style={s.stageDate}>{dateStr}</Text>}
+                </View>
               </TouchableOpacity>
             );
           })}
@@ -280,7 +287,9 @@ const s = StyleSheet.create({
   stageLabel: { color: '#e6edf3', fontSize: 15, fontWeight: '500' },
   stageLabelDone: { color: '#8b949e' },
   stageNum: { color: '#6e7681', fontSize: 11, marginTop: 2 },
+  stageRight: { alignItems: 'flex-end' },
   stageStatus: { fontSize: 12, fontWeight: '600' },
+  stageDate: { color: '#6e7681', fontSize: 11, marginTop: 2 },
   // Component rows
   compRow: {
     flexDirection: 'row',

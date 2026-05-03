@@ -11,6 +11,34 @@ export interface SyncResult {
   timestamp?: string;
 }
 
+// Module-level sync status — read via getSyncStatus(), updated after each push/sync
+let _lastSyncedAt: number | null = null;
+let _isOnline: boolean = true;
+type SyncStatusListener = () => void;
+const _listeners = new Set<SyncStatusListener>();
+
+function notifyListeners() { _listeners.forEach((l) => l()); }
+
+export function getSyncStatus() {
+  return { lastSyncedAt: _lastSyncedAt, isOnline: _isOnline };
+}
+
+export function subscribeSyncStatus(listener: SyncStatusListener) {
+  _listeners.add(listener);
+  return () => _listeners.delete(listener);
+}
+
+function markSuccess() {
+  _lastSyncedAt = Date.now();
+  _isOnline = true;
+  notifyListeners();
+}
+
+function markFailure() {
+  _isOnline = false;
+  notifyListeners();
+}
+
 function collectRemoteImageUrls(units: UnitsStore): string[] {
   const urls: string[] = [];
   for (const unit of Object.values(units)) {
@@ -92,8 +120,10 @@ export async function syncWithCloud(): Promise<SyncResult> {
     }
 
     const photoStatus = [uploadStatus, repairStatus, downloadStatus].filter(Boolean).join(' | ') || 'Photos up to date';
+    markSuccess();
     return { success: true, timestamp: now, warning: photoStatus };
   } catch (err: any) {
+    markFailure();
     return { success: false, error: err?.message ?? 'Sync failed' };
   }
 }
@@ -102,10 +132,11 @@ export async function syncWithCloud(): Promise<SyncResult> {
 // Used for web auto-push so changes propagate to other devices without a full sync.
 export async function pushToCloud(): Promise<void> {
   const { units, generalIssues } = useStore.getState();
-  await supabase
+  const { error } = await supabase
     .from('sync_state')
     .update({ units, general_issues: generalIssues, updated_at: new Date().toISOString() })
     .eq('id', 1);
+  if (error) { markFailure(); } else { markSuccess(); }
 }
 
 // Delete all photos from the bucket, clear refs from the store, and push the

@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import UnitListScreen from '../screens/UnitListScreen';
 import UnitDetailScreen from '../screens/UnitDetailScreen';
 import ReportsScreen from '../screens/ReportsScreen';
+import SyncStatusBar from '../components/SyncStatusBar';
 import { Side } from '../types';
 
 export type UnitStackParamList = {
@@ -62,6 +63,7 @@ function SouthStack() {
 export default function Navigation() {
   return (
     <NavigationContainer>
+      <SyncStatusBar />
       <Tab.Navigator
         screenOptions={({ route }) => ({
           headerShown: false,

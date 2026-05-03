@@ -340,10 +340,12 @@ export default function ReportsScreen() {
           <Text style={s.restoreBtnText}>{restoring ? 'Loading…' : 'Restore Backup'}</Text>
         </TouchableOpacity>
       </View>
-      <TouchableOpacity style={[s.importBtn, importing && s.btnDisabled]} onPress={handleImport} disabled={importing} activeOpacity={0.8}>
-        {importing ? <ActivityIndicator color="#3fb950" size="small" /> : <Ionicons name="git-merge-outline" size={17} color="#3fb950" style={{ marginRight: 6 }} />}
-        <Text style={s.importBtnText}>{importing ? 'Merging…' : 'Merge Import'}</Text>
-      </TouchableOpacity>
+      {false && (
+        <TouchableOpacity style={[s.importBtn, importing && s.btnDisabled]} onPress={handleImport} disabled={importing} activeOpacity={0.8}>
+          {importing ? <ActivityIndicator color="#3fb950" size="small" /> : <Ionicons name="git-merge-outline" size={17} color="#3fb950" style={{ marginRight: 6 }} />}
+          <Text style={s.importBtnText}>{importing ? 'Merging…' : 'Merge Import'}</Text>
+        </TouchableOpacity>
+      )}
 
       <TouchableOpacity style={s.dailyReportBtn} onPress={() => setDailyReport(generateDailyReport(units, generalIssues))} activeOpacity={0.8}>
         <Ionicons name="clipboard-outline" size={17} color="#e6edf3" style={{ marginRight: 6 }} />
@@ -368,12 +370,14 @@ export default function ReportsScreen() {
       )}
 
       {/* Wipe photos (recovery) */}
-      <TouchableOpacity style={s.wipeBtn} onPress={handleWipePhotos} disabled={wiping} activeOpacity={0.8}>
-        {wiping
-          ? <ActivityIndicator size="small" color="#6e7681" style={{ marginRight: 6 }} />
-          : <Ionicons name="trash-outline" size={16} color="#6e7681" style={{ marginRight: 6 }} />}
-        <Text style={s.wipeBtnText}>{wiping ? 'Wiping…' : 'Wipe All Photos'}</Text>
-      </TouchableOpacity>
+      {false && (
+        <TouchableOpacity style={s.wipeBtn} onPress={handleWipePhotos} disabled={wiping} activeOpacity={0.8}>
+          {wiping
+            ? <ActivityIndicator size="small" color="#6e7681" style={{ marginRight: 6 }} />
+            : <Ionicons name="trash-outline" size={16} color="#6e7681" style={{ marginRight: 6 }} />}
+          <Text style={s.wipeBtnText}>{wiping ? 'Wiping…' : 'Wipe All Photos'}</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Daily Report Modal */}
       {dailyReport !== null && (
