@@ -269,7 +269,7 @@ export default function ReportsScreen() {
     setSyncing(false);
     if (result.success) {
       setLastSync(format(new Date(), 'h:mm a'));
-      if (result.warning) setSyncWarning(result.warning);
+      setSyncWarning(result.warning ?? null);
     } else {
       setSyncError(result.error ?? 'Sync failed');
     }

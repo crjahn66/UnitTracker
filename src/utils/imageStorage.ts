@@ -96,11 +96,13 @@ async function uploadFile(localPath: string): Promise<string | null> {
 
 export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; updated: boolean; status: string }> {
   let updated = false;
-  let uploaded = 0, skippedMissing = 0, skippedHeic = 0, failed = 0;
+  let localFound = 0, uploaded = 0, skippedMissing = 0, skippedHeic = 0, failed = 0;
+  const errors: string[] = [];
   const result = JSON.parse(JSON.stringify(units));
 
   const upload = async (uri: string): Promise<string> => {
     if (!uri || uri.startsWith('https://')) return uri;
+    localFound++;
     try {
       const info = await FileSystem.getInfoAsync(uri);
       if (!info.exists) { skippedMissing++; return uri; }
@@ -113,7 +115,9 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
       return url;
     } catch (e: any) {
       failed++;
-      console.warn('Photo upload failed:', uri, e?.message);
+      const msg = e?.message ?? String(e);
+      errors.push(msg);
+      console.warn('Photo upload failed:', uri, msg);
       return uri;
     }
   };
@@ -136,10 +140,11 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
   }
 
   const parts: string[] = [];
-  if (uploaded > 0) parts.push(`${uploaded} photo(s) uploaded`);
-  if (skippedHeic > 0) parts.push(`${skippedHeic} HEIC not converted`);
-  if (skippedMissing > 0) parts.push(`${skippedMissing} file(s) missing`);
-  if (failed > 0) parts.push(`${failed} failed`);
+  parts.push(`${localFound} local photo(s) found`);
+  if (uploaded > 0) parts.push(`${uploaded} uploaded`);
+  if (skippedHeic > 0) parts.push(`${skippedHeic} HEIC unconverted`);
+  if (skippedMissing > 0) parts.push(`${skippedMissing} missing`);
+  if (failed > 0) parts.push(`${failed} failed: ${errors[0] ?? ''}`);
 
   return { units: result, updated, status: parts.join(' | ') };
 }

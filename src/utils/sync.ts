@@ -46,8 +46,7 @@ export async function syncWithCloud(): Promise<SyncResult> {
       }
       uploadedUnits = workingUnits;
 
-      const parts = [uploadResult.status, repairResult.status].filter(Boolean);
-      if (parts.length) photoStatus = parts.join(' | ');
+      photoStatus = [uploadResult.status, repairResult.status].filter(Boolean).join(' | ') || 'No photos to process';
     } catch (photoErr: any) {
       return { success: false, error: `Photo upload failed: ${photoErr?.message ?? photoErr}` };
     }
