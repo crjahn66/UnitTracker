@@ -31,16 +31,20 @@ export async function syncWithCloud(): Promise<SyncResult> {
     // 1. Upload any locally stored photos to Supabase Storage
     const { units: localUnits, generalIssues: localGeneralIssues } = useStore.getState();
     let uploadedUnits = localUnits as any;
-    let heicWarning: string | undefined;
+    let photoStatus: string | undefined;
     try {
       const result = await uploadLocalPhotos(localUnits);
-      if (result.updated) {
+      if (result.uploaded > 0) {
         useStore.getState().loadBackup(result.units as UnitsStore, localGeneralIssues);
         uploadedUnits = result.units;
       }
-      if (result.heicFailed > 0) {
-        heicWarning = `${result.heicFailed} HEIC photo(s) could not be converted and will retry next sync.`;
-      }
+      const parts: string[] = [];
+      if (result.uploaded > 0) parts.push(`${result.uploaded} photo(s) uploaded`);
+      if (result.skippedMissing > 0) parts.push(`${result.skippedMissing} missing`);
+      if (result.skippedHeic > 0) parts.push(`${result.skippedHeic} HEIC unconverted`);
+      if (result.failed > 0) parts.push(`${result.failed} failed`);
+      if (result.errors.length > 0) parts.push(result.errors.slice(0, 2).join('; '));
+      if (parts.length > 0) photoStatus = parts.join(' | ');
     } catch (photoErr: any) {
       return { success: false, error: `Photo upload failed: ${photoErr?.message ?? photoErr}` };
     }
@@ -77,7 +81,7 @@ export async function syncWithCloud(): Promise<SyncResult> {
     const remoteUrls = collectRemoteImageUrls(mergedUnits);
     await Promise.allSettled(remoteUrls.map((url) => Image.prefetch(url)));
 
-    return { success: true, timestamp: now, warning: heicWarning };
+    return { success: true, timestamp: now, warning: photoStatus };
   } catch (err: any) {
     return { success: false, error: err?.message ?? 'Sync failed' };
   }

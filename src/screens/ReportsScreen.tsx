@@ -337,11 +337,11 @@ export default function ReportsScreen() {
       {lastSync !== null && !syncError && (
         <Text style={s.syncStatus}>Last synced at {lastSync}</Text>
       )}
+      {lastSync !== null && syncWarning && (
+        <Text style={s.syncWarning}>{syncWarning}</Text>
+      )}
       {syncError !== null && (
         <Text style={s.syncError}>{syncError}</Text>
-      )}
-      {syncWarning !== null && (
-        <Text style={s.syncWarning}>{syncWarning}</Text>
       )}
 
       {/* Daily Report Modal */}
