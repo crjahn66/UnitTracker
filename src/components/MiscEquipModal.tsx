@@ -399,21 +399,30 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
     updateMiscEquip(unitId, itemId, { progressNote: '', goodNote: '' });
   }, [unitId, itemId, updateMiscEquip, onClose]);
 
-  const handleAddIssue = useCallback(async (data: { dateFound: string; foundBy: string; notes: string; images: string[] }) => {
+  const handleAddIssue = useCallback((data: { dateFound: string; foundBy: string; notes: string; images: string[] }) => {
     const id = genId();
-    const savedImages: string[] = [];
-    for (const uri of data.images) {
-      try { savedImages.push(await saveImage(id, uri)); } catch { /* skip */ }
-    }
     const issue: MiscIssue = {
       id,
       dateFound: (() => { const p = parse(data.dateFound, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : new Date().toISOString(); })(),
       foundBy: data.foundBy, notes: data.notes, resolved: false,
-      images: savedImages.length > 0 ? savedImages : undefined,
+      images: data.images.length > 0 ? data.images : undefined,
     };
     addMiscIssue(unitId, itemId, issue);
     setView('detail');
-  }, [unitId, itemId, addMiscIssue]);
+    // Upload photos in the background — form is already closed
+    if (data.images.length > 0) {
+      (async () => {
+        const uploaded: string[] = [];
+        for (const uri of data.images) {
+          try { uploaded.push(await saveImage(id, uri)); } catch { /* skip */ }
+        }
+        if (uploaded.length > 0) {
+          updateMiscIssue(unitId, itemId, id, { images: uploaded });
+          pushToCloud().catch(() => {});
+        }
+      })();
+    }
+  }, [unitId, itemId, addMiscIssue, updateMiscIssue]);
 
   const handleResolve = useCallback((issueId: string, data: { dateFixed: string; fixedBy: string; howFixed: string }) => {
     updateMiscIssue(unitId, itemId, issueId, {

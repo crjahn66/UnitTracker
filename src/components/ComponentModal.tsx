@@ -483,12 +483,8 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
   );
 
   const handleAddIssue = useCallback(
-    async (data: { dateFound: string; foundBy: string; notes: string; images: string[] }) => {
+    (data: { dateFound: string; foundBy: string; notes: string; images: string[] }) => {
       const id = genId();
-      const savedImages: string[] = [];
-      for (const uri of data.images) {
-        try { savedImages.push(await saveImage(id, uri)); } catch { /* skip */ }
-      }
       const issue: Issue = {
         id,
         componentKey,
@@ -496,12 +492,25 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
         foundBy: data.foundBy,
         notes: data.notes,
         resolved: false,
-        images: savedImages.length > 0 ? savedImages : undefined,
+        images: data.images.length > 0 ? data.images : undefined,
       };
       addIssue(unitId, issue);
       setView('detail');
+      // Upload photos in the background — form is already closed
+      if (data.images.length > 0) {
+        (async () => {
+          const uploaded: string[] = [];
+          for (const uri of data.images) {
+            try { uploaded.push(await saveImage(id, uri)); } catch { /* skip */ }
+          }
+          if (uploaded.length > 0) {
+            updateIssue(unitId, componentKey, id, { images: uploaded });
+            pushToCloud().catch(() => {});
+          }
+        })();
+      }
     },
-    [unitId, componentKey, addIssue]
+    [unitId, componentKey, addIssue, updateIssue]
   );
 
   const handleResolve = useCallback(
