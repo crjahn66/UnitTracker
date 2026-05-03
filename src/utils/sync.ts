@@ -96,6 +96,16 @@ export async function syncWithCloud(): Promise<SyncResult> {
   }
 }
 
+// Lightweight push — just writes current store state to sync_state, no merge or verify.
+// Used for web auto-push so changes propagate to other devices without a full sync.
+export async function pushToCloud(): Promise<void> {
+  const { units, generalIssues } = useStore.getState();
+  await supabase
+    .from('sync_state')
+    .update({ units, general_issues: generalIssues, updated_at: new Date().toISOString() })
+    .eq('id', 1);
+}
+
 // Delete all photos from the bucket, clear refs from the store, and push the
 // cleaned state to sync_state so other devices don't restore the URLs on next sync.
 export async function wipeAllPhotos(): Promise<{ success: boolean; error?: string }> {
