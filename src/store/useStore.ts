@@ -388,7 +388,7 @@ export const useStore = create<StoreState>()(
               const existComp = existing.components[comp];
               const impComp = imp.components?.[comp] ?? {};
 
-              const impIssueMap = new Map((impComp.issues ?? []).map((i: any) => [i.id, i]));
+              const impIssueMap = new Map<string, any>((impComp.issues ?? []).map((i: any) => [i.id, i]));
               const mergedIssues = existComp.issues.map((existIssue: any) => {
                 const impIssue = impIssueMap.get(existIssue.id);
                 if (!impIssue) return existIssue;
@@ -417,8 +417,8 @@ export const useStore = create<StoreState>()(
               if (idx === -1) {
                 existingMisc.push(importItem);
               } else {
-                const impMiscIssueMap = new Map(importItem.issues.map((i: any) => [i.id, i]));
-                const mergedMiscIssues = existingMisc[idx].issues.map((existIssue) => {
+                const impMiscIssueMap = new Map<string, any>(importItem.issues.map((i: any) => [i.id, i]));
+                const mergedMiscIssues = existingMisc[idx].issues.map((existIssue: any) => {
                   const impIssue = impMiscIssueMap.get(existIssue.id);
                   if (!impIssue) return existIssue;
                   return { ...existIssue, images: mergeImages(existIssue.images, impIssue.images) ?? [] };
