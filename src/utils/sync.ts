@@ -1,8 +1,8 @@
-import { Image, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { supabase } from './supabase';
 import { useStore } from '../store/useStore';
 import { UnitsStore, GeneralIssue } from '../types';
-import { uploadLocalPhotos, verifyAndRepairPhotos } from './imageStorage';
+import { uploadLocalPhotos, verifyAndRepairPhotos, downloadPhotosToDevice } from './imageStorage';
 
 export interface SyncResult {
   success: boolean;
@@ -83,13 +83,16 @@ export async function syncWithCloud(): Promise<SyncResult> {
 
     if (pushError) throw pushError;
 
-    // 6. Prefetch confirmed remote photos to local cache for offline access (native only)
+    // 6. Download any missing remote photos to device for offline access (native only)
+    let downloadStatus = '';
     if (Platform.OS !== 'web') {
-      const remoteUrls = collectRemoteImageUrls(finalUnits);
-      await Promise.allSettled(remoteUrls.map((url) => Image.prefetch(url)));
+      try {
+        const dlResult = await downloadPhotosToDevice(finalUnits);
+        downloadStatus = dlResult.status;
+      } catch {}
     }
 
-    const photoStatus = [uploadStatus, repairStatus].filter(Boolean).join(' | ') || 'No local photos — sync web first if you added photos there';
+    const photoStatus = [uploadStatus, repairStatus, downloadStatus].filter(Boolean).join(' | ') || 'Photos up to date';
     return { success: true, timestamp: now, warning: photoStatus };
   } catch (err: any) {
     return { success: false, error: err?.message ?? 'Sync failed' };

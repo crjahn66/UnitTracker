@@ -77,6 +77,10 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
   return { units, updated: false, status: '' };
 }
 
+export async function downloadPhotosToDevice(_units: Record<string, any>): Promise<{ downloaded: number; status: string }> {
+  return { downloaded: 0, status: '' };
+}
+
 export async function verifyAndRepairPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; repaired: number; dropped: number; status: string }> {
   const result = JSON.parse(JSON.stringify(units));
   const SUPABASE_PUBLIC = '/storage/v1/object/public/photos/';

@@ -165,6 +165,35 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
   return { units: result, updated, status: parts.join(' | ') };
 }
 
+export async function downloadPhotosToDevice(units: Record<string, any>): Promise<{ downloaded: number; status: string }> {
+  await ensureImagesDir();
+  const allUrls = new Set<string>();
+  for (const unit of Object.values(units) as any[]) {
+    for (const comp of Object.values(unit.components) as any[]) {
+      (comp.issues ?? []).forEach((i: any) => (i.images ?? []).forEach((u: string) => allUrls.add(u)));
+      (comp.progressImages ?? []).forEach((u: string) => allUrls.add(u));
+      (comp.goodImages ?? []).forEach((u: string) => allUrls.add(u));
+    }
+    for (const item of (unit.miscEquipment ?? []) as any[]) {
+      (item.issues ?? []).forEach((i: any) => (i.images ?? []).forEach((u: string) => allUrls.add(u)));
+      (item.progressImages ?? []).forEach((u: string) => allUrls.add(u));
+      (item.goodImages ?? []).forEach((u: string) => allUrls.add(u));
+    }
+  }
+
+  const remoteUrls = [...allUrls].filter(u => u?.startsWith('https://'));
+  let downloaded = 0;
+  for (const url of remoteUrls) {
+    const fileName = remoteFileName(url);
+    if (!fileName) continue;
+    const localPath = IMAGES_DIR + fileName;
+    const info = await FileSystem.getInfoAsync(localPath).catch(() => ({ exists: false }));
+    if (info.exists) continue;
+    try { await FileSystem.downloadAsync(url, localPath); downloaded++; } catch {}
+  }
+  return { downloaded, status: downloaded > 0 ? `${downloaded} photo(s) downloaded to device` : '' };
+}
+
 // Verify all https:// photos still exist in Supabase; re-upload from local if missing
 export async function verifyAndRepairPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; repaired: number; dropped: number; status: string }> {
   const result = JSON.parse(JSON.stringify(units));
