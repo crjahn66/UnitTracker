@@ -60,6 +60,20 @@ export async function deleteImage(uri: string): Promise<void> {
   } catch {}
 }
 
+export async function downloadPhoto(uri: string): Promise<void> {
+  let localUri = uri;
+  if (uri.startsWith('https://')) {
+    const fileName = uri.split('/').pop()?.split('?')[0] || `photo_${Date.now()}.jpg`;
+    const dest = (FileSystem.cacheDirectory ?? '') + fileName;
+    const { uri: downloaded } = await FileSystem.downloadAsync(uri, dest);
+    localUri = downloaded;
+  }
+  let Sharing: any;
+  try { Sharing = require('expo-sharing'); } catch { return; }
+  const canShare = await Sharing.isAvailableAsync();
+  if (canShare) await Sharing.shareAsync(localUri, { dialogTitle: 'Save Photo' });
+}
+
 export async function readAsBase64(uri: string): Promise<string | null> {
   try {
     if (uri.startsWith('https://')) {
@@ -184,36 +198,49 @@ export async function verifyAndRepairPhotos(units: Record<string, any>): Promise
 
   if (missingUrls.length === 0) return { units: result, repaired: 0, status: '' };
 
-  // Build a URL→newURL map for repaired photos
+  // Build a URL→newURL map for repaired photos, and a drop set for unrecoverable ones
   const repairMap = new Map<string, string>();
+  const dropSet = new Set<string>();
   for (const url of missingUrls) {
     const fileName = remoteFileName(url);
-    if (!fileName) continue;
+    if (!fileName) { dropSet.add(url); continue; }
     const localPath = IMAGES_DIR + fileName;
     const info = await FileSystem.getInfoAsync(localPath).catch(() => ({ exists: false }));
-    if (!info.exists) continue;
+    if (!info.exists) { dropSet.add(url); continue; } // gone from Supabase AND device — drop it
     try {
       const newUrl = await uploadFile(localPath);
       if (newUrl) { repairMap.set(url, newUrl); repaired++; }
-    } catch {}
+      else dropSet.add(url);
+    } catch { dropSet.add(url); }
   }
 
-  if (repairMap.size === 0) return { units: result, repaired: 0, status: '' };
+  if (repairMap.size === 0 && dropSet.size === 0) return { units: result, repaired: 0, status: '' };
 
-  // Apply repaired URLs back into the result
-  const fix = (u: string) => repairMap.get(u) ?? u;
+  // Apply repairs and drop unrecoverable stale URLs
+  const fix = (u: string): string | null => {
+    if (repairMap.has(u)) return repairMap.get(u)!;
+    if (dropSet.has(u)) return null;
+    return u;
+  };
+  const applyFix = (arr: string[]): string[] | undefined => {
+    const out = arr.map(fix).filter((u): u is string => u !== null);
+    return out.length ? out : undefined;
+  };
   for (const unit of Object.values(result) as any[]) {
     for (const comp of Object.values(unit.components) as any[]) {
-      (comp.issues ?? []).forEach((i: any) => { if (i.images) i.images = i.images.map(fix); });
-      if (comp.progressImages) comp.progressImages = comp.progressImages.map(fix);
-      if (comp.goodImages) comp.goodImages = comp.goodImages.map(fix);
+      (comp.issues ?? []).forEach((i: any) => { if (i.images) i.images = applyFix(i.images) ?? []; });
+      if (comp.progressImages) comp.progressImages = applyFix(comp.progressImages);
+      if (comp.goodImages) comp.goodImages = applyFix(comp.goodImages);
     }
     for (const item of (unit.miscEquipment ?? []) as any[]) {
-      (item.issues ?? []).forEach((i: any) => { if (i.images) i.images = i.images.map(fix); });
-      if (item.progressImages) item.progressImages = item.progressImages.map(fix);
-      if (item.goodImages) item.goodImages = item.goodImages.map(fix);
+      (item.issues ?? []).forEach((i: any) => { if (i.images) i.images = applyFix(i.images) ?? []; });
+      if (item.progressImages) item.progressImages = applyFix(item.progressImages);
+      if (item.goodImages) item.goodImages = applyFix(item.goodImages);
     }
   }
 
-  return { units: result, repaired, status: `${repaired} photo(s) restored from device` };
+  const parts: string[] = [];
+  if (repaired > 0) parts.push(`${repaired} photo(s) restored from device`);
+  if (dropSet.size > 0) parts.push(`${dropSet.size} stale photo ref(s) removed`);
+  return { units: result, repaired, status: parts.join(' | ') };
 }

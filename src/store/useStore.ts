@@ -353,14 +353,21 @@ export const useStore = create<StoreState>()(
           const merged = { ...state.units };
           const statusRank: Record<string, number> = { good: 3, bad: 2, inProgress: 1, unchecked: 0 };
 
-          // Merge two image URL arrays — prefer https:// (uploaded) over local file paths
+          // Merge two image URL arrays.
+          // If local side (a) has pending local file paths, preserve them — don't let stale remote
+          // https:// URLs overwrite them (can happen when a prior sync failed mid-upload).
+          // Only combine https:// URLs from both sides when local is already fully uploaded.
           const mergeImages = (a: string[] = [], b: string[] = []): string[] | undefined => {
-            const all = [...new Set([...a, ...b])];
-            const remote = all.filter(u => u.startsWith('https://'));
-            const local = all.filter(u => !u.startsWith('https://'));
-            // If remote URLs exist, drop local paths (they're stale pre-upload refs)
-            const result = remote.length > 0 ? remote : local;
-            return result.length ? result : undefined;
+            const aLocal = a.filter(u => !u.startsWith('https://'));
+            const aRemote = a.filter(u => u.startsWith('https://'));
+            if (aLocal.length > 0) {
+              // Local has pending uploads — keep them; skip remote (may be stale)
+              const result = [...aLocal, ...aRemote];
+              return result.length ? result : undefined;
+            }
+            // Both sides are remote https:// — union them
+            const all = [...new Set([...aRemote, ...b.filter(u => u.startsWith('https://'))])];
+            return all.length ? all : undefined;
           };
 
           for (const [uid, importUnit] of Object.entries(importUnits)) {

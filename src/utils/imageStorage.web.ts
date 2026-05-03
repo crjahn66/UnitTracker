@@ -47,6 +47,19 @@ export async function deleteImage(uri: string): Promise<void> {
   } catch { /* ignore */ }
 }
 
+export async function downloadPhoto(uri: string): Promise<void> {
+  const response = await fetch(uri);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = uri.split('/').pop()?.split('?')[0] || 'photo.jpg';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export async function readAsBase64(uri: string): Promise<string | null> {
   try {
     const response = await fetch(uri);
