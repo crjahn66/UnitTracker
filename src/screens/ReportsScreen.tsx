@@ -9,7 +9,7 @@ import { useStore } from '../store/useStore';
 import { STAGES, COMPONENTS, UnitsStore, GeneralIssue, Unit } from '../types';
 import { exportToExcel } from '../utils/exportExcel';
 import { backupData, restoreData } from '../utils/backup';
-import { syncWithCloud } from '../utils/sync';
+import { syncWithCloud, wipeAllPhotos } from '../utils/sync';
 import GeneralIssueModal from '../components/GeneralIssueModal';
 
 function isUnitCommissioned(unit: Unit): boolean {
@@ -156,7 +156,6 @@ export default function ReportsScreen() {
   const generalIssues = useStore((state) => state.generalIssues);
   const loadBackup    = useStore((state) => state.loadBackup);
   const mergeImport   = useStore((state) => state.mergeImport);
-  const clearAllPhotos = useStore((state) => state.clearAllPhotos);
   const [exporting, setExporting]           = useState(false);
   const [backingUp, setBackingUp]           = useState(false);
   const [restoring, setRestoring]           = useState(false);
@@ -167,6 +166,7 @@ export default function ReportsScreen() {
   const [lastSync, setLastSync]             = useState<string | null>(null);
   const [syncError, setSyncError]           = useState<string | null>(null);
   const [syncWarning, setSyncWarning]       = useState<string | null>(null);
+  const [wiping, setWiping]                 = useState(false);
 
   const openGeneralCount = generalIssues.filter((i) => !i.resolved).length;
 
@@ -265,10 +265,21 @@ export default function ReportsScreen() {
   const handleWipePhotos = () => {
     Alert.alert(
       'Wipe All Photos',
-      'This removes all photo references from the app. Use this to reset if photos are stuck. You will need to re-add them.\n\nThis does NOT delete photos from Supabase.',
+      'This deletes all photos from Supabase storage, removes all photo references from the app, and pushes the cleared state to the cloud so they do not come back on next sync.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Wipe Photos', style: 'destructive', onPress: () => { clearAllPhotos(); Alert.alert('Done', 'All photo references cleared. Sync to re-upload.'); } },
+        {
+          text: 'Wipe Photos', style: 'destructive', onPress: async () => {
+            setWiping(true);
+            const result = await wipeAllPhotos();
+            setWiping(false);
+            if (result.success) {
+              Alert.alert('Done', 'All photos removed from app and cloud.');
+            } else {
+              Alert.alert('Wipe Failed', result.error ?? 'Unknown error');
+            }
+          },
+        },
       ]
     );
   };
@@ -356,10 +367,12 @@ export default function ReportsScreen() {
         <Text style={s.syncError}>{syncError}</Text>
       )}
 
-      {/* Wipe photos (debug/recovery) */}
-      <TouchableOpacity style={s.wipeBtn} onPress={handleWipePhotos} activeOpacity={0.8}>
-        <Ionicons name="trash-outline" size={16} color="#6e7681" style={{ marginRight: 6 }} />
-        <Text style={s.wipeBtnText}>Wipe All Photo References</Text>
+      {/* Wipe photos (recovery) */}
+      <TouchableOpacity style={s.wipeBtn} onPress={handleWipePhotos} disabled={wiping} activeOpacity={0.8}>
+        {wiping
+          ? <ActivityIndicator size="small" color="#6e7681" style={{ marginRight: 6 }} />
+          : <Ionicons name="trash-outline" size={16} color="#6e7681" style={{ marginRight: 6 }} />}
+        <Text style={s.wipeBtnText}>{wiping ? 'Wiping…' : 'Wipe All Photos'}</Text>
       </TouchableOpacity>
 
       {/* Daily Report Modal */}

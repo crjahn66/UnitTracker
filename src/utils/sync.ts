@@ -1,4 +1,4 @@
-import { Image } from 'react-native';
+import { Image, Platform } from 'react-native';
 import { supabase } from './supabase';
 import { useStore } from '../store/useStore';
 import { UnitsStore, GeneralIssue } from '../types';
@@ -83,13 +83,51 @@ export async function syncWithCloud(): Promise<SyncResult> {
 
     if (pushError) throw pushError;
 
-    // 6. Prefetch confirmed remote photos to local cache for offline access
-    const remoteUrls = collectRemoteImageUrls(finalUnits);
-    await Promise.allSettled(remoteUrls.map((url) => Image.prefetch(url)));
+    // 6. Prefetch confirmed remote photos to local cache for offline access (native only)
+    if (Platform.OS !== 'web') {
+      const remoteUrls = collectRemoteImageUrls(finalUnits);
+      await Promise.allSettled(remoteUrls.map((url) => Image.prefetch(url)));
+    }
 
     const photoStatus = [uploadStatus, repairStatus].filter(Boolean).join(' | ') || 'No photos to process';
     return { success: true, timestamp: now, warning: photoStatus };
   } catch (err: any) {
     return { success: false, error: err?.message ?? 'Sync failed' };
+  }
+}
+
+// Delete all photos from the bucket, clear refs from the store, and push the
+// cleaned state to sync_state so other devices don't restore the URLs on next sync.
+export async function wipeAllPhotos(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { units, generalIssues } = useStore.getState();
+
+    // Batch-delete all bucket files referenced in the store
+    const SUPABASE_PUBLIC = '/storage/v1/object/public/photos/';
+    const remoteUrls = collectRemoteImageUrls(units);
+    if (remoteUrls.length > 0) {
+      const fileNames = remoteUrls
+        .map(u => { const p = u.split(SUPABASE_PUBLIC)[1]; return p ? decodeURIComponent(p) : null; })
+        .filter((n): n is string => n !== null);
+      if (fileNames.length > 0) {
+        await supabase.storage.from('photos').remove(fileNames);
+      }
+    }
+
+    // Clear refs from store
+    useStore.getState().clearAllPhotos();
+
+    // Push cleared state so sync_state no longer has any photo URLs
+    const { units: clearedUnits, generalIssues: clearedGeneral } = useStore.getState();
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from('sync_state')
+      .update({ units: clearedUnits, general_issues: clearedGeneral, updated_at: now })
+      .eq('id', 1);
+    if (error) throw error;
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message ?? 'Wipe failed' };
   }
 }

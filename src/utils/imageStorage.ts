@@ -153,6 +153,8 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
     }
   }
 
+  if (localFound === 0) return { units: result, updated: false, status: '' };
+
   const parts: string[] = [];
   parts.push(`${localFound} local photo(s) found`);
   if (uploaded > 0) parts.push(`${uploaded} uploaded`);
