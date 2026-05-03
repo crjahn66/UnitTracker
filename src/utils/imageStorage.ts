@@ -1,4 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase } from './supabase';
 
 const IMAGES_DIR = (FileSystem.documentDirectory ?? '') + 'issue_images/';
@@ -8,11 +9,30 @@ export async function ensureImagesDir(): Promise<void> {
   if (!info.exists) await FileSystem.makeDirectoryAsync(IMAGES_DIR, { intermediates: true });
 }
 
+function isHeic(uri: string): boolean {
+  const ext = uri.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
+  return ext === 'heic' || ext === 'heif';
+}
+
+// Returns a JPEG URI, or the original URI if conversion fails
+async function toJpeg(uri: string): Promise<string> {
+  try {
+    const r = await ImageManipulator.manipulateAsync(uri, [], {
+      compress: 0.9,
+      format: ImageManipulator.SaveFormat.JPEG,
+    });
+    return r.uri;
+  } catch {
+    return uri;
+  }
+}
+
 export async function saveImage(issueId: string, sourceUri: string, _file?: unknown): Promise<string> {
   await ensureImagesDir();
-  const ext = sourceUri.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg';
+  const src = isHeic(sourceUri) ? await toJpeg(sourceUri) : sourceUri;
+  const ext = src.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg';
   const dest = IMAGES_DIR + `${issueId}_${Date.now()}.${ext}`;
-  await FileSystem.copyAsync({ from: sourceUri, to: dest });
+  await FileSystem.copyAsync({ from: src, to: dest });
   return dest;
 }
 
@@ -49,13 +69,15 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
     if (!uri || uri.startsWith('https://')) return uri;
     try {
       const info = await FileSystem.getInfoAsync(uri);
-      if (!info.exists) return uri; // file missing — skip silently, keep existing path
+      if (!info.exists) return uri; // file missing — skip silently, retry next sync
 
-      const ext = (uri.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg').slice(0, 4);
+      // Convert HEIC to JPEG before uploading so browsers can display it
+      const src = isHeic(uri) ? await toJpeg(uri) : uri;
+      const ext = (src.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg').slice(0, 4);
       const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
       const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
 
-      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
+      const base64 = await FileSystem.readAsStringAsync(src, { encoding: 'base64' as any });
       const binaryStr = atob(base64);
       const bytes = new Uint8Array(binaryStr.length);
       for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
@@ -66,7 +88,7 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
       return supabase.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
     } catch (e) {
       console.warn('Photo upload skipped:', uri, e);
-      return uri; // keep local path, will retry on next sync
+      return uri; // keep local path, retry on next sync
     }
   };
 
