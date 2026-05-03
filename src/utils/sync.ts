@@ -7,6 +7,7 @@ import { uploadLocalPhotos } from './imageStorage';
 export interface SyncResult {
   success: boolean;
   error?: string;
+  warning?: string;
   timestamp?: string;
 }
 
@@ -30,11 +31,15 @@ export async function syncWithCloud(): Promise<SyncResult> {
     // 1. Upload any locally stored photos to Supabase Storage
     const { units: localUnits, generalIssues: localGeneralIssues } = useStore.getState();
     let uploadedUnits = localUnits as any;
+    let heicWarning: string | undefined;
     try {
       const result = await uploadLocalPhotos(localUnits);
       if (result.updated) {
         useStore.getState().loadBackup(result.units as UnitsStore, localGeneralIssues);
         uploadedUnits = result.units;
+      }
+      if (result.heicFailed > 0) {
+        heicWarning = `${result.heicFailed} HEIC photo(s) could not be converted and will retry next sync.`;
       }
     } catch (photoErr: any) {
       return { success: false, error: `Photo upload failed: ${photoErr?.message ?? photoErr}` };
@@ -72,7 +77,7 @@ export async function syncWithCloud(): Promise<SyncResult> {
     const remoteUrls = collectRemoteImageUrls(mergedUnits);
     await Promise.allSettled(remoteUrls.map((url) => Image.prefetch(url)));
 
-    return { success: true, timestamp: now };
+    return { success: true, timestamp: now, warning: heicWarning };
   } catch (err: any) {
     return { success: false, error: err?.message ?? 'Sync failed' };
   }

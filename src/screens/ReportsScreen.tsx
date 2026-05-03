@@ -165,6 +165,7 @@ export default function ReportsScreen() {
   const [syncing, setSyncing]               = useState(false);
   const [lastSync, setLastSync]             = useState<string | null>(null);
   const [syncError, setSyncError]           = useState<string | null>(null);
+  const [syncWarning, setSyncWarning]       = useState<string | null>(null);
 
   const openGeneralCount = generalIssues.filter((i) => !i.resolved).length;
 
@@ -263,10 +264,12 @@ export default function ReportsScreen() {
   const handleSync = async () => {
     setSyncing(true);
     setSyncError(null);
+    setSyncWarning(null);
     const result = await syncWithCloud();
     setSyncing(false);
     if (result.success) {
       setLastSync(format(new Date(), 'h:mm a'));
+      if (result.warning) setSyncWarning(result.warning);
     } else {
       setSyncError(result.error ?? 'Sync failed');
     }
@@ -336,6 +339,9 @@ export default function ReportsScreen() {
       )}
       {syncError !== null && (
         <Text style={s.syncError}>{syncError}</Text>
+      )}
+      {syncWarning !== null && (
+        <Text style={s.syncWarning}>{syncWarning}</Text>
       )}
 
       {/* Daily Report Modal */}
@@ -517,7 +523,8 @@ const s = StyleSheet.create({
   },
   syncBtnText: { color: '#a371f7', fontSize: 14, fontWeight: '600' },
   syncStatus: { color: '#3fb950', fontSize: 12, textAlign: 'center', marginBottom: 20 },
-  syncError:  { color: '#f85149', fontSize: 12, textAlign: 'center', marginBottom: 20 },
+  syncError:   { color: '#f85149', fontSize: 12, textAlign: 'center', marginBottom: 4 },
+  syncWarning: { color: '#e3b341', fontSize: 12, textAlign: 'center', marginBottom: 20 },
   drOverlay: { flex: 1, backgroundColor: '#00000099', justifyContent: 'center', padding: 20 },
   drSheet: { backgroundColor: '#161b22', borderRadius: 14, borderWidth: 1, borderColor: '#30363d', overflow: 'hidden' },
   drHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#21262d' },

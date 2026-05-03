@@ -14,8 +14,8 @@ function isHeic(uri: string): boolean {
   return ext === 'heic' || ext === 'heif';
 }
 
-// Returns a JPEG URI, or the original URI if conversion fails
-async function toJpeg(uri: string): Promise<string> {
+// Returns a JPEG URI, or null if conversion fails
+async function toJpeg(uri: string): Promise<string | null> {
   try {
     const r = await ImageManipulator.manipulateAsync(uri, [], {
       compress: 0.9,
@@ -23,13 +23,14 @@ async function toJpeg(uri: string): Promise<string> {
     });
     return r.uri;
   } catch {
-    return uri;
+    return null;
   }
 }
 
 export async function saveImage(issueId: string, sourceUri: string, _file?: unknown): Promise<string> {
   await ensureImagesDir();
-  const src = isHeic(sourceUri) ? await toJpeg(sourceUri) : sourceUri;
+  const converted = isHeic(sourceUri) ? await toJpeg(sourceUri) : null;
+  const src = converted ?? sourceUri;
   const ext = src.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg';
   const dest = IMAGES_DIR + `${issueId}_${Date.now()}.${ext}`;
   await FileSystem.copyAsync({ from: src, to: dest });
@@ -61,8 +62,9 @@ export async function readAsBase64(uri: string): Promise<string | null> {
   } catch { return null; }
 }
 
-export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; updated: boolean }> {
+export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; updated: boolean; heicFailed: number }> {
   let updated = false;
+  let heicFailed = 0;
   const result = JSON.parse(JSON.stringify(units));
 
   const upload = async (uri: string): Promise<string> => {
@@ -72,7 +74,13 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
       if (!info.exists) return uri; // file missing — skip silently, retry next sync
 
       // Convert HEIC to JPEG before uploading so browsers can display it
-      const src = isHeic(uri) ? await toJpeg(uri) : uri;
+      // If conversion fails, skip this photo (keep local path, retry next sync)
+      let src = uri;
+      if (isHeic(uri)) {
+        const converted = await toJpeg(uri);
+        if (!converted) { heicFailed++; return uri; }
+        src = converted;
+      }
       const ext = (src.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg').slice(0, 4);
       const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
       const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
@@ -109,5 +117,5 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
     }
   }
 
-  return { units: result, updated };
+  return { units: result, updated, heicFailed };
 }
