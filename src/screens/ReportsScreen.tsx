@@ -337,7 +337,7 @@ export default function ReportsScreen() {
       {lastSync !== null && !syncError && (
         <Text style={s.syncStatus}>Last synced at {lastSync}</Text>
       )}
-      {lastSync !== null && syncWarning && (
+      {syncWarning != null && (
         <Text style={s.syncWarning}>{syncWarning}</Text>
       )}
       {syncError !== null && (

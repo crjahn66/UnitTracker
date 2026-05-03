@@ -3,7 +3,6 @@ import { supabase } from './supabase';
 
 const IMAGES_DIR = (FileSystem.documentDirectory ?? '') + 'issue_images/';
 
-// Safe load — if unavailable, HEIC photos upload as-is, everything else unchanged
 let ImageManipulator: any = null;
 try { ImageManipulator = require('expo-image-manipulator'); } catch {}
 
@@ -12,10 +11,11 @@ export async function ensureImagesDir(): Promise<void> {
   if (!info.exists) await FileSystem.makeDirectoryAsync(IMAGES_DIR, { intermediates: true });
 }
 
-async function toJpegUri(uri: string): Promise<string> {
-  if (!ImageManipulator) return uri;
+// Returns converted JPEG uri, original uri (non-HEIC), or null (HEIC that failed conversion)
+async function prepareUri(uri: string): Promise<string | null> {
   const ext = uri.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
   if (ext !== 'heic' && ext !== 'heif') return uri;
+  if (!ImageManipulator) return null;
   try {
     const r = await ImageManipulator.manipulateAsync(uri, [], {
       compress: 0.9,
@@ -23,13 +23,13 @@ async function toJpegUri(uri: string): Promise<string> {
     });
     return r.uri;
   } catch {
-    return uri;
+    return null;
   }
 }
 
 export async function saveImage(issueId: string, sourceUri: string, _file?: unknown): Promise<string> {
   await ensureImagesDir();
-  const src = await toJpegUri(sourceUri);
+  const src = (await prepareUri(sourceUri)) ?? sourceUri;
   const ext = src.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg';
   const dest = IMAGES_DIR + `${issueId}_${Date.now()}.${ext}`;
   await FileSystem.copyAsync({ from: src, to: dest });
@@ -63,17 +63,21 @@ export async function readAsBase64(uri: string): Promise<string | null> {
 
 export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; updated: boolean; status: string }> {
   let updated = false;
-  let uploaded = 0, skipped = 0, failed = 0;
+  let uploaded = 0, skippedMissing = 0, skippedHeic = 0, failed = 0;
   const result = JSON.parse(JSON.stringify(units));
 
   const upload = async (uri: string): Promise<string> => {
     if (!uri || uri.startsWith('https://')) return uri;
     try {
       const info = await FileSystem.getInfoAsync(uri);
-      if (!info.exists) { skipped++; return uri; }
+      if (!info.exists) { skippedMissing++; return uri; }
 
-      // Convert HEIC→JPEG if possible; falls back to original on failure
-      const src = await toJpegUri(uri);
+      const src = await prepareUri(uri);
+      if (src === null) {
+        // HEIC that couldn't be converted — skip rather than upload unconvertible file
+        skippedHeic++;
+        return uri;
+      }
 
       const ext = (src.split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpg').slice(0, 4);
       const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
@@ -85,8 +89,9 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
       const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
       const { error } = await supabase.storage.from('photos').upload(fileName, bytes, { contentType, upsert: false });
       if (error) throw new Error(error.message);
-      updated = true;
+
       uploaded++;
+      updated = true;
       return supabase.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
     } catch (e: any) {
       failed++;
@@ -112,11 +117,11 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
     }
   }
 
-  const parts = [];
-  if (uploaded > 0) parts.push(`${uploaded} uploaded`);
-  if (skipped > 0) parts.push(`${skipped} missing`);
-  if (failed > 0) parts.push(`${failed} failed`);
-  const status = parts.join(', ');
+  const parts: string[] = [];
+  if (uploaded > 0) parts.push(`${uploaded} photo(s) uploaded`);
+  if (skippedHeic > 0) parts.push(`${skippedHeic} HEIC not converted (retry later)`);
+  if (skippedMissing > 0) parts.push(`${skippedMissing} file(s) missing`);
+  if (failed > 0) parts.push(`${failed} upload(s) failed`);
 
-  return { units: result, updated, status };
+  return { units: result, updated, status: parts.join(' | ') };
 }
