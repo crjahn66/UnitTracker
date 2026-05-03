@@ -209,7 +209,10 @@ function IssueCard({ issue, onResolve, onDelete, onEdit, onAddImage, onRemoveIma
           </View>
           <Text style={ic.dateText}>{fmtDate(issue.dateFound)}</Text>
           {(issue.images?.length ?? 0) > 0 && (
-            <Ionicons name="image-outline" size={13} color="#8b949e" style={{ marginLeft: 6 }} />
+            <View style={ic.photoBadge}>
+              <Ionicons name="image-outline" size={11} color="#8b949e" />
+              <Text style={ic.photoBadgeText}>{issue.images!.length}</Text>
+            </View>
           )}
         </View>
         <View style={ic.headerRight}>
@@ -831,6 +834,8 @@ const ic = StyleSheet.create({
   badgeResolved: { backgroundColor: '#3fb950' },
   badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   dateText: { color: '#8b949e', fontSize: 12, marginLeft: 6 },
+  photoBadge: { flexDirection: 'row', alignItems: 'center', marginLeft: 6, backgroundColor: '#21262d', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
+  photoBadgeText: { color: '#8b949e', fontSize: 10, fontWeight: '600', marginLeft: 3 },
   foundBy: { color: '#8b949e', fontSize: 12, maxWidth: 120 },
   body: { paddingHorizontal: 10, paddingBottom: 10 },
   detailRow: { flexDirection: 'row', marginBottom: 4 },
