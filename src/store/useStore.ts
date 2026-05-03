@@ -377,10 +377,10 @@ export const useStore = create<StoreState>()(
             const existing = merged[uid];
             const imp = importUnit as any;
 
-            // Merge stages — if either side has it checked, keep it checked
+            // Merge stages — remote wins so unchecking propagates
             const mergedStages = { ...existing.stages };
             for (const key of Object.keys(existing.stages) as StageKey[]) {
-              mergedStages[key] = existing.stages[key] || (imp.stages?.[key] ?? false);
+              mergedStages[key] = imp.stages?.[key] ?? existing.stages[key];
             }
 
             // Merge components — issues, status, notes, images
