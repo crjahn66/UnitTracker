@@ -54,10 +54,13 @@ export async function syncWithCloud(): Promise<SyncResult> {
     // 3. Merge remote into local
     const remoteUnits = (data.units ?? {}) as UnitsStore;
     const remoteGeneralIssues = (data.general_issues ?? []) as GeneralIssue[];
+    const remotePhotoCount = collectRemoteImageUrls(remoteUnits).length;
 
     if (Object.keys(remoteUnits).length > 0 || remoteGeneralIssues.length > 0) {
       useStore.getState().mergeImport(remoteUnits, remoteGeneralIssues);
     }
+
+    const postMergePhotoCount = collectRemoteImageUrls(useStore.getState().units).length;
 
     // 4. Verify photos AFTER merge — drops/repairs any https:// URLs that don't exist in the
     //    bucket, including ones the merge just restored from stale sync_state data (e.g. a photo
@@ -71,6 +74,8 @@ export async function syncWithCloud(): Promise<SyncResult> {
       }
       repairStatus = repairResult.status;
     } catch { /* non-fatal — push whatever we have */ }
+
+    const postVerifyPhotoCount = collectRemoteImageUrls(useStore.getState().units).length;
 
     // 5. Push merged + repaired state back to cloud
     const { units: finalUnits, generalIssues: finalGeneralIssues } = useStore.getState();
@@ -92,7 +97,8 @@ export async function syncWithCloud(): Promise<SyncResult> {
       } catch {}
     }
 
-    const photoStatus = [uploadStatus, repairStatus, downloadStatus].filter(Boolean).join(' | ') || 'Photos up to date';
+    const debugLine = `[debug] remote:${remotePhotoCount} → merge:${postMergePhotoCount} → verify:${postVerifyPhotoCount}`;
+    const photoStatus = [uploadStatus, repairStatus, downloadStatus, debugLine].filter(Boolean).join(' | ');
     return { success: true, timestamp: now, warning: photoStatus };
   } catch (err: any) {
     return { success: false, error: err?.message ?? 'Sync failed' };
