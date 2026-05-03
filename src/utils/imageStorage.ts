@@ -1,5 +1,4 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase } from './supabase';
 
 const IMAGES_DIR = (FileSystem.documentDirectory ?? '') + 'issue_images/';
@@ -15,11 +14,16 @@ function isHeic(uri: string): boolean {
 }
 
 async function convertToJpeg(uri: string): Promise<string> {
-  const result = await ImageManipulator.manipulateAsync(uri, [], {
-    compress: 0.9,
-    format: ImageManipulator.SaveFormat.JPEG,
-  });
-  return result.uri;
+  try {
+    const ImageManipulator = await import('expo-image-manipulator');
+    const result = await ImageManipulator.manipulateAsync(uri, [], {
+      compress: 0.9,
+      format: ImageManipulator.SaveFormat.JPEG,
+    });
+    return result.uri;
+  } catch {
+    return uri; // conversion failed — use original, upload will proceed
+  }
 }
 
 export async function saveImage(issueId: string, sourceUri: string, _file?: unknown): Promise<string> {
@@ -81,7 +85,10 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
       if (error) throw new Error(`Storage upload failed: ${error.message}`);
       updated = true;
       return supabase.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
-    } catch (e) { throw e; }
+    } catch (e) {
+      console.warn('Photo upload skipped:', uri, e);
+      return uri; // keep local path, will retry on next sync
+    }
   };
 
   for (const unit of Object.values(result) as any[]) {
