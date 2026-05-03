@@ -39,6 +39,7 @@ interface StoreState {
   deleteGeneralIssue: (issueId: string) => void;
   mergeImport: (importUnits: UnitsStore, importGeneralIssues: GeneralIssue[]) => void;
   loadBackup: (units: UnitsStore, generalIssues?: GeneralIssue[]) => void;
+  clearAllPhotos: () => void;
 }
 
 export const useStore = create<StoreState>()(
@@ -433,6 +434,24 @@ export const useStore = create<StoreState>()(
           const newGeneral = importGeneralIssues.filter((i) => !existGeneralIds.has(i.id));
 
           return { units: merged, generalIssues: [...state.generalIssues, ...newGeneral] };
+        }),
+
+      clearAllPhotos: () =>
+        set((state) => {
+          const units = JSON.parse(JSON.stringify(state.units));
+          for (const unit of Object.values(units) as any[]) {
+            for (const comp of Object.values(unit.components) as any[]) {
+              comp.progressImages = undefined;
+              comp.goodImages = undefined;
+              for (const issue of (comp.issues ?? [])) issue.images = undefined;
+            }
+            for (const item of (unit.miscEquipment ?? []) as any[]) {
+              item.progressImages = undefined;
+              item.goodImages = undefined;
+              for (const issue of (item.issues ?? [])) issue.images = undefined;
+            }
+          }
+          return { units };
         }),
 
       loadBackup: (units, generalIssues = []) => set({ units, generalIssues }),

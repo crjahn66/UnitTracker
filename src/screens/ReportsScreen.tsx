@@ -156,6 +156,7 @@ export default function ReportsScreen() {
   const generalIssues = useStore((state) => state.generalIssues);
   const loadBackup    = useStore((state) => state.loadBackup);
   const mergeImport   = useStore((state) => state.mergeImport);
+  const clearAllPhotos = useStore((state) => state.clearAllPhotos);
   const [exporting, setExporting]           = useState(false);
   const [backingUp, setBackingUp]           = useState(false);
   const [restoring, setRestoring]           = useState(false);
@@ -261,6 +262,17 @@ export default function ReportsScreen() {
     }
   };
 
+  const handleWipePhotos = () => {
+    Alert.alert(
+      'Wipe All Photos',
+      'This removes all photo references from the app. Use this to reset if photos are stuck. You will need to re-add them.\n\nThis does NOT delete photos from Supabase.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Wipe Photos', style: 'destructive', onPress: () => { clearAllPhotos(); Alert.alert('Done', 'All photo references cleared. Sync to re-upload.'); } },
+      ]
+    );
+  };
+
   const handleSync = async () => {
     setSyncing(true);
     setSyncError(null);
@@ -343,6 +355,12 @@ export default function ReportsScreen() {
       {syncError !== null && (
         <Text style={s.syncError}>{syncError}</Text>
       )}
+
+      {/* Wipe photos (debug/recovery) */}
+      <TouchableOpacity style={s.wipeBtn} onPress={handleWipePhotos} activeOpacity={0.8}>
+        <Ionicons name="trash-outline" size={16} color="#6e7681" style={{ marginRight: 6 }} />
+        <Text style={s.wipeBtnText}>Wipe All Photo References</Text>
+      </TouchableOpacity>
 
       {/* Daily Report Modal */}
       {dailyReport !== null && (
@@ -524,7 +542,9 @@ const s = StyleSheet.create({
   syncBtnText: { color: '#a371f7', fontSize: 14, fontWeight: '600' },
   syncStatus: { color: '#3fb950', fontSize: 12, textAlign: 'center', marginBottom: 20 },
   syncError:   { color: '#f85149', fontSize: 12, textAlign: 'center', marginBottom: 4 },
-  syncWarning: { color: '#e3b341', fontSize: 12, textAlign: 'center', marginBottom: 20 },
+  syncWarning: { color: '#e3b341', fontSize: 12, textAlign: 'center', marginBottom: 8 },
+  wipeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 4, marginBottom: 20, padding: 8 },
+  wipeBtnText: { color: '#6e7681', fontSize: 12 },
   drOverlay: { flex: 1, backgroundColor: '#00000099', justifyContent: 'center', padding: 20 },
   drSheet: { backgroundColor: '#161b22', borderRadius: 14, borderWidth: 1, borderColor: '#30363d', overflow: 'hidden' },
   drHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#21262d' },
