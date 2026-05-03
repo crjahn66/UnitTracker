@@ -39,6 +39,7 @@ export interface Issue {
   fixedBy?: string;
   howFixed?: string;
   images?: string[];
+  deleted?: boolean;
 }
 
 export interface ComponentData {
@@ -64,6 +65,7 @@ export interface MiscIssue {
   fixedBy?: string;
   howFixed?: string;
   images?: string[];
+  deleted?: boolean;
 }
 
 export interface MiscEquipItem {

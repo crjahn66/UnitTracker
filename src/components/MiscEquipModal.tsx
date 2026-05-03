@@ -9,6 +9,7 @@ import { format, parse, isValid } from 'date-fns';
 import { useStore } from '../store/useStore';
 import { ComponentStatus, MiscIssue } from '../types';
 import { saveImage, deleteImage } from '../utils/imageStorage';
+import { pushToCloud } from '../utils/sync';
 import PhotoViewer from './PhotoViewer';
 
 interface Props {
@@ -415,14 +416,20 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
   }, [unitId, itemId, updateMiscIssue]);
 
   const handleDelete = useCallback((issueId: string) => {
-    Alert.alert('Delete Issue', 'This will permanently remove this issue log. Continue?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
-        const issue = item?.issues.find((i) => i.id === issueId);
-        for (const uri of (issue?.images ?? [])) deleteImage(uri);
-        deleteMiscIssue(unitId, itemId, issueId);
-      }},
-    ]);
+    const doDelete = async () => {
+      const issue = item?.issues.find((i) => i.id === issueId);
+      for (const uri of (issue?.images ?? [])) deleteImage(uri);
+      deleteMiscIssue(unitId, itemId, issueId);
+      pushToCloud().catch(() => {});
+    };
+    if (Platform.OS === 'web') {
+      if ((window as any).confirm('Delete this issue log?')) doDelete();
+    } else {
+      Alert.alert('Delete Issue', 'This will permanently remove this issue log. Continue?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: doDelete },
+      ]);
+    }
   }, [unitId, itemId, deleteMiscIssue, item]);
 
   const handleAddImage = useCallback(async (issueId: string, uri: string) => {
@@ -462,7 +469,8 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
 
   if (!item) return null;
 
-  const openIssues = item.issues.filter((i) => !i.resolved).length;
+  const visibleIssues = item.issues.filter((i) => !i.deleted);
+  const openIssues = visibleIssues.filter((i) => !i.resolved).length;
   const color = statusColor(item.status);
 
   const renderContent = () => {
@@ -535,8 +543,8 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
           <Text style={m.sectionLabel}>ISSUES</Text>
           {openIssues > 0 && <View style={m.openBadge}><Text style={m.openBadgeText}>{openIssues} open</Text></View>}
         </View>
-        {item.issues.length === 0 ? <Text style={m.noIssues}>No issues logged.</Text> : (
-          item.issues.map((issue) => (
+        {visibleIssues.length === 0 ? <Text style={m.noIssues}>No issues logged.</Text> : (
+          visibleIssues.map((issue) => (
             <IssueCard key={issue.id} issue={issue}
               onResolve={() => { setResolvingId(issue.id); setView('resolveIssue'); }}
               onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}

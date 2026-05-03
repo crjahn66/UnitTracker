@@ -13,7 +13,7 @@ function unitStatusColor(unit: Unit): string {
   const comps = Object.values(unit.components);
   const miscItems = unit.miscEquipment ?? [];
   const miscIssues = miscItems.flatMap((m) => m.issues ?? []);
-  const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues].filter((i) => !i.resolved).length;
+  const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
   const hasBad = comps.some((c) => c.status === 'bad') || miscItems.some((m) => m.status === 'bad');
   if (hasBad || openIssues > 0) return '#f85149';
 
@@ -33,7 +33,7 @@ function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
   const good = comps.filter((c) => c.status === 'good').length;
   const bad = comps.filter((c) => c.status === 'bad').length;
   const miscIssues = (unit.miscEquipment ?? []).flatMap((m) => m.issues ?? []);
-  const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues].filter((i) => !i.resolved).length;
+  const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
   const color = unitStatusColor(unit);
 
   return (
@@ -80,7 +80,7 @@ export default function UnitListScreen({ navigation, route }: Props) {
     const hasIssue = sideUnits.filter((u) => {
       const compIssues = Object.values(u.components).flatMap((c) => c.issues);
       const miscIssues = (u.miscEquipment ?? []).flatMap((m) => m.issues ?? []);
-      return [...compIssues, ...miscIssues].some((i) => !i.resolved);
+      return [...compIssues, ...miscIssues].some((i) => !i.resolved && !i.deleted);
     }).length;
     const inProgress = sideUnits.filter((u) => {
       if (STAGES.every((st) => u.stages[st.key])) return false;

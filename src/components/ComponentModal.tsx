@@ -10,6 +10,7 @@ import { format, parse, isValid } from 'date-fns';
 import { useStore } from '../store/useStore';
 import { COMPONENTS, ComponentKey, ComponentStatus, Issue } from '../types';
 import { saveImage, deleteImage } from '../utils/imageStorage';
+import { pushToCloud } from '../utils/sync';
 import PhotoViewer from './PhotoViewer';
 
 interface Props {
@@ -510,16 +511,20 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
 
   const handleDelete = useCallback(
     (issueId: string) => {
-      Alert.alert('Delete Issue', 'This will permanently remove this issue log. Continue?', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete', style: 'destructive', onPress: async () => {
-            const issue = compData.issues.find((i) => i.id === issueId);
-            for (const uri of (issue?.images ?? [])) deleteImage(uri);
-            deleteIssue(unitId, componentKey, issueId);
-          },
-        },
-      ]);
+      const doDelete = async () => {
+        const issue = compData.issues.find((i) => i.id === issueId);
+        for (const uri of (issue?.images ?? [])) deleteImage(uri);
+        deleteIssue(unitId, componentKey, issueId);
+        pushToCloud().catch(() => {});
+      };
+      if (Platform.OS === 'web') {
+        if ((window as any).confirm('Delete this issue log?')) doDelete();
+      } else {
+        Alert.alert('Delete Issue', 'This will permanently remove this issue log. Continue?', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: doDelete },
+        ]);
+      }
     },
     [unitId, componentKey, deleteIssue, compData.issues]
   );
@@ -566,7 +571,8 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
     [unitId, componentKey, updateIssue]
   );
 
-  const openIssues = compData.issues.filter((i) => !i.resolved).length;
+  const visibleIssues = compData.issues.filter((i) => !i.deleted);
+  const openIssues = visibleIssues.filter((i) => !i.resolved).length;
   const color = statusColor(compData.status);
 
   const renderContent = () => {
@@ -682,10 +688,10 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
           )}
         </View>
 
-        {compData.issues.length === 0 ? (
+        {visibleIssues.length === 0 ? (
           <Text style={m.noIssues}>No issues logged for this component.</Text>
         ) : (
-          compData.issues.map((issue) => (
+          visibleIssues.map((issue) => (
             <IssueCard
               key={issue.id}
               issue={issue}

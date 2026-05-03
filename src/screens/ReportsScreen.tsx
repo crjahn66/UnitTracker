@@ -55,7 +55,7 @@ function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[]): 
     for (const comp of COMPONENTS) {
       const label = unit.customComponentLabels?.[comp.key] ?? comp.label;
       const compData = unit.components[comp.key];
-      for (const issue of compData.issues) {
+      for (const issue of compData.issues.filter(i => !i.deleted)) {
         if (sameDay(issue.dateFound)) act.newIssues.push(label);
         if (issue.resolved && sameDay(issue.dateFixed)) act.resolved.push(label);
       }
@@ -63,7 +63,7 @@ function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[]): 
     }
     for (const item of (unit.miscEquipment ?? [])) {
       const label = item.label || 'Misc Equipment';
-      for (const issue of item.issues) {
+      for (const issue of item.issues.filter(i => !i.deleted)) {
         if (sameDay(issue.dateFound)) act.newIssues.push(label);
         if (issue.resolved && sameDay(issue.dateFixed)) act.resolved.push(label);
       }
@@ -187,13 +187,13 @@ export default function ReportsScreen() {
     for (const u of all) {
       for (const comp of COMPONENTS) {
         const compLabel = u.customComponentLabels?.[comp.key] ?? comp.label;
-        for (const issue of u.components[comp.key].issues) {
+        for (const issue of u.components[comp.key].issues.filter(i => !i.deleted)) {
           if (!issue.resolved) issuesByUnit.push({ issue, unitId: u.id, compLabel });
         }
       }
       for (const m of (u.miscEquipment ?? [])) {
         const compLabel = m.label || 'Misc Equipment';
-        for (const issue of (m.issues ?? [])) {
+        for (const issue of (m.issues ?? []).filter(i => !i.deleted)) {
           if (!issue.resolved) issuesByUnit.push({ issue, unitId: u.id, compLabel });
         }
       }
@@ -206,7 +206,7 @@ export default function ReportsScreen() {
       const hasOpen = [
         ...Object.values(u.components).flatMap((c) => c.issues),
         ...(u.miscEquipment ?? []).flatMap((m) => m.issues ?? []),
-      ].some((i) => !i.resolved);
+      ].some((i) => !i.resolved && !i.deleted);
       return STAGES.every((s) => u.stages[s.key]) && !hasOpen;
     }).length;
     const hasAnyWork = all.filter((u) =>

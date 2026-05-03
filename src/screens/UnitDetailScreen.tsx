@@ -60,8 +60,8 @@ export default function UnitDetailScreen({ route }: Props) {
   const miscItems = unit.miscEquipment ?? [];
   const goodCount = allComps.filter((c) => c.status === 'good').length + miscItems.filter((m) => m.status === 'good').length;
   const badCount = allComps.filter((c) => c.status === 'bad').length + miscItems.filter((m) => m.status === 'bad').length;
-  const openIssues = allComps.flatMap((c) => c.issues).filter((i) => !i.resolved).length
-    + miscItems.flatMap((m) => m.issues).filter((i) => !i.resolved).length;
+  const openIssues = allComps.flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted).length
+    + miscItems.flatMap((m) => m.issues).filter((i) => !i.resolved && !i.deleted).length;
 
   return (
     <View style={s.container}>
@@ -106,8 +106,8 @@ export default function UnitDetailScreen({ route }: Props) {
         <View style={s.card}>
           {COMPONENTS.map((comp, idx) => {
             const data = unit.components[comp.key];
-            const issueCount = data.issues.length;
-            const openCount = data.issues.filter((i) => !i.resolved).length;
+            const issueCount = data.issues.filter((i) => !i.deleted).length;
+            const openCount = data.issues.filter((i) => !i.resolved && !i.deleted).length;
             const label = unit.customComponentLabels?.[comp.key] ?? comp.label;
 
             return (
@@ -143,7 +143,7 @@ export default function UnitDetailScreen({ route }: Props) {
         <SectionHeader title="Misc Equipment" icon="cube-outline" />
         <View style={s.card}>
           {miscItems.map((item, idx) => {
-            const openCount = item.issues.filter((i) => !i.resolved).length;
+            const openCount = item.issues.filter((i) => !i.resolved && !i.deleted).length;
             return (
               <TouchableOpacity
                 key={item.id}
@@ -156,11 +156,11 @@ export default function UnitDetailScreen({ route }: Props) {
                   <Text style={[s.compLabel, !item.label && s.compLabelPlaceholder]}>
                     {item.label || 'Unnamed Equipment'}
                   </Text>
-                  {item.issues.length > 0 && (
+                  {item.issues.filter((i) => !i.deleted).length > 0 && (
                     <Text style={[s.issueMeta, { color: openCount > 0 ? '#f85149' : '#3fb950' }]}>
                       {openCount > 0
                         ? `${openCount} open issue${openCount !== 1 ? 's' : ''}`
-                        : `${item.issues.length} resolved`}
+                        : `${item.issues.filter((i) => !i.deleted).length} resolved`}
                     </Text>
                   )}
                 </View>
