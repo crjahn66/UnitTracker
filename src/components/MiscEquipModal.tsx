@@ -432,14 +432,19 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
   }, [unitId, itemId, updateMiscIssue, item]);
 
   const handleRemoveImage = useCallback((issueId: string, uri: string) => {
-    Alert.alert('Remove Photo', 'Remove this photo from the issue?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: async () => {
-        await deleteImage(uri);
-        const issue = item?.issues.find((i) => i.id === issueId);
-        updateMiscIssue(unitId, itemId, issueId, { images: (issue?.images ?? []).filter((i) => i !== uri) });
-      }},
-    ]);
+    const doRemove = async () => {
+      await deleteImage(uri);
+      const issue = item?.issues.find((i) => i.id === issueId);
+      updateMiscIssue(unitId, itemId, issueId, { images: (issue?.images ?? []).filter((i) => i !== uri) });
+    };
+    if (Platform.OS === 'web') {
+      if ((window as any).confirm('Remove this photo from the issue?')) doRemove();
+    } else {
+      Alert.alert('Remove Photo', 'Remove this photo from the issue?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: doRemove },
+      ]);
+    }
   }, [unitId, itemId, updateMiscIssue, item]);
 
   const handleEditIssue = useCallback((issueId: string, updates: Partial<MiscIssue>) => {

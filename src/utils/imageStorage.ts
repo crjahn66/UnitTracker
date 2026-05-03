@@ -189,8 +189,10 @@ export async function verifyAndRepairPhotos(units: Record<string, any>): Promise
   if (remoteUrls.length === 0) return { units: result, repaired: 0, dropped: 0, status: '' };
 
   // Get list of files currently in Supabase
-  const { data: existing } = await supabase.storage.from('photos').list('', { limit: 1000 });
-  const existingNames = new Set((existing ?? []).map(f => f.name));
+  const { data: existing, error: listError } = await supabase.storage.from('photos').list('', { limit: 1000 });
+  // If the list call fails, bail out — better to keep stale refs than to drop valid ones
+  if (listError || !existing) return { units: result, repaired: 0, dropped: 0, status: '' };
+  const existingNames = new Set(existing.map(f => f.name));
 
   // Find missing ones we can repair from local
   const missingUrls = remoteUrls.filter(u => {

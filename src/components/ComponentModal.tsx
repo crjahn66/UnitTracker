@@ -537,18 +537,22 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
 
   const handleRemoveImage = useCallback(
     (issueId: string, uri: string) => {
-      Alert.alert('Remove Photo', 'Remove this photo from the issue?', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove', style: 'destructive', onPress: async () => {
-            await deleteImage(uri);
-            const issue = compData.issues.find((i) => i.id === issueId);
-            updateIssue(unitId, componentKey, issueId, {
-              images: (issue?.images ?? []).filter((i) => i !== uri),
-            });
-          },
-        },
-      ]);
+      const doRemove = async () => {
+        await deleteImage(uri);
+        const issue = compData.issues.find((i) => i.id === issueId);
+        updateIssue(unitId, componentKey, issueId, {
+          images: (issue?.images ?? []).filter((i) => i !== uri),
+        });
+      };
+      // Alert.alert doesn't fire button callbacks inside a Modal on React Native Web
+      if (Platform.OS === 'web') {
+        if ((window as any).confirm('Remove this photo from the issue?')) doRemove();
+      } else {
+        Alert.alert('Remove Photo', 'Remove this photo from the issue?', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Remove', style: 'destructive', onPress: doRemove },
+        ]);
+      }
     },
     [unitId, componentKey, updateIssue, compData.issues]
   );
