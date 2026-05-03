@@ -17,13 +17,15 @@ let _lastSyncedAt: number | null = (() => {
   try { const v = (globalThis as any).localStorage?.getItem(LS_KEY); return v ? Number(v) : null; } catch { return null; }
 })();
 let _isOnline: boolean = true;
+let _hasPendingChanges: boolean = false;
+let _lastPushedAt: number = 0;
 type SyncStatusListener = () => void;
 const _listeners = new Set<SyncStatusListener>();
 
 function notifyListeners() { _listeners.forEach((l) => l()); }
 
 export function getSyncStatus() {
-  return { lastSyncedAt: _lastSyncedAt, isOnline: _isOnline };
+  return { lastSyncedAt: _lastSyncedAt, isOnline: _isOnline, hasPendingChanges: _hasPendingChanges };
 }
 
 export function subscribeSyncStatus(listener: SyncStatusListener) {
@@ -33,7 +35,9 @@ export function subscribeSyncStatus(listener: SyncStatusListener) {
 
 function markSuccess() {
   _lastSyncedAt = Date.now();
+  _lastPushedAt = _lastSyncedAt;
   _isOnline = true;
+  _hasPendingChanges = false;
   try { (globalThis as any).localStorage?.setItem(LS_KEY, String(_lastSyncedAt)); } catch {}
   notifyListeners();
 }
@@ -41,6 +45,21 @@ function markSuccess() {
 function markFailure() {
   _isOnline = false;
   notifyListeners();
+}
+
+// On native: subscribe to Supabase Realtime so remote changes (e.g. web photo uploads)
+// flip _hasPendingChanges to true. Ignore notifications within 10s of our own push
+// to avoid flagging self-triggered updates.
+if (Platform.OS !== 'web') {
+  supabase
+    .channel('sync_state_watch')
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sync_state' }, () => {
+      if (Date.now() - _lastPushedAt > 10000) {
+        _hasPendingChanges = true;
+        notifyListeners();
+      }
+    })
+    .subscribe();
 }
 
 function collectRemoteImageUrls(units: UnitsStore): string[] {

@@ -45,7 +45,7 @@ export default function SyncStatusBar() {
     return () => { unsub(); clearInterval(interval); };
   }, []);
 
-  if (hasPendingPhotos) {
+  if (hasPendingPhotos || status.hasPendingChanges) {
     return (
       <View style={s.bar}>
         <View style={[s.dot, { backgroundColor: '#d29922' }]} />
