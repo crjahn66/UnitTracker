@@ -1,8 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput,
+  View, Text, FlatList, TouchableOpacity, StyleSheet,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
@@ -83,7 +82,6 @@ function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
 export default function UnitListScreen({ navigation, route }: Props) {
   const { side } = route.params;
   const units = useStore((state) => state.units);
-  const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<Filter>('all');
 
   const sideUnits = useMemo(
@@ -102,16 +100,11 @@ export default function UnitListScreen({ navigation, route }: Props) {
   }, [sideUnits]);
 
   const filteredUnits = useMemo(() => {
-    let result = sideUnits;
-    if (activeFilter === 'issues') result = result.filter(hasOpenIssues);
-    else if (activeFilter === 'inProgress') result = result.filter(isInProgress);
-    else if (activeFilter === 'complete') result = result.filter(isComplete);
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      result = result.filter((u) => u.id.toLowerCase().includes(q));
-    }
-    return result;
-  }, [sideUnits, activeFilter, search]);
+    if (activeFilter === 'issues') return sideUnits.filter(hasOpenIssues);
+    if (activeFilter === 'inProgress') return sideUnits.filter(isInProgress);
+    if (activeFilter === 'complete') return sideUnits.filter(isComplete);
+    return sideUnits;
+  }, [sideUnits, activeFilter]);
 
   const FILTERS: { key: Filter; label: string; color: string; count: number }[] = [
     { key: 'all',        label: 'All',        color: '#58a6ff', count: sideUnits.length },
@@ -127,26 +120,6 @@ export default function UnitListScreen({ navigation, route }: Props) {
         <SumItem label="Complete" value={stats.complete} color="#3fb950" />
         <SumItem label="Open Issues" value={stats.hasIssue} color="#f85149" />
         <SumItem label="In Progress" value={stats.inProgress} color="#d29922" />
-      </View>
-
-      {/* Search bar */}
-      <View style={s.searchRow}>
-        <Ionicons name="search-outline" size={16} color="#6e7681" style={s.searchIcon} />
-        <TextInput
-          style={s.searchInput}
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search units…"
-          placeholderTextColor="#6e7681"
-          clearButtonMode="while-editing"
-          autoCapitalize="characters"
-          returnKeyType="search"
-        />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')} style={s.searchClear}>
-            <Ionicons name="close-circle" size={16} color="#6e7681" />
-          </TouchableOpacity>
-        )}
       </View>
 
       {/* Filter chips */}
@@ -212,23 +185,6 @@ const s = StyleSheet.create({
   sumItem: { flex: 1, alignItems: 'center' },
   sumValue: { fontSize: 22, fontWeight: '700' },
   sumLabel: { color: '#8b949e', fontSize: 11, marginTop: 2 },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#161b22',
-    borderBottomWidth: 1,
-    borderBottomColor: '#21262d',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  searchIcon: { marginRight: 8 },
-  searchInput: {
-    flex: 1,
-    color: '#e6edf3',
-    fontSize: 14,
-    paddingVertical: 4,
-  },
-  searchClear: { padding: 4 },
   filterRow: {
     flexDirection: 'row',
     paddingHorizontal: 8,
