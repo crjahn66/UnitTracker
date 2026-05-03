@@ -351,7 +351,6 @@ export const useStore = create<StoreState>()(
       mergeImport: (importUnits, importGeneralIssues) =>
         set((state) => {
           const merged = { ...state.units };
-          const statusRank: Record<string, number> = { good: 3, bad: 2, inProgress: 1, unchecked: 0 };
 
           // Merge two image URL arrays.
           // If local side (a) has pending local file paths, preserve them — don't let stale remote
@@ -398,14 +397,12 @@ export const useStore = create<StoreState>()(
               const existIds = new Set(existComp.issues.map((i: any) => i.id));
               const newIssues = (impComp.issues ?? []).filter((i: any) => !existIds.has(i.id));
 
-              const mergedStatus = (statusRank[existComp.status] ?? 0) >= (statusRank[impComp.status] ?? 0)
-                ? existComp.status : impComp.status;
-
               mergedComponents[comp] = {
-                status: mergedStatus,
+                status: impComp.status ?? existComp.status,
                 issues: [...mergedIssues, ...newIssues],
-                progressNote: existComp.progressNote || impComp.progressNote || undefined,
-                goodNote: existComp.goodNote || impComp.goodNote || undefined,
+                progressNote: 'progressNote' in impComp ? impComp.progressNote : existComp.progressNote,
+                goodNote: 'goodNote' in impComp ? impComp.goodNote : existComp.goodNote,
+                goodDate: 'goodDate' in impComp ? impComp.goodDate : existComp.goodDate,
                 progressImages: mergeImages(existComp.progressImages, impComp.progressImages),
                 goodImages: mergeImages(existComp.goodImages, impComp.goodImages),
               };
@@ -429,17 +426,19 @@ export const useStore = create<StoreState>()(
                 const newIssues = importItem.issues.filter((i: any) => !existIds.has(i.id));
                 existingMisc[idx] = {
                   ...existingMisc[idx],
+                  status: importItem.status ?? existingMisc[idx].status,
                   issues: [...mergedMiscIssues, ...newIssues],
-                  progressNote: existingMisc[idx].progressNote || importItem.progressNote || undefined,
-                  goodNote: existingMisc[idx].goodNote || importItem.goodNote || undefined,
+                  progressNote: 'progressNote' in importItem ? importItem.progressNote : existingMisc[idx].progressNote,
+                  goodNote: 'goodNote' in importItem ? importItem.goodNote : existingMisc[idx].goodNote,
+                  goodDate: 'goodDate' in importItem ? importItem.goodDate : existingMisc[idx].goodDate,
                   progressImages: mergeImages(existingMisc[idx].progressImages, importItem.progressImages),
                   goodImages: mergeImages(existingMisc[idx].goodImages, importItem.goodImages),
                 };
               }
             }
 
-            // Merge custom labels — existing takes priority
-            const mergedLabels = { ...(imp.customComponentLabels ?? {}), ...(existing.customComponentLabels ?? {}) };
+            // Merge custom labels — remote wins
+            const mergedLabels = { ...(existing.customComponentLabels ?? {}), ...(imp.customComponentLabels ?? {}) };
 
             merged[uid] = {
               ...existing,
