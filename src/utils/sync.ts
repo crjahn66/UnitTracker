@@ -89,7 +89,7 @@ export async function syncWithCloud(): Promise<SyncResult> {
       await Promise.allSettled(remoteUrls.map((url) => Image.prefetch(url)));
     }
 
-    const photoStatus = [uploadStatus, repairStatus].filter(Boolean).join(' | ') || 'No photos to process';
+    const photoStatus = [uploadStatus, repairStatus].filter(Boolean).join(' | ') || 'No local photos — sync web first if you added photos there';
     return { success: true, timestamp: now, warning: photoStatus };
   } catch (err: any) {
     return { success: false, error: err?.message ?? 'Sync failed' };

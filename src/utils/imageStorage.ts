@@ -200,7 +200,7 @@ export async function verifyAndRepairPhotos(units: Record<string, any>): Promise
     return name && !existingNames.has(name);
   });
 
-  if (missingUrls.length === 0) return { units: result, repaired: 0, dropped: 0, status: '' };
+  if (missingUrls.length === 0) return { units: result, repaired: 0, dropped: 0, status: `${remoteUrls.length} cloud photo(s) confirmed` };
 
   // Build a URL→newURL map for repaired photos, and a drop set for unrecoverable ones
   const repairMap = new Map<string, string>();

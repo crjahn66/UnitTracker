@@ -115,7 +115,7 @@ export async function verifyAndRepairPhotos(units: Record<string, any>): Promise
     if (!name || !existingNames.has(name)) dropSet.add(url);
   }
 
-  if (dropSet.size === 0) return { units: result, repaired: 0, dropped: 0, status: '' };
+  if (dropSet.size === 0) return { units: result, repaired: 0, dropped: 0, status: `${remoteUrls.length} cloud photo(s) confirmed` };
 
   // Drop stale refs (web can't repair from local files)
   const applyFix = (arr: string[]): string[] | undefined => {
