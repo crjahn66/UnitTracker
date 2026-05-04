@@ -22,7 +22,7 @@ interface Props {
 type ModalView = 'detail' | 'addIssue' | 'resolveIssue' | 'editIssue' | 'progressNote' | 'goodNote';
 
 const today = () => format(new Date(), 'MM/dd/yyyy');
-const EMPTY_ISSUE = () => ({ dateFound: today(), foundBy: '', notes: '' });
+const EMPTY_ISSUE = () => ({ dateFound: today(), foundBy: '', responsibleParty: '', notes: '' });
 const EMPTY_RESOLVE = () => ({ dateFixed: today(), fixedBy: '', howFixed: '' });
 
 const showAlert = (title: string, msg: string) => {
@@ -102,14 +102,14 @@ function ImageStrip({ images, onAdd, onRemove, onView = () => {} }: {
 // ─── Add Issue Form ────────────────────────────────────────────────────────────
 
 interface AddIssueFormProps {
-  onSave: (data: { dateFound: string; foundBy: string; notes: string; images: string[] }) => void;
+  onSave: (data: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; images: string[] }) => void;
   onCancel: () => void;
 }
 
 function AddIssueForm({ onSave, onCancel }: AddIssueFormProps) {
   const [form, setForm] = useState(EMPTY_ISSUE);
   const [images, setImages] = useState<string[]>([]);
-  const set = (key: 'dateFound' | 'foundBy' | 'notes', val: string) =>
+  const set = (key: 'dateFound' | 'foundBy' | 'responsibleParty' | 'notes', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
   const pickImages = async () => {
@@ -134,6 +134,7 @@ function AddIssueForm({ onSave, onCancel }: AddIssueFormProps) {
       <Text style={f.formTitle}>Log New Issue</Text>
       <FormField label="Date Found" value={form.dateFound} onChangeText={(v) => set('dateFound', v)} placeholder="MM/DD/YYYY" />
       <FormField label="Found By" value={form.foundBy} onChangeText={(v) => set('foundBy', v)} placeholder="Name / Tech ID" />
+      <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Name / Team" />
       <FormField label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} placeholder="Describe the issue…" multiline />
       <Text style={f.label}>Photos</Text>
       <ImageStrip images={images} onAdd={pickImages} onRemove={removeImage} />
@@ -341,7 +342,7 @@ function EditIssueForm({ issue, onSave, onCancel }: {
 }) {
   const fmt = (iso?: string) => { try { return iso ? format(new Date(iso), 'MM/dd/yyyy') : ''; } catch { return iso ?? ''; } };
   const [form, setForm] = useState({
-    dateFound: fmt(issue.dateFound), foundBy: issue.foundBy, notes: issue.notes,
+    dateFound: fmt(issue.dateFound), foundBy: issue.foundBy, responsibleParty: issue.responsibleParty ?? '', notes: issue.notes,
     dateFixed: fmt(issue.dateFixed), fixedBy: issue.fixedBy ?? '', howFixed: issue.howFixed ?? '',
   });
   const set = (key: keyof typeof form, val: string) => setForm((p) => ({ ...p, [key]: val }));
@@ -352,7 +353,7 @@ function EditIssueForm({ issue, onSave, onCancel }: {
     if (!form.notes.trim()) { showAlert('Required', 'Please enter issue notes.'); return; }
     const updates: Partial<Issue> = {
       dateFound: parseDate(form.dateFound, issue.dateFound),
-      foundBy: form.foundBy, notes: form.notes,
+      foundBy: form.foundBy, responsibleParty: form.responsibleParty || undefined, notes: form.notes,
     };
     if (issue.resolved) {
       updates.dateFixed = parseDate(form.dateFixed, issue.dateFixed ?? new Date().toISOString());
@@ -367,6 +368,7 @@ function EditIssueForm({ issue, onSave, onCancel }: {
       <Text style={f.formTitle}>Edit Issue</Text>
       <FormField label="Date Found" value={form.dateFound} onChangeText={(v) => set('dateFound', v)} placeholder="MM/DD/YYYY" />
       <FormField label="Found By" value={form.foundBy} onChangeText={(v) => set('foundBy', v)} placeholder="Name / Tech ID" />
+      <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Name / Team" />
       <FormField label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} placeholder="Describe the issue…" multiline />
       {issue.resolved && (
         <>
@@ -497,13 +499,14 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
   );
 
   const handleAddIssue = useCallback(
-    (data: { dateFound: string; foundBy: string; notes: string; images: string[] }) => {
+    (data: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; images: string[] }) => {
       const id = genId();
       const issue: Issue = {
         id,
         componentKey,
         dateFound: (() => { const p = parse(data.dateFound, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : new Date().toISOString(); })(),
         foundBy: data.foundBy,
+        responsibleParty: data.responsibleParty || undefined,
         notes: data.notes,
         resolved: false,
         images: data.images.length > 0 ? data.images : undefined,

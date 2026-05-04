@@ -41,6 +41,7 @@ export interface Issue {
   componentKey: ComponentKey;
   dateFound: string;
   foundBy: string;
+  responsibleParty?: string;
   notes: string;
   resolved: boolean;
   dateFixed?: string;
@@ -69,6 +70,7 @@ export interface MiscIssue {
   id: string;
   dateFound: string;
   foundBy: string;
+  responsibleParty?: string;
   notes: string;
   resolved: boolean;
   dateFixed?: string;
@@ -111,6 +113,7 @@ export interface GeneralIssue {
   id: string;
   dateFound: string;
   foundBy: string;
+  responsibleParty?: string;
   notes: string;
   resolved: boolean;
   dateFixed?: string;

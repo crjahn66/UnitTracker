@@ -16,7 +16,7 @@ interface Props {
 type ModalView = 'list' | 'addIssue' | 'resolveIssue';
 
 const today = () => format(new Date(), 'MM/dd/yyyy');
-const EMPTY_ISSUE  = () => ({ dateFound: today(), foundBy: '', notes: '' });
+const EMPTY_ISSUE  = () => ({ dateFound: today(), foundBy: '', responsibleParty: '', notes: '' });
 const EMPTY_RESOLVE = () => ({ dateFixed: today(), fixedBy: '', howFixed: '' });
 
 function genId() {
@@ -41,11 +41,11 @@ function parseDate(str: string): string {
 // ─── Add Issue Form ────────────────────────────────────────────────────────────
 
 function AddIssueForm({ onSave, onCancel }: {
-  onSave: (d: { dateFound: string; foundBy: string; notes: string }) => void;
+  onSave: (d: { dateFound: string; foundBy: string; responsibleParty: string; notes: string }) => void;
   onCancel: () => void;
 }) {
   const [form, setForm] = useState(EMPTY_ISSUE);
-  const set = (key: 'dateFound' | 'foundBy' | 'notes', val: string) =>
+  const set = (key: 'dateFound' | 'foundBy' | 'responsibleParty' | 'notes', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
   const handleSave = () => {
@@ -57,9 +57,10 @@ function AddIssueForm({ onSave, onCancel }: {
   return (
     <View>
       <Text style={f.formTitle}>Log General Issue</Text>
-      <FormField label="Date Found" value={form.dateFound} onChangeText={(v) => set('dateFound', v)} placeholder="MM/DD/YYYY" />
-      <FormField label="Found By"   value={form.foundBy}   onChangeText={(v) => set('foundBy', v)}   placeholder="Name / Tech ID" />
-      <FormField label="Notes"      value={form.notes}     onChangeText={(v) => set('notes', v)}     placeholder="Describe the issue…" multiline />
+      <FormField label="Date Found"        value={form.dateFound}        onChangeText={(v) => set('dateFound', v)}        placeholder="MM/DD/YYYY" />
+      <FormField label="Found By"          value={form.foundBy}          onChangeText={(v) => set('foundBy', v)}          placeholder="Name / Tech ID" />
+      <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Person / company responsible" />
+      <FormField label="Notes"             value={form.notes}            onChangeText={(v) => set('notes', v)}            placeholder="Describe the issue…" multiline />
       <View style={f.buttonRow}>
         <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={onCancel}>
           <Text style={f.btnOutlineText}>Cancel</Text>
@@ -133,6 +134,7 @@ function IssueCard({ issue, onResolve, onDelete }: {
       {expanded && (
         <View style={ic.body}>
           <Text style={ic.notes}>{issue.notes}</Text>
+          {issue.responsibleParty ? <Text style={ic.meta}>Responsible: {issue.responsibleParty}</Text> : null}
           {issue.resolved && (
             <>
               {issue.dateFixed  ? <Text style={ic.meta}>Fixed: {fmtDate(issue.dateFixed)}</Text> : null}
@@ -169,14 +171,16 @@ export default function GeneralIssueModal({ onClose }: Props) {
   const [view, setView]           = useState<ModalView>('list');
   const [resolvingId, setResolvingId] = useState<string | null>(null);
 
-  const handleAdd = useCallback((data: { dateFound: string; foundBy: string; notes: string }) => {
+  const handleAdd = useCallback((data: { dateFound: string; foundBy: string; responsibleParty: string; notes: string }) => {
     addGeneralIssue({
       id: genId(),
       dateFound: parseDate(data.dateFound),
       foundBy: data.foundBy,
+      responsibleParty: data.responsibleParty || undefined,
       notes: data.notes,
       resolved: false,
     });
+    pushToCloud().catch(() => {});
     setView('list');
   }, [addGeneralIssue]);
 
