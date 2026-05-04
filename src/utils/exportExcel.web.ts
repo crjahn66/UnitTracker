@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { Unit, STAGES, COMPONENTS, GeneralIssue, Issue, MiscIssue } from '../types';
+import { Unit, STAGES, COMPONENTS, GeneralIssue, Issue, MiscIssue, normalizeStageStatus } from '../types';
 import { readAsBase64 } from './imageStorage';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -55,7 +55,7 @@ function rowClr(unit: Unit): Clr {
   const compIssues = Object.values(unit.components).flatMap((c) => c.issues);
   const miscIssues = (unit.miscEquipment ?? []).flatMap((m) => m.issues);
   const openCount  = [...compIssues, ...miscIssues].filter((i) => !i.resolved).length;
-  const doneCount  = STAGES.filter((s) => unit.stages[s.key]).length;
+  const doneCount  = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
   if (doneCount === STAGES.length && openCount === 0) return GRN;
   if (openCount > 0)  return RED;
   if (doneCount > 0 || Object.values(unit.components).some((c) => c.status !== 'unchecked'))  return AMB;
@@ -77,11 +77,18 @@ function buildOverview(wb: any, sorted: Unit[]) {
       ...(u.miscEquipment ?? []).flatMap((m) => m.issues),
     ];
     const open = allIssues.filter((i) => !i.resolved).length;
-    const done = STAGES.filter((s) => u.stages[s.key]).length;
+    const done = STAGES.filter((s) => normalizeStageStatus(u.stages[s.key]) === 'complete').length;
     const status = done === STAGES.length && open === 0 ? 'Complete'
                  : open > 0 ? `${open} Issue${open > 1 ? 's' : ''}`
                  : done > 0 ? 'In Progress' : 'Not Started';
-    const rowData = [u.id, u.side, u.unitNumber, ...STAGES.map((s) => u.stages[s.key] ? '✓ Done' : '—'), `${done} / ${STAGES.length}`, open, status];
+    const stageLabel = (s: typeof STAGES[number]) => {
+      const st = normalizeStageStatus(u.stages[s.key]);
+      if (st === 'complete')   return '✓ Done';
+      if (st === 'inProgress') return '⏳ In Progress';
+      if (st === 'stuck')      return '⚠ Stuck';
+      return '—';
+    };
+    const rowData = [u.id, u.side, u.unitNumber, ...STAGES.map((s) => stageLabel(s)), `${done} / ${STAGES.length}`, open, status];
     const r = ws.addRow(rowData);
     r.eachCell((cell: any, col: number) => {
       const isStageCol = col >= 4 && col <= 3 + STAGES.length;
@@ -119,10 +126,13 @@ function buildComponents(wb: any, sorted: Unit[]) {
       const s = u.components[comp.key].status;
       const pn = u.components[comp.key].progressNote;
       const gn = u.components[comp.key].goodNote;
+      const cd = u.components[comp.key];
+      const statusDate = s === 'good' ? cd.goodDate : s === 'inProgress' ? cd.inProgressDate : s === 'bad' ? cd.badDate : undefined;
+      const dateSuffix = statusDate ? `\n${fmtDate(statusDate)}` : '';
       const v = s === 'good' ? (gn ? `✓ ${gn}` : '✓ Good')
               : s === 'bad' ? '✗ Bad'
               : s === 'inProgress' ? `⏳ ${pn || 'In Progress'}` : '—';
-      rowData.push(v);
+      rowData.push(v + dateSuffix);
       compClrs.push(s === 'good' ? GRN : s === 'bad' ? RED : s === 'inProgress' ? AMB : GRY);
     }
     rowData.push(miscSummary);
@@ -196,7 +206,8 @@ async function buildIssues(wb: any, sorted: Unit[]) {
       for (let i = 0; i < images.length; i++) {
         const base64 = await readAsBase64(images[i]);
         if (!base64) continue;
-        const ext = (images[i].split('.').pop()?.toLowerCase() ?? 'jpeg') as 'jpeg' | 'png';
+        const rawExt = images[i].split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpeg';
+        const ext = (rawExt === 'jpg' ? 'jpeg' : rawExt) as 'jpeg' | 'png';
         const imgId = wb.addImage({ base64, extension: ext });
         const colOffset = i * (IMG_W + 4);
         ws.addImage(imgId, {
@@ -231,7 +242,7 @@ function buildCompleted(wb: any, sorted: Unit[]) {
       ...Object.values(u.components).flatMap((c) => c.issues),
       ...(u.miscEquipment ?? []).flatMap((m) => m.issues),
     ].filter((i) => !i.resolved).length;
-    return STAGES.every((s) => u.stages[s.key]) && open === 0;
+    return STAGES.every((s) => normalizeStageStatus(u.stages[s.key]) === 'complete') && open === 0;
   });
 
   for (const u of done) {
@@ -269,7 +280,7 @@ function buildWithIssues(wb: any, sorted: Unit[]) {
   for (const u of affected) {
     const all = [...Object.values(u.components).flatMap((c) => c.issues), ...(u.miscEquipment ?? []).flatMap((m) => m.issues)];
     const open = all.filter((i) => !i.resolved).length;
-    const done = STAGES.filter((s) => u.stages[s.key]).length;
+    const done = STAGES.filter((s) => normalizeStageStatus(u.stages[s.key]) === 'complete').length;
     const names = [
       ...COMPONENTS.filter((comp) => u.components[comp.key].issues.some((i) => !i.resolved)).map((comp) => u.customComponentLabels?.[comp.key] ?? comp.label),
       ...(u.miscEquipment ?? []).filter((m) => m.issues.some((i) => !i.resolved)).map((m) => m.label || 'Misc Equipment'),
