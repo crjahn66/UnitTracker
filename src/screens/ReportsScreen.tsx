@@ -391,7 +391,9 @@ export default function ReportsScreen() {
                   <Ionicons name="close" size={22} color="#8b949e" />
                 </TouchableOpacity>
               </View>
-              <Text selectable style={s.drBody}>{dailyReport}</Text>
+              <ScrollView style={s.drScroll} contentContainerStyle={s.drScrollContent}>
+                <Text selectable style={s.drBody}>{dailyReport}</Text>
+              </ScrollView>
               <TouchableOpacity
                 style={s.drShareBtn}
                 onPress={() => Share.share({ message: dailyReport })}
@@ -575,10 +577,12 @@ const s = StyleSheet.create({
   wipeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 4, marginBottom: 20, padding: 8 },
   wipeBtnText: { color: '#6e7681', fontSize: 12 },
   drOverlay: { flex: 1, backgroundColor: '#00000099', justifyContent: 'center', padding: 20 },
-  drSheet: { backgroundColor: '#161b22', borderRadius: 14, borderWidth: 1, borderColor: '#30363d', overflow: 'hidden' },
+  drSheet: { backgroundColor: '#161b22', borderRadius: 14, borderWidth: 1, borderColor: '#30363d', overflow: 'hidden', maxHeight: '85%' },
   drHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#21262d' },
   drTitle: { color: '#e6edf3', fontSize: 16, fontWeight: '700' },
-  drBody: { color: '#e6edf3', fontSize: 13, lineHeight: 22, padding: 16, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+  drScroll: { flexShrink: 1 },
+  drScrollContent: { padding: 16 },
+  drBody: { color: '#e6edf3', fontSize: 13, lineHeight: 22, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
   drShareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#58a6ff', margin: 16, marginTop: 8, borderRadius: 10, paddingVertical: 13 },
   drShareBtnText: { color: '#0d1117', fontSize: 15, fontWeight: '700' },
   generalIssuesBtn: {
