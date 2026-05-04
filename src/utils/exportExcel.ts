@@ -117,13 +117,16 @@ function buildComponents(wb: any, sorted: Unit[]) {
 
     const rowData: (string | number)[] = [u.id, u.side, u.unitNumber];
     const compClrs: Clr[] = [];
+    let anyDate = false;
     for (const comp of COMPONENTS) {
-      const s = u.components[comp.key].status;
-      const pn = u.components[comp.key].progressNote;
-      const gn = u.components[comp.key].goodNote;
-      const v = s === 'good' ? (gn ? `✓ ${gn}` : '✓ Good')
-              : s === 'bad' ? '✗ Bad'
-              : s === 'inProgress' ? `⏳ ${pn || 'In Progress'}` : '—';
+      const cd = u.components[comp.key];
+      const s = cd.status;
+      const statusDate = s === 'good' ? cd.goodDate : s === 'inProgress' ? cd.inProgressDate : s === 'bad' ? cd.badDate : undefined;
+      if (statusDate) anyDate = true;
+      const dateSuffix = statusDate ? `\n${fmtDate(statusDate)}` : '';
+      const v = s === 'good' ? (cd.goodNote ? `✓ ${cd.goodNote}${dateSuffix}` : `✓ Good${dateSuffix}`)
+              : s === 'bad' ? `✗ Bad${dateSuffix}`
+              : s === 'inProgress' ? `⏳ ${cd.progressNote || 'In Progress'}${dateSuffix}` : '—';
       rowData.push(v);
       compClrs.push(s === 'good' ? GRN : s === 'bad' ? RED : s === 'inProgress' ? AMB : GRY);
     }
@@ -134,7 +137,7 @@ function buildComponents(wb: any, sorted: Unit[]) {
       const c = col === 1 ? clr : col === 2 || col === 3 ? clr : col <= 3 + COMPONENTS.length ? compClrs[col - 4] : miscClr;
       applyCell(cell, cell.value, c, col === 1, col >= 3);
     });
-    r.height = 18;
+    r.height = anyDate ? 30 : 18;
   }
   freezeAndWidth(ws, [9, 7, 7, ...COMPONENTS.map(() => 14), 40]);
 }
