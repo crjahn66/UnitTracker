@@ -5,7 +5,7 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
-import { Unit, STAGES, COMPONENTS } from '../types';
+import { Unit, STAGES, COMPONENTS, normalizeStageStatus } from '../types';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitList'>;
 type Filter = 'all' | 'issues' | 'inProgress' | 'complete';
@@ -18,10 +18,10 @@ function unitStatusColor(unit: Unit): string {
   const hasBad = comps.some((c) => c.status === 'bad') || miscItems.some((m) => m.status === 'bad');
   if (hasBad || openIssues > 0) return '#f85149';
 
-  const stagesComplete = STAGES.filter((s) => unit.stages[s.key]).length;
+  const stagesComplete = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
   if (stagesComplete === STAGES.length) return '#3fb950';
 
-  const hasWork = stagesComplete > 0
+  const hasWork = STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) !== 'pending')
     || comps.some((c) => c.status !== 'unchecked')
     || miscItems.some((m) => m.status !== 'unchecked');
   if (hasWork) return '#d29922';
@@ -35,19 +35,19 @@ function hasOpenIssues(unit: Unit): boolean {
 }
 
 function isComplete(unit: Unit): boolean {
-  return STAGES.every((s) => unit.stages[s.key]) && !hasOpenIssues(unit);
+  return STAGES.every((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete') && !hasOpenIssues(unit);
 }
 
 function isInProgress(unit: Unit): boolean {
   if (isComplete(unit)) return false;
-  return STAGES.some((s) => unit.stages[s.key])
+  return STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) !== 'pending')
     || Object.values(unit.components).some((c) => c.status !== 'unchecked')
     || (unit.miscEquipment ?? []).some((m) => m.status !== 'unchecked');
 }
 
 function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
   const comps = Object.values(unit.components);
-  const stagesComplete = STAGES.filter((s) => unit.stages[s.key]).length;
+  const stagesComplete = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
   const good = comps.filter((c) => c.status === 'good').length;
   const bad = comps.filter((c) => c.status === 'bad').length;
   const miscIssues = (unit.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues ?? []);
