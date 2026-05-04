@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { format } from 'date-fns';
@@ -13,6 +13,7 @@ import ComponentModal from '../components/ComponentModal';
 import MiscEquipModal from '../components/MiscEquipModal';
 import PhotoGalleryModal from '../components/PhotoGalleryModal';
 import { getNetworkEntry } from '../data/networkData';
+import { pushToCloud } from '../utils/sync';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitDetail'>;
 
@@ -20,10 +21,13 @@ export default function UnitDetailScreen({ route }: Props) {
   const { unitId } = route.params;
   const unit = useStore((state) => state.units[unitId]);
   const updateStage = useStore((state) => state.updateStage);
+  const setStageNote = useStore((state) => state.setStageNote);
 
   const [selectedComponent, setSelectedComponent] = useState<ComponentKey | null>(null);
   const [selectedMiscItem, setSelectedMiscItem] = useState<string | null>(null);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [editingStageNote, setEditingStageNote] = useState<StageKey | null>(null);
+  const [stageNoteValue, setStageNoteValue] = useState('');
   const addMiscEquip = useStore((state) => state.addMiscEquip);
 
   const handleStageChange = useCallback(
@@ -107,25 +111,68 @@ export default function UnitDetailScreen({ route }: Props) {
             const dateStr = stageStatus !== 'pending' && unit.stagesDates?.[stage.key]
               ? (() => { try { return format(new Date(unit.stagesDates![stage.key]!), 'MMM d'); } catch { return null; } })()
               : null;
+            const stageNote = unit.stagesNotes?.[stage.key];
+            const isEditingNote = editingStageNote === stage.key;
             return (
               <View key={stage.key} style={[s.stageRow, idx < STAGES.length - 1 && s.stageRowBorder]}>
-                <StageStatusIcon status={stageStatus} />
-                <View style={s.stageInfo}>
-                  <Text style={s.stageLabel}>{stage.label}</Text>
-                  <Text style={s.stageNum}>Stage {idx + 1} of {STAGES.length}{dateStr ? `  ·  ${dateStr}` : ''}</Text>
+                <View style={s.stageRowMain}>
+                  <StageStatusIcon status={stageStatus} />
+                  <View style={s.stageInfo}>
+                    <Text style={s.stageLabel}>{stage.label}</Text>
+                    <Text style={s.stageNum}>Stage {idx + 1} of {STAGES.length}{dateStr ? `  ·  ${dateStr}` : ''}</Text>
+                  </View>
+                  <View style={s.stageBtns}>
+                    {(['complete', 'inProgress', 'stuck'] as StageStatus[]).map((st) => (
+                      <TouchableOpacity
+                        key={st}
+                        style={[s.stageBtn, stageStatus === st && { backgroundColor: stageStatusColor(st) + '33', borderColor: stageStatusColor(st) }]}
+                        onPress={() => handleStageChange(stage.key, stageStatus === st ? 'pending' : st)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[s.stageBtnText, { color: stageStatusColor(st) }]}>{stageStatusLabel(st)}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
-                <View style={s.stageBtns}>
-                  {(['complete', 'inProgress', 'stuck'] as StageStatus[]).map((st) => (
-                    <TouchableOpacity
-                      key={st}
-                      style={[s.stageBtn, stageStatus === st && { backgroundColor: stageStatusColor(st) + '33', borderColor: stageStatusColor(st) }]}
-                      onPress={() => handleStageChange(stage.key, stageStatus === st ? 'pending' : st)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[s.stageBtnText, { color: stageStatusColor(st) }]}>{stageStatusLabel(st)}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                {isEditingNote ? (
+                  <View style={s.stageNoteEditArea}>
+                    <TextInput
+                      style={s.stageNoteInput}
+                      value={stageNoteValue}
+                      onChangeText={setStageNoteValue}
+                      placeholder="Add a note…"
+                      placeholderTextColor="#6e7681"
+                      multiline
+                      autoFocus
+                    />
+                    <View style={s.stageNoteActions}>
+                      <TouchableOpacity
+                        style={s.stageNoteSaveBtn}
+                        onPress={() => {
+                          setStageNote(unitId, stage.key, stageNoteValue);
+                          pushToCloud().catch(() => {});
+                          setEditingStageNote(null);
+                        }}
+                      >
+                        <Text style={s.stageNoteSaveText}>Save</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => setEditingStageNote(null)}>
+                        <Text style={s.stageNoteCancelText}>Cancel</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={s.stageNoteRow}
+                    onPress={() => { setStageNoteValue(stageNote ?? ''); setEditingStageNote(stage.key); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={stageNote ? s.stageNoteText : s.stageNotePlaceholder} numberOfLines={2}>
+                      {stageNote ?? '+ Add note'}
+                    </Text>
+                    {stageNote ? <Ionicons name="pencil-outline" size={11} color="#6e7681" style={{ marginLeft: 4 }} /> : null}
+                  </TouchableOpacity>
+                )}
               </View>
             );
           })}
@@ -332,11 +379,10 @@ const s = StyleSheet.create({
   },
   // Stage rows
   stageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingVertical: 10,
     paddingHorizontal: 14,
   },
+  stageRowMain: { flexDirection: 'row', alignItems: 'center' },
   stageRowBorder: { borderBottomWidth: 1, borderBottomColor: '#21262d' },
   stageInfo: { flex: 1, marginRight: 8 },
   stageLabel: { color: '#e6edf3', fontSize: 14, fontWeight: '500' },
@@ -347,6 +393,18 @@ const s = StyleSheet.create({
     borderRadius: 6, borderWidth: 1, borderColor: '#30363d',
   },
   stageBtnText: { fontSize: 11, fontWeight: '700' },
+  stageNoteRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, paddingLeft: 34 },
+  stageNoteText: { color: '#8b949e', fontSize: 12, flex: 1 },
+  stageNotePlaceholder: { color: '#484f58', fontSize: 12 },
+  stageNoteEditArea: { marginTop: 8, paddingLeft: 34 },
+  stageNoteInput: {
+    backgroundColor: '#0d1117', borderRadius: 6, borderWidth: 1, borderColor: '#30363d',
+    color: '#e6edf3', fontSize: 13, padding: 8, minHeight: 60, textAlignVertical: 'top',
+  },
+  stageNoteActions: { flexDirection: 'row', gap: 12, marginTop: 6, justifyContent: 'flex-end' },
+  stageNoteSaveBtn: { backgroundColor: '#58a6ff22', borderRadius: 6, paddingVertical: 5, paddingHorizontal: 14, borderWidth: 1, borderColor: '#58a6ff' },
+  stageNoteSaveText: { color: '#58a6ff', fontSize: 13, fontWeight: '600' },
+  stageNoteCancelText: { color: '#6e7681', fontSize: 13, paddingVertical: 5 },
   // Component rows
   compRow: {
     flexDirection: 'row',

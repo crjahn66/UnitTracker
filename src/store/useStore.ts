@@ -20,6 +20,7 @@ interface StoreState {
   units: UnitsStore;
   generalIssues: GeneralIssue[];
   updateStage: (unitId: string, stage: StageKey, status: StageStatus) => void;
+  setStageNote: (unitId: string, stage: StageKey, note: string) => void;
   updateComponentStatus: (unitId: string, component: ComponentKey, status: ComponentStatus) => void;
   setComponentProgressNote: (unitId: string, component: ComponentKey, note: string) => void;
   setComponentGoodNote: (unitId: string, component: ComponentKey, note: string) => void;
@@ -62,6 +63,14 @@ export const useStore = create<StoreState>()(
               [unitId]: { ...u, stages: { ...u.stages, [stage]: status }, stagesDates: dates },
             },
           };
+        }),
+
+      setStageNote: (unitId, stage, note) =>
+        set((state) => {
+          const u = state.units[unitId];
+          const notes = { ...(u.stagesNotes ?? {}) };
+          if (note.trim()) { notes[stage] = note.trim(); } else { delete notes[stage]; }
+          return { units: { ...state.units, [unitId]: { ...u, stagesNotes: notes } } };
         }),
 
       updateComponentStatus: (unitId, component, status) =>
@@ -464,9 +473,23 @@ export const useStore = create<StoreState>()(
             // Merge custom labels — remote wins
             const mergedLabels = { ...(existing.customComponentLabels ?? {}), ...(imp.customComponentLabels ?? {}) };
 
+            // Merge stage notes — remote wins, keep local if remote absent
+            const mergedStagesNotes: Partial<Record<StageKey, string>> = { ...(existing.stagesNotes ?? {}) };
+            for (const key of Object.keys(existing.stages) as StageKey[]) {
+              if (key in (imp.stagesNotes ?? {})) {
+                if (imp.stagesNotes[key]) { mergedStagesNotes[key] = imp.stagesNotes[key]; }
+                else { delete mergedStagesNotes[key]; }
+              }
+            }
+
+            // Merge stage dates — remote wins
+            const mergedStagesDates: Partial<Record<StageKey, string>> = { ...(existing.stagesDates ?? {}), ...(imp.stagesDates ?? {}) };
+
             merged[uid] = {
               ...existing,
               stages: mergedStages,
+              stagesDates: Object.keys(mergedStagesDates).length ? mergedStagesDates : undefined,
+              stagesNotes: Object.keys(mergedStagesNotes).length ? mergedStagesNotes : undefined,
               components: mergedComponents,
               miscEquipment: existingMisc,
               customComponentLabels: Object.keys(mergedLabels).length ? mergedLabels : undefined,

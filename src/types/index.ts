@@ -99,6 +99,7 @@ export interface Unit {
   unitNumber: number;
   stages: StagesData;
   stagesDates?: Partial<Record<StageKey, string>>;
+  stagesNotes?: Partial<Record<StageKey, string>>;
   components: ComponentsData;
   miscEquipment?: MiscEquipItem[];
   customComponentLabels?: Partial<Record<ComponentKey, string>>;
