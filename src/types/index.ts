@@ -8,6 +8,14 @@ export const STAGES = [
 ] as const;
 
 export type StageKey = (typeof STAGES)[number]['key'];
+export type StageStatus = 'pending' | 'inProgress' | 'complete' | 'stuck';
+
+// Converts legacy boolean stage values (true=complete, false=pending) to StageStatus
+export function normalizeStageStatus(v: unknown): StageStatus {
+  if (v === true)  return 'complete';
+  if (!v || v === false) return 'pending';
+  return v as StageStatus;
+}
 
 export const COMPONENTS = [
   { key: 'supplyIsoValve', label: 'Supply Iso Valve' },
@@ -54,7 +62,7 @@ export interface ComponentData {
   badDate?: string;
 }
 
-export type StagesData = Record<StageKey, boolean>;
+export type StagesData = Record<StageKey, StageStatus>;
 export type ComponentsData = Record<ComponentKey, ComponentData>;
 
 export interface MiscIssue {

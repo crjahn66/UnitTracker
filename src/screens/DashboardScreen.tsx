@@ -3,10 +3,10 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-nati
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, Unit } from '../types';
+import { STAGES, COMPONENTS, Unit, normalizeStageStatus } from '../types';
 
 function getUnitPct(unit: Unit): number {
-  const stagesComplete = STAGES.filter((s) => unit.stages[s.key]).length;
+  const stagesComplete = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
   const good = Object.values(unit.components).filter((c) => c.status === 'good').length;
   return Math.round((stagesComplete / STAGES.length) * 70 + (good / COMPONENTS.length) * 30);
 }

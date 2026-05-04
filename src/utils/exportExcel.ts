@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { format } from 'date-fns';
-import { Unit, STAGES, COMPONENTS, GeneralIssue, Issue, MiscIssue } from '../types';
+import { Unit, STAGES, COMPONENTS, GeneralIssue, Issue, MiscIssue, normalizeStageStatus } from '../types';
 import { readAsBase64 } from './imageStorage';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -57,7 +57,7 @@ function rowClr(unit: Unit): Clr {
   const compIssues = Object.values(unit.components).flatMap((c) => c.issues);
   const miscIssues = (unit.miscEquipment ?? []).flatMap((m) => m.issues);
   const openCount  = [...compIssues, ...miscIssues].filter((i) => !i.resolved).length;
-  const doneCount  = STAGES.filter((s) => unit.stages[s.key]).length;
+  const doneCount  = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
   if (doneCount === STAGES.length && openCount === 0) return GRN;
   if (openCount > 0)  return RED;
   if (doneCount > 0 || Object.values(unit.components).some((c) => c.status !== 'unchecked'))  return AMB;
@@ -79,16 +79,25 @@ function buildOverview(wb: any, sorted: Unit[]) {
       ...(u.miscEquipment ?? []).flatMap((m) => m.issues),
     ];
     const open = allIssues.filter((i) => !i.resolved).length;
-    const done = STAGES.filter((s) => u.stages[s.key]).length;
+    const done = STAGES.filter((s) => normalizeStageStatus(u.stages[s.key]) === 'complete').length;
+    const stuck = STAGES.filter((s) => normalizeStageStatus(u.stages[s.key]) === 'stuck').length;
     const status = done === STAGES.length && open === 0 ? 'Complete'
+                 : stuck > 0 ? `${stuck} Stuck`
                  : open > 0 ? `${open} Issue${open > 1 ? 's' : ''}`
                  : done > 0 ? 'In Progress' : 'Not Started';
-    const rowData = [u.id, u.side, u.unitNumber, ...STAGES.map((s) => u.stages[s.key] ? '✓ Done' : '—'), `${done} / ${STAGES.length}`, open, status];
+    const stageLabel = (s: typeof STAGES[number]) => {
+      const st = normalizeStageStatus(u.stages[s.key]);
+      if (st === 'complete')   return '✓ Done';
+      if (st === 'inProgress') return '⏳ In Progress';
+      if (st === 'stuck')      return '⚠ Stuck';
+      return '—';
+    };
+    const rowData = [u.id, u.side, u.unitNumber, ...STAGES.map(stageLabel), `${done} / ${STAGES.length}`, open, status];
     const r = ws.addRow(rowData);
     r.eachCell((cell: any, col: number) => {
       const isStageCol = col >= 4 && col <= 3 + STAGES.length;
-      const stageVal = isStageCol ? (cell.value === '✓ Done') : false;
-      const c = isStageCol ? (stageVal ? GRN : GRY) : (col === 3 + STAGES.length + 2 && open > 0 ? RED : clr);
+      const stageClr = isStageCol ? (cell.value === '✓ Done' ? GRN : cell.value?.startsWith?.('⚠') ? RED : cell.value?.startsWith?.('⏳') ? AMB : GRY) : null;
+      const c = isStageCol ? stageClr! : (col === 3 + STAGES.length + 2 && open > 0 ? RED : clr);
       applyCell(cell, cell.value, c, col === 1 || isStageCol, col >= 3);
     });
     r.height = 18;
@@ -237,7 +246,7 @@ function buildCompleted(wb: any, sorted: Unit[]) {
       ...Object.values(u.components).flatMap((c) => c.issues),
       ...(u.miscEquipment ?? []).flatMap((m) => m.issues),
     ].filter((i) => !i.resolved).length;
-    return STAGES.every((s) => u.stages[s.key]) && open === 0;
+    return STAGES.every((s) => normalizeStageStatus(u.stages[s.key]) === 'complete') && open === 0;
   });
 
   for (const u of done) {
@@ -275,7 +284,7 @@ function buildWithIssues(wb: any, sorted: Unit[]) {
   for (const u of affected) {
     const all = [...Object.values(u.components).flatMap((c) => c.issues), ...(u.miscEquipment ?? []).flatMap((m) => m.issues)];
     const open = all.filter((i) => !i.resolved).length;
-    const done = STAGES.filter((s) => u.stages[s.key]).length;
+    const done = STAGES.filter((s) => normalizeStageStatus(u.stages[s.key]) === 'complete').length;
     const names = [
       ...COMPONENTS.filter((comp) => u.components[comp.key].issues.some((i) => !i.resolved)).map((comp) => u.customComponentLabels?.[comp.key] ?? comp.label),
       ...(u.miscEquipment ?? []).filter((m) => m.issues.some((i) => !i.resolved)).map((m) => m.label || 'Misc Equipment'),

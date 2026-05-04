@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Alert, Platform,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { format } from 'date-fns';
@@ -9,7 +8,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, ComponentKey, StageKey } from '../types';
+import { STAGES, COMPONENTS, ComponentKey, StageKey, StageStatus, normalizeStageStatus } from '../types';
 import ComponentModal from '../components/ComponentModal';
 import MiscEquipModal from '../components/MiscEquipModal';
 import PhotoGalleryModal from '../components/PhotoGalleryModal';
@@ -27,25 +26,9 @@ export default function UnitDetailScreen({ route }: Props) {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const addMiscEquip = useStore((state) => state.addMiscEquip);
 
-  const handleStageToggle = useCallback(
-    (key: StageKey, current: boolean) => {
-      const label = STAGES.find((s) => s.key === key)?.label ?? '';
-      if (Platform.OS === 'web') {
-        const msg = current
-          ? `Unmark "${label}" as complete?`
-          : `Mark "${label}" as complete?`;
-        if ((window as any).confirm(msg)) updateStage(unitId, key, !current);
-      } else if (current) {
-        Alert.alert('Unmark Stage', `Are you sure you want to unmark "${label}"?`, [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Unmark', style: 'destructive', onPress: () => updateStage(unitId, key, false) },
-        ]);
-      } else {
-        Alert.alert('Confirm Stage Complete', `Mark "${label}" as complete?`, [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Confirm', onPress: () => updateStage(unitId, key, true) },
-        ]);
-      }
+  const handleStageChange = useCallback(
+    (key: StageKey, status: StageStatus) => {
+      updateStage(unitId, key, status);
     },
     [unitId, updateStage]
   );
@@ -59,7 +42,7 @@ export default function UnitDetailScreen({ route }: Props) {
   }
 
   const networkEntry = getNetworkEntry(unit.side, unit.unitNumber);
-  const stagesComplete = STAGES.filter((st) => unit.stages[st.key]).length;
+  const stagesComplete = STAGES.filter((st) => normalizeStageStatus(unit.stages[st.key]) === 'complete').length;
   const allComps = Object.values(unit.components);
   const miscItems = (unit.miscEquipment ?? []).filter((m) => !m.deleted);
 
@@ -120,31 +103,30 @@ export default function UnitDetailScreen({ route }: Props) {
         <SectionHeader title="Commissioning Stages" icon="checkmark-circle-outline" />
         <View style={s.card}>
           {STAGES.map((stage, idx) => {
-            const done = unit.stages[stage.key];
-            const dateStr = done && unit.stagesDates?.[stage.key]
+            const stageStatus = normalizeStageStatus(unit.stages[stage.key]);
+            const dateStr = stageStatus !== 'pending' && unit.stagesDates?.[stage.key]
               ? (() => { try { return format(new Date(unit.stagesDates![stage.key]!), 'MMM d'); } catch { return null; } })()
               : null;
             return (
-              <TouchableOpacity
-                key={stage.key}
-                style={[s.stageRow, idx < STAGES.length - 1 && s.stageRowBorder]}
-                onPress={() => handleStageToggle(stage.key, done)}
-                activeOpacity={0.7}
-              >
-                <View style={[s.checkbox, done && s.checkboxDone]}>
-                  {done && <Ionicons name="checkmark" size={16} color="#0d1117" />}
-                </View>
+              <View key={stage.key} style={[s.stageRow, idx < STAGES.length - 1 && s.stageRowBorder]}>
+                <StageStatusIcon status={stageStatus} />
                 <View style={s.stageInfo}>
-                  <Text style={[s.stageLabel, done && s.stageLabelDone]}>{stage.label}</Text>
-                  <Text style={s.stageNum}>Stage {idx + 1} of {STAGES.length}</Text>
+                  <Text style={s.stageLabel}>{stage.label}</Text>
+                  <Text style={s.stageNum}>Stage {idx + 1} of {STAGES.length}{dateStr ? `  ·  ${dateStr}` : ''}</Text>
                 </View>
-                <View style={s.stageRight}>
-                  <Text style={[s.stageStatus, { color: done ? '#3fb950' : '#6e7681' }]}>
-                    {done ? 'Complete' : 'Pending'}
-                  </Text>
-                  {dateStr && <Text style={s.stageDate}>{dateStr}</Text>}
+                <View style={s.stageBtns}>
+                  {(['complete', 'inProgress', 'stuck'] as StageStatus[]).map((st) => (
+                    <TouchableOpacity
+                      key={st}
+                      style={[s.stageBtn, stageStatus === st && { backgroundColor: stageStatusColor(st) + '33', borderColor: stageStatusColor(st) }]}
+                      onPress={() => handleStageChange(stage.key, stageStatus === st ? 'pending' : st)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[s.stageBtnText, { color: stageStatusColor(st) }]}>{stageStatusLabel(st)}</Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-              </TouchableOpacity>
+              </View>
             );
           })}
         </View>
@@ -283,6 +265,27 @@ function NetRow({ label, value, last }: { label: string; value: string; first?: 
   );
 }
 
+function stageStatusColor(s: StageStatus) {
+  if (s === 'complete')   return '#3fb950';
+  if (s === 'inProgress') return '#d29922';
+  if (s === 'stuck')      return '#f85149';
+  return '#6e7681';
+}
+
+function stageStatusLabel(s: StageStatus) {
+  if (s === 'complete')   return 'Complete';
+  if (s === 'inProgress') return 'In Progress';
+  if (s === 'stuck')      return 'Stuck';
+  return 'Pending';
+}
+
+function StageStatusIcon({ status }: { status: StageStatus }) {
+  if (status === 'complete')   return <Ionicons name="checkmark-circle" size={22} color="#3fb950" style={s.statusIcon} />;
+  if (status === 'inProgress') return <Ionicons name="time" size={22} color="#d29922" style={s.statusIcon} />;
+  if (status === 'stuck')      return <Ionicons name="alert-circle" size={22} color="#f85149" style={s.statusIcon} />;
+  return <Ionicons name="ellipse-outline" size={22} color="#30363d" style={s.statusIcon} />;
+}
+
 function StatusIcon({ status }: { status: 'good' | 'bad' | 'unchecked' | 'inProgress' }) {
   if (status === 'good') return <Ionicons name="checkmark-circle" size={22} color="#3fb950" style={s.statusIcon} />;
   if (status === 'bad') return <Ionicons name="close-circle" size={22} color="#f85149" style={s.statusIcon} />;
@@ -331,27 +334,19 @@ const s = StyleSheet.create({
   stageRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
   },
   stageRowBorder: { borderBottomWidth: 1, borderBottomColor: '#21262d' },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#30363d',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  checkboxDone: { backgroundColor: '#3fb950', borderColor: '#3fb950' },
-  stageInfo: { flex: 1 },
-  stageLabel: { color: '#e6edf3', fontSize: 15, fontWeight: '500' },
-  stageLabelDone: { color: '#8b949e' },
+  stageInfo: { flex: 1, marginRight: 8 },
+  stageLabel: { color: '#e6edf3', fontSize: 14, fontWeight: '500' },
   stageNum: { color: '#6e7681', fontSize: 11, marginTop: 2 },
-  stageRight: { alignItems: 'flex-end' },
-  stageStatus: { fontSize: 12, fontWeight: '600' },
-  stageDate: { color: '#6e7681', fontSize: 11, marginTop: 2 },
+  stageBtns: { flexDirection: 'row', gap: 4 },
+  stageBtn: {
+    paddingVertical: 5, paddingHorizontal: 8,
+    borderRadius: 6, borderWidth: 1, borderColor: '#30363d',
+  },
+  stageBtnText: { fontSize: 11, fontWeight: '700' },
   // Component rows
   compRow: {
     flexDirection: 'row',

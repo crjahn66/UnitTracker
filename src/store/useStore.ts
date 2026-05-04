@@ -5,19 +5,21 @@ import {
   Unit,
   UnitsStore,
   StageKey,
+  StageStatus,
   ComponentKey,
   ComponentStatus,
   Issue,
   GeneralIssue,
   MiscEquipItem,
   MiscIssue,
+  normalizeStageStatus,
 } from '../types';
 import { createInitialUnits } from '../utils/initialData';
 
 interface StoreState {
   units: UnitsStore;
   generalIssues: GeneralIssue[];
-  updateStage: (unitId: string, stage: StageKey, value: boolean) => void;
+  updateStage: (unitId: string, stage: StageKey, status: StageStatus) => void;
   updateComponentStatus: (unitId: string, component: ComponentKey, status: ComponentStatus) => void;
   setComponentProgressNote: (unitId: string, component: ComponentKey, note: string) => void;
   setComponentGoodNote: (unitId: string, component: ComponentKey, note: string) => void;
@@ -48,16 +50,16 @@ export const useStore = create<StoreState>()(
       units: createInitialUnits(),
       generalIssues: [] as GeneralIssue[],
 
-      updateStage: (unitId, stage, value) =>
+      updateStage: (unitId, stage, status) =>
         set((state) => {
           const u = state.units[unitId];
           const dates = { ...(u.stagesDates ?? {}) };
-          if (value) { dates[stage] = new Date().toISOString(); }
+          if (status !== 'pending') { dates[stage] = new Date().toISOString(); }
           else { delete dates[stage]; }
           return {
             units: {
               ...state.units,
-              [unitId]: { ...u, stages: { ...u.stages, [stage]: value }, stagesDates: dates },
+              [unitId]: { ...u, stages: { ...u.stages, [stage]: status }, stagesDates: dates },
             },
           };
         }),
@@ -388,7 +390,8 @@ export const useStore = create<StoreState>()(
             // Merge stages — remote wins so unchecking propagates
             const mergedStages = { ...existing.stages };
             for (const key of Object.keys(existing.stages) as StageKey[]) {
-              mergedStages[key] = imp.stages?.[key] ?? existing.stages[key];
+              const raw = imp.stages?.[key] ?? existing.stages[key];
+              mergedStages[key] = normalizeStageStatus(raw);
             }
 
             // Merge components — issues, status, notes, images

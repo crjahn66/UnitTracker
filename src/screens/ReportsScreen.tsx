@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, UnitsStore, GeneralIssue, Unit } from '../types';
+import { STAGES, COMPONENTS, UnitsStore, GeneralIssue, Unit, normalizeStageStatus } from '../types';
 import { exportToExcel } from '../utils/exportExcel';
 import { backupData, restoreData } from '../utils/backup';
 import { syncWithCloud, wipeAllPhotos } from '../utils/sync';
@@ -14,7 +14,7 @@ import { supabase } from '../utils/supabase';
 import GeneralIssueModal from '../components/GeneralIssueModal';
 
 function isUnitCommissioned(unit: Unit): boolean {
-  return STAGES.every(s => unit.stages[s.key]) &&
+  return STAGES.every(s => normalizeStageStatus(unit.stages[s.key]) === 'complete') &&
     COMPONENTS.every(c => unit.components[c.key].status === 'good');
 }
 
@@ -178,8 +178,8 @@ export default function ReportsScreen() {
 
     const stageStats = STAGES.map((stage) => ({
       label: stage.label,
-      northDone: north.filter((u) => u.stages[stage.key]).length,
-      southDone: south.filter((u) => u.stages[stage.key]).length,
+      northDone: north.filter((u) => normalizeStageStatus(u.stages[stage.key]) === 'complete').length,
+      southDone: south.filter((u) => normalizeStageStatus(u.stages[stage.key]) === 'complete').length,
     }));
 
     // Collect all open issues (component + misc) with their unit/label context
@@ -208,10 +208,10 @@ export default function ReportsScreen() {
         ...Object.values(u.components).flatMap((c) => c.issues),
         ...(u.miscEquipment ?? []).flatMap((m) => m.issues ?? []),
       ].some((i) => !i.resolved && !i.deleted);
-      return STAGES.every((s) => u.stages[s.key]) && !hasOpen;
+      return STAGES.every((s) => normalizeStageStatus(u.stages[s.key]) === 'complete') && !hasOpen;
     }).length;
     const hasAnyWork = all.filter((u) =>
-      STAGES.some((s) => u.stages[s.key])
+      STAGES.some((s) => normalizeStageStatus(u.stages[s.key]) !== 'pending')
       || Object.values(u.components).some((c) => c.status !== 'unchecked')
       || (u.miscEquipment ?? []).some((m) => m.status !== 'unchecked')
     ).length;

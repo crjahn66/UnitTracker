@@ -11,7 +11,7 @@ const createDefaultComponents = (): ComponentsData => {
 const createDefaultStages = (): StagesData => {
   const stages = {} as StagesData;
   for (const { key } of STAGES) {
-    stages[key] = false;
+    stages[key] = 'pending';
   }
   return stages;
 };
