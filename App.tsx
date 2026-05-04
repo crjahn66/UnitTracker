@@ -6,6 +6,7 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 import AuthGate from './src/components/AuthGate';
 import { useStore } from './src/store/useStore';
 import { pushToCloud } from './src/utils/sync';
+import { startAutoBackup } from './src/utils/backup';
 
 // Auto-push store state to sync_state 2s after any change on both platforms.
 function useAutoPush() {
@@ -19,8 +20,17 @@ function useAutoPush() {
   }, []);
 }
 
+// Local backup to /storage/emulated/0/Download/Dicvon/bak every 15 min (native only).
+function useLocalAutoBackup() {
+  useEffect(() => {
+    const stop = startAutoBackup(() => useStore.getState());
+    return stop;
+  }, []);
+}
+
 export default function App() {
   useAutoPush();
+  useLocalAutoBackup();
   return (
     <ErrorBoundary>
       <StatusBar style="light" />
