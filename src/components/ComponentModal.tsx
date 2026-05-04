@@ -195,6 +195,9 @@ function IssueCard({ issue, onResolve, onDelete, onEdit, onAddImage, onRemoveIma
   onViewImage: (uri: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const ageDays = !issue.resolved && issue.dateFound
+    ? Math.floor((Date.now() - new Date(issue.dateFound).getTime()) / 86400000)
+    : null;
 
   const pickImages = async () => {
     const result = await DocumentPicker.getDocumentAsync({
@@ -213,6 +216,11 @@ function IssueCard({ issue, onResolve, onDelete, onEdit, onAddImage, onRemoveIma
             <Text style={ic.badgeText}>{issue.resolved ? 'Resolved' : 'Open'}</Text>
           </View>
           <Text style={ic.dateText}>{fmtDate(issue.dateFound)}</Text>
+          {ageDays !== null && ageDays >= 0 && (
+            <View style={ic.ageBadge}>
+              <Text style={ic.ageBadgeText}>{ageDays}d</Text>
+            </View>
+          )}
           {(issue.images?.length ?? 0) > 0 && (
             <View style={ic.photoBadge}>
               <Ionicons name="image-outline" size={11} color="#8b949e" />
@@ -848,6 +856,8 @@ const ic = StyleSheet.create({
   badgeResolved: { backgroundColor: '#3fb950' },
   badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   dateText: { color: '#8b949e', fontSize: 12, marginLeft: 6 },
+  ageBadge: { marginLeft: 6, backgroundColor: '#f8514922', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, borderWidth: 1, borderColor: '#f8514966' },
+  ageBadgeText: { color: '#f85149', fontSize: 10, fontWeight: '600' },
   photoBadge: { flexDirection: 'row', alignItems: 'center', marginLeft: 6, backgroundColor: '#21262d', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
   photoBadgeText: { color: '#8b949e', fontSize: 10, fontWeight: '600', marginLeft: 3 },
   foundBy: { color: '#8b949e', fontSize: 12, maxWidth: 120 },

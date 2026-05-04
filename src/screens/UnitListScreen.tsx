@@ -53,6 +53,9 @@ function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
   const miscIssues = (unit.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues ?? []);
   const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
   const color = unitStatusColor(unit);
+  const pct = Math.round(
+    (stagesComplete / STAGES.length) * 70 + (good / COMPONENTS.length) * 30
+  );
 
   return (
     <TouchableOpacity style={[s.card, { borderColor: color }]} onPress={onPress} activeOpacity={0.75}>
@@ -74,6 +77,12 @@ function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
             <Text style={s.issueText}>{openIssues} open issue{openIssues !== 1 ? 's' : ''}</Text>
           </View>
         )}
+        <View style={s.progressRow}>
+          <View style={s.progressBarBg}>
+            <View style={[s.progressBarFill, { width: `${pct}%` as any, backgroundColor: color }]} />
+          </View>
+          <Text style={[s.progressPct, { color }]}>{pct}%</Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -241,4 +250,8 @@ const s = StyleSheet.create({
     borderColor: '#f85149',
   },
   issueText: { color: '#f85149', fontSize: 10, textAlign: 'center', fontWeight: '600' },
+  progressRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  progressBarBg: { flex: 1, height: 4, backgroundColor: '#21262d', borderRadius: 2, overflow: 'hidden', marginRight: 6 },
+  progressBarFill: { height: 4, borderRadius: 2 },
+  progressPct: { fontSize: 10, fontWeight: '700', minWidth: 26, textAlign: 'right' },
 });
