@@ -87,6 +87,32 @@ export async function readAsBase64(uri: string): Promise<string | null> {
   } catch { return null; }
 }
 
+export async function readResizedBase64(uri: string, maxDim = 400, quality = 0.65): Promise<string | null> {
+  try {
+    let localUri = uri;
+    const isRemote = uri.startsWith('https://');
+    if (isRemote) {
+      const tempPath = (FileSystem.cacheDirectory ?? '') + `tmp_resize_${Date.now()}.jpg`;
+      const { uri: dl } = await FileSystem.downloadAsync(uri, tempPath);
+      localUri = dl;
+    }
+    if (ImageManipulator) {
+      const r = await ImageManipulator.manipulateAsync(
+        localUri,
+        [{ resize: { width: maxDim } }],
+        { compress: quality, format: ImageManipulator.SaveFormat.JPEG },
+      );
+      const b64 = await FileSystem.readAsStringAsync(r.uri, { encoding: 'base64' as any });
+      await FileSystem.deleteAsync(r.uri, { idempotent: true }).catch(() => {});
+      if (isRemote) await FileSystem.deleteAsync(localUri, { idempotent: true }).catch(() => {});
+      return b64;
+    }
+    const b64 = await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' as any });
+    if (isRemote) await FileSystem.deleteAsync(localUri, { idempotent: true }).catch(() => {});
+    return b64;
+  } catch { return readAsBase64(uri); }
+}
+
 // Upload a local file to Supabase using its own filename so we can always map back
 async function uploadFile(localPath: string): Promise<string | null> {
   const src = await prepareUri(localPath);

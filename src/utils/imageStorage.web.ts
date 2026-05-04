@@ -63,6 +63,7 @@ export async function downloadPhoto(uri: string): Promise<void> {
 export async function readAsBase64(uri: string): Promise<string | null> {
   try {
     const response = await fetch(uri);
+    if (!response.ok) return null;
     const blob = await response.blob();
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -71,6 +72,31 @@ export async function readAsBase64(uri: string): Promise<string | null> {
       reader.readAsDataURL(blob);
     });
   } catch { return null; }
+}
+
+// Fetch image via HTML Image element (more reliable for cross-origin than fetch),
+// resize to fit within maxDim × maxDim, re-encode as JPEG.
+export async function readResizedBase64(uri: string, maxDim = 400, quality = 0.65): Promise<string | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const scale = Math.min(1, maxDim / img.width, maxDim / img.height);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+      try {
+        resolve(canvas.toDataURL('image/jpeg', quality).split(',')[1] ?? null);
+      } catch {
+        resolve(null); // tainted canvas — CORS not configured for this bucket
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = uri;
+  });
 }
 
 export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; updated: boolean; status: string }> {

@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { Unit, STAGES, COMPONENTS, GeneralIssue, Issue, MiscIssue, normalizeStageStatus } from '../types';
-import { readAsBase64 } from './imageStorage';
+import { readResizedBase64 } from './imageStorage';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const ExcelJS = require('exceljs/dist/exceljs.bare.js');
@@ -206,11 +206,9 @@ async function buildIssues(wb: any, sorted: Unit[]) {
       applyCell(photoCell, '', clr, false, true);
 
       for (let i = 0; i < images.length; i++) {
-        const base64 = await readAsBase64(images[i]);
+        const base64 = await readResizedBase64(images[i]);
         if (!base64) continue;
-        const rawExt = images[i].split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpeg';
-        const ext = (rawExt === 'jpg' ? 'jpeg' : rawExt) as 'jpeg' | 'png';
-        const imgId = wb.addImage({ base64, extension: ext });
+        const imgId = wb.addImage({ base64, extension: 'jpeg' });
         const colOffset = i * (IMG_W + 4);
         ws.addImage(imgId, {
           tl: { col: IMG_COL - 1 + colOffset / 64, row: excelRow - 1 },
