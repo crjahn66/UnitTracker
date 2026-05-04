@@ -182,7 +182,11 @@ async function buildIssues(wb: any, sorted: Unit[]) {
     }
   }
 
-  rows.sort((a, b) => b.issue.dateFound.localeCompare(a.issue.dateFound));
+  rows.sort((a, b) => {
+    if (a.side !== b.side) return a.side === 'North' ? -1 : 1;
+    if (a.unitNum !== b.unitNum) return a.unitNum - b.unitNum;
+    return a.issue.dateFound.localeCompare(b.issue.dateFound);
+  });
 
   for (let idx = 0; idx < rows.length; idx++) {
     const { issue, unitId, side, unitNum, label } = rows[idx];
