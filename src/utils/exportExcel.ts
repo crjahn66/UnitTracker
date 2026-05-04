@@ -59,6 +59,21 @@ function addSectionHeader(ws: any, label: string, totalCols: number) {
   r.height = 22;
 }
 
+function autoRowHeight(row: any, colWidths: number[]): number {
+  let maxLines = 1;
+  row.eachCell({ includeEmpty: false }, (cell: any, colNum: number) => {
+    const val = cell.value;
+    if (val == null || typeof val === 'number') return;
+    const text = String(val);
+    const w = colWidths[colNum - 1] ?? 10;
+    const charsPerLine = Math.max(1, Math.floor(w * 1.1));
+    const lines = text.split('\n').reduce((s: number, seg: string) =>
+      s + Math.max(1, Math.ceil(seg.length / charsPerLine)), 0);
+    if (lines > maxLines) maxLines = lines;
+  });
+  return Math.max(18, Math.min(120, maxLines * 15 + 4));
+}
+
 const fmtDate = (iso?: string) => {
   if (!iso) return '';
   try { return format(new Date(iso), 'MM/dd/yyyy'); } catch { return iso; }
@@ -78,6 +93,7 @@ function rowClr(unit: Unit): Clr {
 // ─── Sheet 1: Overview ────────────────────────────────────────────────────────
 function buildOverview(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Overview');
+  const colWidths = [9, 7, 7, 24, 22, 14, 16, 11, 10, 12, 14];
   const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Stages Done', 'Open Issues', 'Status', 'RED Group Tested On'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
@@ -118,14 +134,15 @@ function buildOverview(wb: any, sorted: Unit[]) {
       const c = isStageCol ? stageClr! : (col === 3 + STAGES.length + 2 && open > 0 ? RED : clr);
       applyCell(cell, cell.value, c, col === 1 || isStageCol, col >= 3);
     });
-    r.height = hasNote ? 32 : 18;
+    r.height = autoRowHeight(r, colWidths);
   }
-  freezeAndWidth(ws, [9, 7, 7, 24, 22, 14, 16, 11, 10, 12, 14]);
+  freezeAndWidth(ws, colWidths);
 }
 
 // ─── Sheet 2: Component Status ────────────────────────────────────────────────
 function buildComponents(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Component Status');
+  const colWidths = [9, 7, 7, ...COMPONENTS.map(() => 14), 40];
   const headers = ['Unit ID', 'Side', 'Unit #', ...COMPONENTS.map((c) => c.label), 'Misc Equipment'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
@@ -149,16 +166,12 @@ function buildComponents(wb: any, sorted: Unit[]) {
     }
     const rowData: (string | number)[] = [u.id, u.side, u.unitNumber];
     const compClrs: Clr[] = [];
-    let anyDate = false;
     for (const comp of COMPONENTS) {
       const cd = u.components[comp.key];
       const s = cd.status;
-      const statusDate = s === 'good' ? cd.goodDate : s === 'inProgress' ? cd.inProgressDate : s === 'bad' ? cd.badDate : undefined;
-      if (statusDate) anyDate = true;
-      const dateSuffix = statusDate ? `\n${fmtDate(statusDate)}` : '';
-      const v = s === 'good' ? (cd.goodNote ? `✓ ${cd.goodNote}${dateSuffix}` : `✓ Good${dateSuffix}`)
-              : s === 'bad' ? `✗ Bad${dateSuffix}`
-              : s === 'inProgress' ? `⏳ ${cd.progressNote || 'In Progress'}${dateSuffix}` : '—';
+      const v = s === 'good' ? (cd.goodNote ? `✓ ${cd.goodNote}` : '✓ Good')
+              : s === 'bad' ? '✗ Bad'
+              : s === 'inProgress' ? `⏳ ${cd.progressNote || 'In Progress'}` : '—';
       rowData.push(v);
       compClrs.push(s === 'good' ? GRN : s === 'bad' ? RED : s === 'inProgress' ? AMB : GRY);
     }
@@ -169,14 +182,15 @@ function buildComponents(wb: any, sorted: Unit[]) {
       const c = col === 1 ? clr : col === 2 || col === 3 ? clr : col <= 3 + COMPONENTS.length ? compClrs[col - 4] : miscClr;
       applyCell(cell, cell.value, c, col === 1, col >= 3);
     });
-    r.height = anyDate ? 30 : 18;
+    r.height = autoRowHeight(r, colWidths);
   }
-  freezeAndWidth(ws, [9, 7, 7, ...COMPONENTS.map(() => 14), 40]);
+  freezeAndWidth(ws, colWidths);
 }
 
 // ─── Sheet 3: Issues Log (with embedded images) ───────────────────────────────
 async function buildIssues(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Issues Log');
+  const colWidths = [9, 7, 7, 18, 12, 12, 14, 18, 40, 10, 12, 14, 40, 60];
   const headers = ['Unit ID', 'Side', 'Unit #', 'Component', 'Date Found', 'Last Updated', 'Found By', 'Responsible Party', 'Notes', 'Status', 'Date Fixed', 'Fixed By', 'How Fixed', 'Photos'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
@@ -252,7 +266,7 @@ async function buildIssues(wb: any, sorted: Unit[]) {
       }
     } else {
       const noteLen = issue.notes?.length ?? 0;
-      r.height = Math.max(32, Math.min(90, Math.ceil(noteLen / 38) * 15 + 4));
+      r.height = autoRowHeight(r, colWidths);
     }
   }
 
@@ -261,12 +275,13 @@ async function buildIssues(wb: any, sorted: Unit[]) {
     applyCell(r.getCell(1), 'No issues logged', WHT, false);
   }
 
-  freezeAndWidth(ws, [9, 7, 7, 18, 12, 12, 14, 18, 40, 10, 12, 14, 40, 60]);
+  freezeAndWidth(ws, colWidths);
 }
 
 // ─── Sheet 4: Completed Units ─────────────────────────────────────────────────
 function buildCompleted(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Completed Units');
+  const colWidths = [9, 7, 7, 24, 22, 14, 16, 16, 12, 14, 14];
   const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Components Good', 'Total Issues', 'RED Group Tested On', 'Tested By'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
@@ -296,7 +311,7 @@ function buildCompleted(wb: any, sorted: Unit[]) {
       'Red Group',
     ]);
     r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, GRN, col === 1, col >= 3));
-    r.height = 18;
+    r.height = autoRowHeight(r, colWidths);
   }
   if (done.length === 0) {
     const r = ws.addRow(['No fully completed units yet']);
@@ -320,12 +335,13 @@ function buildCompleted(wb: any, sorted: Unit[]) {
     right: { style: 'medium', color: { argb: 'FFD29922' } },
   };
 
-  freezeAndWidth(ws, [9, 7, 7, 24, 22, 14, 16, 16, 12, 14, 14]);
+  freezeAndWidth(ws, colWidths);
 }
 
 // ─── Sheet 5: Units with Issues ───────────────────────────────────────────────
 function buildWithIssues(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Units with Issues');
+  const colWidths = [9, 7, 7, 12, 12, 40, 20, 12, 20];
   const headers = ['Unit ID', 'Side', 'Unit #', 'Open Issues', 'Total Issues', 'Components Affected', 'Responsible Party', 'Stages Done', 'Status'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
@@ -358,18 +374,19 @@ function buildWithIssues(wb: any, sorted: Unit[]) {
     )].join(', ');
     const r = ws.addRow([u.id, u.side, u.unitNumber, open, all.length, names, parties, `${done} / ${STAGES.length}`, done === STAGES.length ? 'Complete (Issues)' : 'In Progress']);
     r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, RED, col === 1, col >= 3));
-    r.height = 18;
+    r.height = autoRowHeight(r, colWidths);
   }
   if (affected.length === 0) {
     const r = ws.addRow(['No units with open issues']);
     applyCell(r.getCell(1), 'No units with open issues', WHT);
   }
-  freezeAndWidth(ws, [9, 7, 7, 12, 12, 40, 20, 12, 20]);
+  freezeAndWidth(ws, colWidths);
 }
 
 // ─── Sheet 6: General Issues ──────────────────────────────────────────────────
 function buildGeneralIssues(wb: any, issues: GeneralIssue[]) {
   const ws = wb.addWorksheet('General Issues');
+  const colWidths = [12, 12, 14, 18, 40, 10, 12, 14, 40];
   const headers = ['Date Found', 'Last Updated', 'Found By', 'Responsible Party', 'Notes', 'Status', 'Date Fixed', 'Fixed By', 'How Fixed'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
@@ -380,13 +397,13 @@ function buildGeneralIssues(wb: any, issues: GeneralIssue[]) {
     const clr = issue.resolved ? GRN : RED;
     const r = ws.addRow([fmtDate(issue.dateFound), fmtDate(issue.dateUpdated), issue.foundBy, issue.responsibleParty ?? '', issue.notes, issue.resolved ? 'Resolved' : 'Open', fmtDate(issue.dateFixed), issue.fixedBy ?? '', issue.howFixed ?? '']);
     r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, clr, col === 6, col === 1 || col >= 6));
-    r.height = 18;
+    r.height = autoRowHeight(r, colWidths);
   }
   if (issues.length === 0) {
     const r = ws.addRow(['No general issues logged']);
     applyCell(r.getCell(1), 'No general issues logged', WHT);
   }
-  freezeAndWidth(ws, [12, 12, 14, 18, 40, 10, 12, 14, 40]);
+  freezeAndWidth(ws, colWidths);
 }
 
 // ─── Export entry point ───────────────────────────────────────────────────────

@@ -114,7 +114,12 @@ export default function UnitListScreen({ navigation, route }: Props) {
     const complete = sideUnits.filter(isComplete).length;
     const hasIssue = sideUnits.filter(hasOpenIssues).length;
     const inProgress = sideUnits.filter(isInProgress).length;
-    return { complete, hasIssue, inProgress };
+    const openIssues = sideUnits.reduce((sum, u) => {
+      const compIssues = Object.values(u.components).flatMap((c) => c.issues);
+      const miscIssues = (u.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues ?? []);
+      return sum + [...compIssues, ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
+    }, 0);
+    return { complete, hasIssue, inProgress, openIssues };
   }, [sideUnits]);
 
   const filteredUnits = useMemo(() => {
@@ -136,7 +141,7 @@ export default function UnitListScreen({ navigation, route }: Props) {
       <View style={s.summary}>
         <SumItem label="Total" value={sideUnits.length} color="#58a6ff" />
         <SumItem label="Complete" value={stats.complete} color="#3fb950" />
-        <SumItem label="Open Issues" value={stats.hasIssue} color="#f85149" />
+        <SumItem label="Open Issues" value={stats.openIssues} color="#f85149" />
         <SumItem label="In Progress" value={stats.inProgress} color="#d29922" />
       </View>
 
