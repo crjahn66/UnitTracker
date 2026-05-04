@@ -3,6 +3,7 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { format } from 'date-fns';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
 import { Unit, STAGES, COMPONENTS, normalizeStageStatus } from '../types';
@@ -56,6 +57,9 @@ function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
   const pct = Math.round(
     (stagesComplete / STAGES.length) * 70 + (good / COMPONENTS.length) * 30
   );
+  const commDateStr = unit.stagesDates?.commissioning
+    ? (() => { try { return format(new Date(unit.stagesDates!.commissioning!), 'MMM d, yyyy'); } catch { return null; } })()
+    : null;
 
   return (
     <TouchableOpacity style={[s.card, { borderColor: color }]} onPress={onPress} activeOpacity={0.75}>
@@ -83,6 +87,11 @@ function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
           </View>
           <Text style={[s.progressPct, { color }]}>{pct}%</Text>
         </View>
+        {commDateStr && (
+          <View style={s.commDateRow}>
+            <Text style={s.commDateText}>✓ {commDateStr}</Text>
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -251,6 +260,8 @@ const s = StyleSheet.create({
   },
   issueText: { color: '#f85149', fontSize: 10, textAlign: 'center', fontWeight: '600' },
   progressRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  commDateRow: { marginTop: 6, borderTopWidth: 1, borderTopColor: '#3fb95033', paddingTop: 5 },
+  commDateText: { color: '#3fb950', fontSize: 10, fontWeight: '600' },
   progressBarBg: { flex: 1, height: 4, backgroundColor: '#21262d', borderRadius: 2, overflow: 'hidden', marginRight: 6 },
   progressBarFill: { height: 4, borderRadius: 2 },
   progressPct: { fontSize: 10, fontWeight: '700', minWidth: 26, textAlign: 'right' },
