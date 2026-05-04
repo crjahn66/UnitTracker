@@ -50,6 +50,8 @@ export interface ComponentData {
   goodNote?: string;
   goodImages?: string[];
   goodDate?: string;
+  inProgressDate?: string;
+  badDate?: string;
 }
 
 export type StagesData = Record<StageKey, boolean>;
@@ -78,6 +80,8 @@ export interface MiscEquipItem {
   goodNote?: string;
   goodImages?: string[];
   goodDate?: string;
+  inProgressDate?: string;
+  badDate?: string;
   deleted?: boolean;
 }
 

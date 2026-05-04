@@ -63,22 +63,27 @@ export const useStore = create<StoreState>()(
         }),
 
       updateComponentStatus: (unitId, component, status) =>
-        set((state) => ({
-          units: {
-            ...state.units,
-            [unitId]: {
-              ...state.units[unitId],
-              components: {
-                ...state.units[unitId].components,
-                [component]: {
-                  ...state.units[unitId].components[component],
-                  status,
-                  goodDate: status === 'good' ? new Date().toISOString() : undefined,
+        set((state) => {
+          const now = new Date().toISOString();
+          return {
+            units: {
+              ...state.units,
+              [unitId]: {
+                ...state.units[unitId],
+                components: {
+                  ...state.units[unitId].components,
+                  [component]: {
+                    ...state.units[unitId].components[component],
+                    status,
+                    goodDate:        status === 'good'       ? now : undefined,
+                    inProgressDate:  status === 'inProgress' ? now : undefined,
+                    badDate:         status === 'bad'        ? now : undefined,
+                  },
                 },
               },
             },
-          },
-        })),
+          };
+        }),
 
       setComponentProgressNote: (unitId, component, note) =>
         set((state) => ({
@@ -248,9 +253,12 @@ export const useStore = create<StoreState>()(
       updateMiscEquip: (unitId, itemId, updates) =>
         set((state) => {
           const u = state.units[unitId];
-          const extraUpdates: { goodDate?: string } = {};
+          const extraUpdates: { goodDate?: string; inProgressDate?: string; badDate?: string } = {};
           if ('status' in updates) {
-            extraUpdates.goodDate = updates.status === 'good' ? new Date().toISOString() : undefined;
+            const now = new Date().toISOString();
+            extraUpdates.goodDate       = updates.status === 'good'       ? now : undefined;
+            extraUpdates.inProgressDate = updates.status === 'inProgress' ? now : undefined;
+            extraUpdates.badDate        = updates.status === 'bad'        ? now : undefined;
           }
           return {
             units: {
@@ -405,7 +413,9 @@ export const useStore = create<StoreState>()(
                 issues: [...mergedIssues, ...newIssues],
                 progressNote: 'progressNote' in impComp ? impComp.progressNote : existComp.progressNote,
                 goodNote: 'goodNote' in impComp ? impComp.goodNote : existComp.goodNote,
-                goodDate: 'goodDate' in impComp ? impComp.goodDate : existComp.goodDate,
+                goodDate:       'goodDate'       in impComp ? impComp.goodDate       : existComp.goodDate,
+                inProgressDate: 'inProgressDate' in impComp ? impComp.inProgressDate : existComp.inProgressDate,
+                badDate:        'badDate'        in impComp ? impComp.badDate        : existComp.badDate,
                 progressImages: mergeImages(existComp.progressImages, impComp.progressImages),
                 goodImages: mergeImages(existComp.goodImages, impComp.goodImages),
               };

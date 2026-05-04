@@ -381,6 +381,10 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
   const deleteMiscIssue = useStore((state) => state.deleteMiscIssue);
 
   const item = (unit.miscEquipment ?? []).find((i) => i.id === itemId);
+  const statusDate = !item ? undefined :
+    item.status === 'good'       ? item.goodDate :
+    item.status === 'inProgress' ? item.inProgressDate :
+    item.status === 'bad'        ? item.badDate : undefined;
 
   const [view, setView] = useState<ModalView>('detail');
   const [resolvingId, setResolvingId] = useState<string | null>(null);
@@ -638,7 +642,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
                   <Ionicons name="pencil-outline" size={14} color="#8b949e" style={{ marginLeft: 6 }} />
                 </TouchableOpacity>
               )}
-              <Text style={[m.statusTag, { color }]}>● {statusLabel(item.status)}</Text>
+              <Text style={[m.statusTag, { color }]}>● {statusLabel(item.status)}{statusDate ? `  ·  ${fmtDate(statusDate)}` : ''}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={m.closeBtn}><Ionicons name="close" size={22} color="#8b949e" /></TouchableOpacity>
           </View>

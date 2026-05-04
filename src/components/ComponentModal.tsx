@@ -464,6 +464,10 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
   const compInfo    = COMPONENTS.find((c) => c.key === componentKey) ?? { key: componentKey, label: componentKey };
   const compData    = unit.components[componentKey];
   const displayLabel = unit.customComponentLabels?.[componentKey] ?? compInfo.label;
+  const statusDate =
+    compData.status === 'good'       ? compData.goodDate :
+    compData.status === 'inProgress' ? compData.inProgressDate :
+    compData.status === 'bad'        ? compData.badDate : undefined;
 
   const handleStatusChange = useCallback(
     (status: ComponentStatus) => {
@@ -770,7 +774,7 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
           <View style={m.header}>
             <View style={{ flex: 1, marginRight: 8 }}>
               <Text style={m.compName}>{displayLabel}</Text>
-              <Text style={[m.statusTag, { color }]}>● {statusLabel(compData.status)}</Text>
+              <Text style={[m.statusTag, { color }]}>● {statusLabel(compData.status)}{statusDate ? `  ·  ${fmtDate(statusDate)}` : ''}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={m.closeBtn}>
               <Ionicons name="close" size={22} color="#8b949e" />
