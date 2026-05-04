@@ -198,7 +198,8 @@ async function buildIssues(wb: any, sorted: Unit[]) {
       for (let i = 0; i < images.length; i++) {
         const base64 = await readAsBase64(images[i]);
         if (!base64) continue;
-        const ext = (images[i].split('.').pop()?.toLowerCase() ?? 'jpeg') as 'jpeg' | 'png';
+        const rawExt = images[i].split('?')[0].split('.').pop()?.toLowerCase() ?? 'jpeg';
+        const ext = (rawExt === 'jpg' ? 'jpeg' : rawExt) as 'jpeg' | 'png';
         const imgId = wb.addImage({ base64, extension: ext });
         const colOffset = i * (IMG_W + 4);
         ws.addImage(imgId, {
