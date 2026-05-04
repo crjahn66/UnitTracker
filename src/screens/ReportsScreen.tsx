@@ -26,19 +26,25 @@ function getUnitCommissionDate(unit: Unit): string | undefined {
   return dates.length ? dates.sort().pop() : undefined;
 }
 
-function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[]): string {
+type ReportSide = 'All' | 'North' | 'South';
+
+function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[], side: ReportSide): string {
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const sameDay = (iso?: string) => {
     if (!iso) return false;
     try { return format(new Date(iso), 'yyyy-MM-dd') === todayStr; } catch { return false; }
   };
 
-  const allCommissioned = Object.values(units)
+  const allUnits = Object.values(units);
+  const filteredUnits = side === 'All' ? allUnits : allUnits.filter(u => u.side === side);
+
+  const allCommissioned = filteredUnits
     .filter(u => isUnitCommissioned(u))
     .map(u => u.id)
     .sort();
 
-  const commissionedToday = Object.values(units)
+  // Always show commissioned today from ALL sides regardless of filter
+  const commissionedToday = allUnits
     .filter(u => {
       if (!isUnitCommissioned(u)) return false;
       const d = getUnitCommissionDate(u);
@@ -50,7 +56,7 @@ function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[]): 
   type Activity = { newIssues: string[]; resolved: string[]; goodItems: string[]; stages: string[] };
   const byUnit: Record<string, Activity> = {};
 
-  for (const unit of Object.values(units)) {
+  for (const unit of filteredUnits) {
     const act: Activity = { newIssues: [], resolved: [], goodItems: [], stages: [] };
 
     for (const comp of COMPONENTS) {
@@ -88,7 +94,8 @@ function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[]): 
   const totalStages = unitIds.reduce((s, id) => s + byUnit[id].stages.length, 0);
 
   const lines: string[] = [];
-  lines.push(`Daily Report — ${format(new Date(), 'MMMM d, yyyy')}`);
+  const sideLabel = side !== 'All' ? ` (${side} Side)` : '';
+  lines.push(`Daily Report${sideLabel} — ${format(new Date(), 'MMMM d, yyyy')}`);
   lines.push('');
 
   if (!unitIds.length && !newGeneral && !doneGeneral && !commissionedToday.length) {
@@ -146,7 +153,8 @@ function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[]): 
   }
 
   lines.push('');
-  lines.push(`Total Commissioned: ${allCommissioned.length} / ${Object.keys(units).length} units`);
+  const totalLabel = side === 'All' ? 'Total Commissioned' : `Total Commissioned (${side})`;
+  lines.push(`${totalLabel}: ${allCommissioned.length} / ${filteredUnits.length} units`);
   if (allCommissioned.length) lines.push(allCommissioned.join(', '));
 
   return lines.join('\n');
@@ -162,7 +170,12 @@ export default function ReportsScreen() {
   const [restoring, setRestoring]           = useState(false);
   const [importing, setImporting]           = useState(false);
   const [generalModalOpen, setGeneralModalOpen] = useState(false);
-  const [dailyReport, setDailyReport]       = useState<string | null>(null);
+  const [dailyReportOpen, setDailyReportOpen] = useState(false);
+  const [reportSide, setReportSide]           = useState<ReportSide>('All');
+  const reportText = useMemo(
+    () => dailyReportOpen ? generateDailyReport(units, generalIssues, reportSide) : '',
+    [dailyReportOpen, units, generalIssues, reportSide]
+  );
   const [syncing, setSyncing]               = useState(false);
   const [lastSync, setLastSync]             = useState<string | null>(null);
   const [syncError, setSyncError]           = useState<string | null>(null);
@@ -348,7 +361,7 @@ export default function ReportsScreen() {
         </TouchableOpacity>
       )}
 
-      <TouchableOpacity style={s.dailyReportBtn} onPress={() => setDailyReport(generateDailyReport(units, generalIssues))} activeOpacity={0.8}>
+      <TouchableOpacity style={s.dailyReportBtn} onPress={() => setDailyReportOpen(true)} activeOpacity={0.8}>
         <Ionicons name="clipboard-outline" size={17} color="#e6edf3" style={{ marginRight: 6 }} />
         <Text style={s.dailyReportBtnText}>Daily Report</Text>
       </TouchableOpacity>
@@ -381,22 +394,36 @@ export default function ReportsScreen() {
       )}
 
       {/* Daily Report Modal */}
-      {dailyReport !== null && (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setDailyReport(null)}>
+      {dailyReportOpen && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setDailyReportOpen(false)}>
           <View style={s.drOverlay}>
             <View style={s.drSheet}>
               <View style={s.drHeader}>
                 <Text style={s.drTitle}>Daily Report</Text>
-                <TouchableOpacity onPress={() => setDailyReport(null)} style={{ padding: 4 }}>
+                <TouchableOpacity onPress={() => setDailyReportOpen(false)} style={{ padding: 4 }}>
                   <Ionicons name="close" size={22} color="#8b949e" />
                 </TouchableOpacity>
               </View>
+              <View style={s.drFilterRow}>
+                {(['All', 'North', 'South'] as ReportSide[]).map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[s.drFilterChip, reportSide === opt && s.drFilterChipActive]}
+                    onPress={() => setReportSide(opt)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.drFilterChipText, reportSide === opt && s.drFilterChipTextActive]}>
+                      {opt}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
               <ScrollView style={s.drScroll} contentContainerStyle={s.drScrollContent}>
-                <Text selectable style={s.drBody}>{dailyReport}</Text>
+                <Text selectable style={s.drBody}>{reportText}</Text>
               </ScrollView>
               <TouchableOpacity
                 style={s.drShareBtn}
-                onPress={() => Share.share({ message: dailyReport })}
+                onPress={() => Share.share({ message: reportText })}
                 activeOpacity={0.8}
               >
                 <Ionicons name="share-outline" size={18} color="#0d1117" style={{ marginRight: 8 }} />
@@ -580,6 +607,17 @@ const s = StyleSheet.create({
   drSheet: { backgroundColor: '#161b22', borderRadius: 14, borderWidth: 1, borderColor: '#30363d', overflow: 'hidden', maxHeight: '85%' },
   drHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#21262d' },
   drTitle: { color: '#e6edf3', fontSize: 16, fontWeight: '700' },
+  drFilterRow: {
+    flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: '#21262d',
+  },
+  drFilterChip: {
+    flex: 1, alignItems: 'center', paddingVertical: 6,
+    borderRadius: 8, borderWidth: 1, borderColor: '#30363d',
+  },
+  drFilterChipActive: { backgroundColor: '#58a6ff22', borderColor: '#58a6ff' },
+  drFilterChipText: { color: '#6e7681', fontSize: 13, fontWeight: '600' },
+  drFilterChipTextActive: { color: '#58a6ff' },
   drScroll: { flexShrink: 1 },
   drScrollContent: { padding: 16 },
   drBody: { color: '#e6edf3', fontSize: 13, lineHeight: 22, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
