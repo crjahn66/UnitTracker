@@ -236,7 +236,7 @@ async function buildIssues(wb: any, sorted: Unit[]) {
 // ─── Sheet 4: Completed Units ─────────────────────────────────────────────────
 function buildCompleted(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Completed Units');
-  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Components Good', 'Total Issues', 'Commissioned On'];
+  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Components Good', 'Total Issues', 'Commissioned On', 'Commissioned By'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
@@ -257,6 +257,7 @@ function buildCompleted(wb: any, sorted: Unit[]) {
       comps.filter((c) => c.status === 'good').length,
       comps.flatMap((c) => c.issues).length,
       u.stagesDates?.commissioning ? fmtDate(u.stagesDates.commissioning) : '',
+      'Red Group',
     ]);
     r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, GRN, col === 1, col >= 3));
     r.height = 18;
@@ -265,7 +266,25 @@ function buildCompleted(wb: any, sorted: Unit[]) {
     const r = ws.addRow(['No fully completed units yet']);
     applyCell(r.getCell(1), 'No fully completed units yet', WHT);
   }
-  freezeAndWidth(ws, [9, 7, 7, 24, 22, 14, 16, 16, 12, 14]);
+
+  const totalCols = headers.length;
+  const noteText = '⚠  NOTE: Certain equipment in these units is at high risk of failure. All commissioned units will require retesting once the affected equipment has been replaced.';
+  const noteRow = ws.addRow([noteText]);
+  noteRow.height = 40;
+  ws.mergeCells(noteRow.number, 1, noteRow.number, totalCols);
+  const noteCell = noteRow.getCell(1);
+  noteCell.value = noteText;
+  noteCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } };
+  noteCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF7D5A00' } };
+  noteCell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+  noteCell.border = {
+    top: { style: 'medium', color: { argb: 'FFD29922' } },
+    bottom: { style: 'medium', color: { argb: 'FFD29922' } },
+    left: { style: 'medium', color: { argb: 'FFD29922' } },
+    right: { style: 'medium', color: { argb: 'FFD29922' } },
+  };
+
+  freezeAndWidth(ws, [9, 7, 7, 24, 22, 14, 16, 16, 12, 14, 14]);
 }
 
 // ─── Sheet 5: Units with Issues ───────────────────────────────────────────────
