@@ -4,7 +4,7 @@ export const STAGES = [
   { key: 'wiresLabelsOhming', label: 'Wires / Labels / Ohming' },
   { key: 'plcCommChecks', label: 'PLC Comm Checks / Equipment' },
   { key: 'loopChecks', label: 'Loop Checks' },
-  { key: 'commissioning', label: 'Commissioning' },
+  { key: 'commissioning', label: 'RED Group Tested' },
 ] as const;
 
 export type StageKey = (typeof STAGES)[number]['key'];
