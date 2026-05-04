@@ -1,6 +1,12 @@
 import { format } from 'date-fns';
 import { GeneralIssue, UnitsStore } from '../types';
 
+export async function autoBackup(_units: UnitsStore, _generalIssues: GeneralIssue[]): Promise<void> {}
+
+export function startAutoBackup(_getState: () => { units: UnitsStore; generalIssues: GeneralIssue[] }): () => void {
+  return () => {};
+}
+
 export const backupData = async (units: UnitsStore, generalIssues: GeneralIssue[]): Promise<void> => {
   const payload = { version: 1, timestamp: new Date().toISOString(), units, generalIssues };
   const json = JSON.stringify(payload, null, 2);
