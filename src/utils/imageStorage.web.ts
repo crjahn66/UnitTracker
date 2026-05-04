@@ -74,29 +74,47 @@ export async function readAsBase64(uri: string): Promise<string | null> {
   } catch { return null; }
 }
 
-// Fetch image via HTML Image element (more reliable for cross-origin than fetch),
-// resize to fit within maxDim × maxDim, re-encode as JPEG.
+// Download blob via Supabase SDK (proper CORS), create a same-origin blob URL,
+// draw into canvas to resize — blob URLs never taint the canvas.
 export async function readResizedBase64(uri: string, maxDim = 400, quality = 0.65): Promise<string | null> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const scale = Math.min(1, maxDim / img.width, maxDim / img.height);
-      const w = Math.round(img.width * scale);
-      const h = Math.round(img.height * scale);
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
-      try {
-        resolve(canvas.toDataURL('image/jpeg', quality).split(',')[1] ?? null);
-      } catch {
-        resolve(null); // tainted canvas — CORS not configured for this bucket
-      }
-    };
-    img.onerror = () => resolve(null);
-    img.src = uri;
-  });
+  try {
+    let blob: Blob | null = null;
+
+    const SUPABASE_PUBLIC = '/storage/v1/object/public/photos/';
+    const part = uri.split(SUPABASE_PUBLIC)[1];
+    if (part) {
+      const fileName = decodeURIComponent(part.split('?')[0]);
+      const { data, error } = await supabase.storage.from('photos').download(fileName);
+      if (!error && data) blob = data;
+    }
+    if (!blob) {
+      const res = await fetch(uri);
+      if (res.ok) blob = await res.blob();
+    }
+    if (!blob) return null;
+
+    const blobUrl = URL.createObjectURL(blob);
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(blobUrl);
+        const scale = Math.min(1, maxDim / img.width, maxDim / img.height);
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+        try {
+          resolve(canvas.toDataURL('image/jpeg', quality).split(',')[1] ?? null);
+        } catch {
+          resolve(null);
+        }
+      };
+      img.onerror = () => { URL.revokeObjectURL(blobUrl); resolve(null); };
+      img.src = blobUrl;
+    });
+  } catch { return null; }
 }
 
 export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; updated: boolean; status: string }> {
