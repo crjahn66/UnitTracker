@@ -393,8 +393,9 @@ export const useStore = create<StoreState>()(
               const mergedIssues = existComp.issues.map((existIssue: any) => {
                 const impIssue = impIssueMap.get(existIssue.id);
                 if (!impIssue) return existIssue;
-                const deleted = existIssue.deleted || impIssue.deleted || undefined;
-                return { ...existIssue, images: mergeImages(existIssue.images, impIssue.images) ?? [], ...(deleted ? { deleted } : {}) };
+                const deleted = existIssue.deleted || impIssue.deleted;
+                const { deleted: _d, images: _i, ...rest } = { ...existIssue, ...impIssue };
+                return { ...rest, images: mergeImages(existIssue.images, impIssue.images) ?? [], ...(deleted ? { deleted: true } : {}) };
               });
               const existIds = new Set(existComp.issues.map((i: any) => i.id));
               const newIssues = (impComp.issues ?? []).filter((i: any) => !existIds.has(i.id));
@@ -410,10 +411,11 @@ export const useStore = create<StoreState>()(
               };
             }
 
-            // Merge misc equipment — match by label (case-insensitive)
+            // Merge misc equipment — match by ID first, then label (case-insensitive)
             const existingMisc = [...(existing.miscEquipment ?? [])];
             for (const importItem of (imp.miscEquipment ?? [])) {
-              const idx = existingMisc.findIndex((m) => m.label.toLowerCase() === importItem.label.toLowerCase());
+              let idx = existingMisc.findIndex((m) => m.id && importItem.id && m.id === importItem.id);
+              if (idx === -1) idx = existingMisc.findIndex((m) => m.label.toLowerCase() === importItem.label.toLowerCase());
               if (idx === -1) {
                 existingMisc.push(importItem);
               } else {
@@ -421,8 +423,9 @@ export const useStore = create<StoreState>()(
                 const mergedMiscIssues = existingMisc[idx].issues.map((existIssue: any) => {
                   const impIssue = impMiscIssueMap.get(existIssue.id);
                   if (!impIssue) return existIssue;
-                  const deleted = existIssue.deleted || impIssue.deleted || undefined;
-                  return { ...existIssue, images: mergeImages(existIssue.images, impIssue.images) ?? [], ...(deleted ? { deleted } : {}) };
+                  const deleted = existIssue.deleted || impIssue.deleted;
+                  const { deleted: _d, images: _i, ...rest } = { ...existIssue, ...impIssue };
+                  return { ...rest, images: mergeImages(existIssue.images, impIssue.images) ?? [], ...(deleted ? { deleted: true } : {}) };
                 });
                 const existIds = new Set(existingMisc[idx].issues.map((i) => i.id));
                 const newIssues = importItem.issues.filter((i: any) => !existIds.has(i.id));
