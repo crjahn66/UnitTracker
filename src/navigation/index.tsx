@@ -102,8 +102,28 @@ export default function Navigation() {
             headerRight: () => <SyncStatusBar />,
           }}
         />
-        <Tab.Screen name="NorthTab" component={NorthStack} options={{ tabBarLabel: 'North (26)' }} />
-        <Tab.Screen name="SouthTab" component={SouthStack} options={{ tabBarLabel: 'South (25)' }} />
+        <Tab.Screen
+          name="NorthTab"
+          component={NorthStack}
+          options={{ tabBarLabel: 'North (26)' }}
+          listeners={({ navigation }) => ({
+            tabPress: (e) => {
+              e.preventDefault();
+              navigation.navigate('NorthTab', { screen: 'UnitList', params: { side: 'North' as Side } });
+            },
+          })}
+        />
+        <Tab.Screen
+          name="SouthTab"
+          component={SouthStack}
+          options={{ tabBarLabel: 'South (25)' }}
+          listeners={({ navigation }) => ({
+            tabPress: (e) => {
+              e.preventDefault();
+              navigation.navigate('SouthTab', { screen: 'UnitList', params: { side: 'South' as Side } });
+            },
+          })}
+        />
         <Tab.Screen
           name="Reports"
           component={ReportsScreen}
