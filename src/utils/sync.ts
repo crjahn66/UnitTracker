@@ -47,19 +47,28 @@ function markFailure() {
   notifyListeners();
 }
 
-// On native: subscribe to Supabase Realtime so remote changes (e.g. web photo uploads)
-// flip _hasPendingChanges to true. Ignore notifications within 10s of our own push
-// to avoid flagging self-triggered updates.
+// On native: poll updated_at every 30s so remote changes (e.g. web photo uploads)
+// flip _hasPendingChanges to true. Ignore if updated_at is within 10s of our own
+// last push to avoid self-triggering.
+async function checkForRemoteChanges() {
+  try {
+    const { data } = await supabase
+      .from('sync_state')
+      .select('updated_at')
+      .eq('id', 1)
+      .single();
+    if (!data?.updated_at) return;
+    const remoteTime = new Date(data.updated_at).getTime();
+    if (remoteTime > _lastPushedAt + 10000) {
+      _hasPendingChanges = true;
+      notifyListeners();
+    }
+  } catch {}
+}
+
 if (Platform.OS !== 'web') {
-  supabase
-    .channel('sync_state_watch')
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sync_state' }, () => {
-      if (Date.now() - _lastPushedAt > 10000) {
-        _hasPendingChanges = true;
-        notifyListeners();
-      }
-    })
-    .subscribe();
+  setTimeout(checkForRemoteChanges, 5000);
+  setInterval(checkForRemoteChanges, 30000);
 }
 
 function collectRemoteImageUrls(units: UnitsStore): string[] {
