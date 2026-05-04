@@ -124,12 +124,14 @@ function buildComponents(wb: any, sorted: Unit[]) {
 
     const rowData: (string | number)[] = [u.id, u.side, u.unitNumber];
     const compClrs: Clr[] = [];
+    let anyDate = false;
     for (const comp of COMPONENTS) {
       const s = u.components[comp.key].status;
       const pn = u.components[comp.key].progressNote;
       const gn = u.components[comp.key].goodNote;
       const cd = u.components[comp.key];
       const statusDate = s === 'good' ? cd.goodDate : s === 'inProgress' ? cd.inProgressDate : s === 'bad' ? cd.badDate : undefined;
+      if (statusDate) anyDate = true;
       const dateSuffix = statusDate ? `\n${fmtDate(statusDate)}` : '';
       const v = s === 'good' ? (gn ? `✓ ${gn}` : '✓ Good')
               : s === 'bad' ? '✗ Bad'
@@ -144,7 +146,7 @@ function buildComponents(wb: any, sorted: Unit[]) {
       const c = col === 1 ? clr : col === 2 || col === 3 ? clr : col <= 3 + COMPONENTS.length ? compClrs[col - 4] : miscClr;
       applyCell(cell, cell.value, c, col === 1, col >= 3);
     });
-    r.height = 18;
+    r.height = anyDate ? 32 : 18;
   }
   freezeAndWidth(ws, [9, 7, 7, ...COMPONENTS.map(() => 14), 40]);
 }
@@ -217,7 +219,8 @@ async function buildIssues(wb: any, sorted: Unit[]) {
         });
       }
     } else {
-      r.height = 18;
+      const noteLen = issue.notes?.length ?? 0;
+      r.height = Math.max(32, Math.min(90, Math.ceil(noteLen / 38) * 15 + 4));
     }
   }
 

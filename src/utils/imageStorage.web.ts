@@ -74,47 +74,69 @@ export async function readAsBase64(uri: string): Promise<string | null> {
   } catch { return null; }
 }
 
-// Download blob via Supabase SDK (proper CORS), create a same-origin blob URL,
-// draw into canvas to resize — blob URLs never taint the canvas.
+// Download blob, read raw base64 as reliable baseline, then try canvas resize.
+// Returns resized JPEG if canvas works, raw base64 otherwise — never silently drops.
 export async function readResizedBase64(uri: string, maxDim = 400, quality = 0.65): Promise<string | null> {
-  try {
-    let blob: Blob | null = null;
+  let blob: Blob | null = null;
 
+  // 1. Supabase SDK download (handles CORS on the API endpoint)
+  try {
     const SUPABASE_PUBLIC = '/storage/v1/object/public/photos/';
     const part = uri.split(SUPABASE_PUBLIC)[1];
     if (part) {
       const fileName = decodeURIComponent(part.split('?')[0]);
       const { data, error } = await supabase.storage.from('photos').download(fileName);
-      if (!error && data) blob = data;
+      if (error) console.warn('[photos] SDK download error:', error.message);
+      else if (data) blob = data;
     }
-    if (!blob) {
+  } catch (e) { console.warn('[photos] SDK download threw:', e); }
+
+  // 2. Fetch fallback
+  if (!blob) {
+    try {
       const res = await fetch(uri);
       if (res.ok) blob = await res.blob();
-    }
-    if (!blob) return null;
+      else console.warn('[photos] fetch failed:', res.status, uri);
+    } catch (e) { console.warn('[photos] fetch threw:', e); }
+  }
 
+  if (!blob) { console.warn('[photos] could not obtain blob for:', uri); return null; }
+
+  // 3. Read raw base64 via FileReader — always works once we have a blob
+  const rawBase64 = await new Promise<string | null>((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve((reader.result as string).split(',')[1] ?? null);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(blob!);
+  });
+  if (!rawBase64) return null;
+
+  // 4. Try canvas resize using blob URL (same-origin — canvas never tainted)
+  try {
     const blobUrl = URL.createObjectURL(blob);
-    return new Promise((resolve) => {
+    const resized = await new Promise<string | null>((resolve) => {
       const img = new Image();
       img.onload = () => {
         URL.revokeObjectURL(blobUrl);
         const scale = Math.min(1, maxDim / img.width, maxDim / img.height);
-        const w = Math.round(img.width * scale);
-        const h = Math.round(img.height * scale);
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
         const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
-        try {
-          resolve(canvas.toDataURL('image/jpeg', quality).split(',')[1] ?? null);
-        } catch {
-          resolve(null);
-        }
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(null); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        try { resolve(canvas.toDataURL('image/jpeg', quality).split(',')[1] ?? null); }
+        catch (e) { console.warn('[photos] toDataURL threw:', e); resolve(null); }
       };
-      img.onerror = () => { URL.revokeObjectURL(blobUrl); resolve(null); };
+      img.onerror = (e) => { URL.revokeObjectURL(blobUrl); console.warn('[photos] img load failed:', e); resolve(null); };
       img.src = blobUrl;
     });
-  } catch { return null; }
+    if (resized) return resized;
+  } catch (e) { console.warn('[photos] canvas resize threw:', e); }
+
+  // 5. Return raw (unresized) — at least the photo gets embedded
+  return rawBase64;
 }
 
 export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; updated: boolean; status: string }> {

@@ -221,7 +221,8 @@ async function buildIssues(wb: any, sorted: Unit[]) {
         });
       }
     } else {
-      r.height = 18;
+      const noteLen = issue.notes?.length ?? 0;
+      r.height = Math.max(32, Math.min(90, Math.ceil(noteLen / 38) * 15 + 4));
     }
   }
 
