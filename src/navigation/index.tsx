@@ -90,8 +90,6 @@ export default function Navigation() {
           },
         })}
       >
-        <Tab.Screen name="NorthTab" component={NorthStack} options={{ tabBarLabel: 'North (26)' }} />
-        <Tab.Screen name="SouthTab" component={SouthStack} options={{ tabBarLabel: 'South (25)' }} />
         <Tab.Screen
           name="DashboardTab"
           component={DashboardScreen}
@@ -104,6 +102,8 @@ export default function Navigation() {
             headerRight: () => <SyncStatusBar />,
           }}
         />
+        <Tab.Screen name="NorthTab" component={NorthStack} options={{ tabBarLabel: 'North (26)' }} />
+        <Tab.Screen name="SouthTab" component={SouthStack} options={{ tabBarLabel: 'South (25)' }} />
         <Tab.Screen
           name="Reports"
           component={ReportsScreen}
