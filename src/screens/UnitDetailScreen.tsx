@@ -11,6 +11,7 @@ import { useStore } from '../store/useStore';
 import { STAGES, COMPONENTS, ComponentKey, StageKey } from '../types';
 import ComponentModal from '../components/ComponentModal';
 import MiscEquipModal from '../components/MiscEquipModal';
+import { getNetworkEntry } from '../data/networkData';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitDetail'>;
 
@@ -54,6 +55,7 @@ export default function UnitDetailScreen({ route }: Props) {
     );
   }
 
+  const networkEntry = getNetworkEntry(unit.side, unit.unitNumber);
   const stagesComplete = STAGES.filter((st) => unit.stages[st.key]).length;
   const allComps = Object.values(unit.components);
   const miscItems = (unit.miscEquipment ?? []).filter((m) => !m.deleted);
@@ -73,6 +75,19 @@ export default function UnitDetailScreen({ route }: Props) {
       </View>
 
       <ScrollView contentContainerStyle={s.scroll}>
+        {/* Network Info */}
+        {networkEntry && (
+          <>
+            <SectionHeader title="Network" icon="wifi-outline" />
+            <View style={s.card}>
+              {networkEntry.unitType ? <NetRow label="Unit Type"   value={networkEntry.unitType} first /> : null}
+              <NetRow label="Gateway IP"  value={networkEntry.gatewayIp}  first={!networkEntry.unitType} />
+              <NetRow label="PLC IP"      value={networkEntry.plcIp} />
+              <NetRow label="Chiller IP"  value={networkEntry.chillerIp}  last />
+            </View>
+          </>
+        )}
+
         {/* Stage Checklist */}
         <SectionHeader title="Commissioning Stages" icon="checkmark-circle-outline" />
         <View style={s.card}>
@@ -221,6 +236,15 @@ function SectionHeader({ title, icon }: { title: string; icon: React.ComponentPr
   );
 }
 
+function NetRow({ label, value, first, last }: { label: string; value: string; first?: boolean; last?: boolean }) {
+  return (
+    <View style={[s.netRow, !last && s.netRowBorder, first && s.netRowFirst]}>
+      <Text style={s.netLabel}>{label}</Text>
+      <Text style={s.netValue}>{value}</Text>
+    </View>
+  );
+}
+
 function StatusIcon({ status }: { status: 'good' | 'bad' | 'unchecked' | 'inProgress' }) {
   if (status === 'good') return <Ionicons name="checkmark-circle" size={22} color="#3fb950" style={s.statusIcon} />;
   if (status === 'bad') return <Ionicons name="close-circle" size={22} color="#f85149" style={s.statusIcon} />;
@@ -308,4 +332,9 @@ const s = StyleSheet.create({
   compRight: { flexDirection: 'row', alignItems: 'center' },
   compStatusText: { fontSize: 12, fontWeight: '600', marginRight: 4 },
   chevron: { marginLeft: 2 },
+  netRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 14 },
+  netRowBorder: { borderBottomWidth: 1, borderBottomColor: '#21262d' },
+  netRowFirst: {},
+  netLabel: { color: '#8b949e', fontSize: 13, fontWeight: '500' },
+  netValue: { color: '#e6edf3', fontSize: 13, fontWeight: '500', fontVariant: ['tabular-nums'] },
 });
