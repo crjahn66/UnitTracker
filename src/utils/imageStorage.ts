@@ -92,11 +92,12 @@ async function uploadFile(localPath: string): Promise<string | null> {
   const src = await prepareUri(localPath);
   if (src === null) return null; // HEIC that couldn't be converted
 
-  const ext = (src.split('?')[0].split('/').pop()?.split('.').pop()?.toLowerCase() ?? 'jpg').slice(0, 4);
+  const rawExt = src.split('?')[0].split('/').pop()?.split('.').pop()?.toLowerCase() ?? 'jpg';
+  const ext = rawExt === 'jpg' ? 'jpeg' : rawExt === 'heic' || rawExt === 'heif' ? 'jpeg' : rawExt;
   const localName = localPath.split('/').pop() ?? `${Date.now()}.${ext}`;
   // Use the same base name but with correct extension (handles HEIC→jpg conversion)
   const fileName = localName.replace(/\.(heic|heif)$/i, '.jpg');
-  const contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+  const contentType = `image/${ext}`;
 
   const base64 = await FileSystem.readAsStringAsync(src, { encoding: 'base64' as any });
   const binaryStr = atob(base64);

@@ -182,7 +182,7 @@ export default function ReportsScreen() {
   const [syncWarning, setSyncWarning]       = useState<string | null>(null);
   const [wiping, setWiping]                 = useState(false);
 
-  const openGeneralCount = generalIssues.filter((i) => !i.resolved).length;
+  const openGeneralCount = generalIssues.filter((i) => !i.resolved && !i.deleted).length;
 
   const stats = useMemo(() => {
     const all = Object.values(units);
