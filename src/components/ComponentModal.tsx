@@ -485,11 +485,13 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
       }
       if (status === 'good') {
         setComponentProgressNote(unitId, componentKey, '');
+        pushToCloud().catch(() => {});
         onClose();
         return;
       }
       setComponentProgressNote(unitId, componentKey, '');
       setComponentGoodNote(unitId, componentKey, '');
+      pushToCloud().catch(() => {});
     },
     [unitId, componentKey, updateComponentStatus, setComponentProgressNote, setComponentGoodNote, onClose]
   );
@@ -627,7 +629,7 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
       return (
         <ProgressNoteForm
           initial={compData.progressNote ?? ''}
-          onSave={(note) => { setComponentProgressNote(unitId, componentKey, note); setView('detail'); }}
+          onSave={(note) => { setComponentProgressNote(unitId, componentKey, note); pushToCloud().catch(() => {}); setView('detail'); }}
           onCancel={() => setView('detail')}
         />
       );
@@ -636,7 +638,7 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
       return (
         <GoodNoteForm
           initial={compData.goodNote ?? ''}
-          onSave={(note) => { setComponentGoodNote(unitId, componentKey, note); onClose(); }}
+          onSave={(note) => { setComponentGoodNote(unitId, componentKey, note); pushToCloud().catch(() => {}); onClose(); }}
           onSkip={onClose}
         />
       );

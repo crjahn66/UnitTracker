@@ -407,8 +407,8 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
     updateMiscEquip(unitId, itemId, { status });
     if (status === 'inProgress') { updateMiscEquip(unitId, itemId, { goodNote: '' }); setView('progressNote'); return; }
     if (status === 'bad') { updateMiscEquip(unitId, itemId, { progressNote: '', goodNote: '' }); setView('addIssue'); return; }
-    if (status === 'good') { updateMiscEquip(unitId, itemId, { progressNote: '' }); onClose(); return; }
-    updateMiscEquip(unitId, itemId, { progressNote: '', goodNote: '' });
+    if (status === 'good') { updateMiscEquip(unitId, itemId, { progressNote: '' }); pushToCloud().catch(() => {}); onClose(); return; }
+    updateMiscEquip(unitId, itemId, { progressNote: '', goodNote: '' }); pushToCloud().catch(() => {});
   }, [unitId, itemId, updateMiscEquip, onClose]);
 
   const handleAddIssue = useCallback((data: { dateFound: string; foundBy: string; notes: string; images: string[] }) => {
@@ -518,10 +518,10 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
     }
     if (view === 'resolveIssue' && resolvingId) return <ResolveForm onSave={(d) => handleResolve(resolvingId, d)} onCancel={() => { setResolvingId(null); setView('detail'); }} />;
     if (view === 'progressNote') return (
-      <ProgressNoteForm initial={item.progressNote ?? ''} onSave={(note) => { updateMiscEquip(unitId, itemId, { progressNote: note }); setView('detail'); }} onCancel={() => setView('detail')} />
+      <ProgressNoteForm initial={item.progressNote ?? ''} onSave={(note) => { updateMiscEquip(unitId, itemId, { progressNote: note }); pushToCloud().catch(() => {}); setView('detail'); }} onCancel={() => setView('detail')} />
     );
     if (view === 'goodNote') return (
-      <GoodNoteForm initial={item.goodNote ?? ''} onSave={(note) => { updateMiscEquip(unitId, itemId, { goodNote: note }); onClose(); }} onSkip={onClose} />
+      <GoodNoteForm initial={item.goodNote ?? ''} onSave={(note) => { updateMiscEquip(unitId, itemId, { goodNote: note }); pushToCloud().catch(() => {}); onClose(); }} onSkip={onClose} />
     );
 
     return (
