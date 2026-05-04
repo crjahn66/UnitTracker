@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { format } from 'date-fns';
+import { format, parse, isValid } from 'date-fns';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { UnitStackParamList } from '../navigation';
@@ -20,14 +20,17 @@ type Props = NativeStackScreenProps<UnitStackParamList, 'UnitDetail'>;
 export default function UnitDetailScreen({ route }: Props) {
   const { unitId } = route.params;
   const unit = useStore((state) => state.units[unitId]);
-  const updateStage = useStore((state) => state.updateStage);
+  const updateStage  = useStore((state) => state.updateStage);
   const setStageNote = useStore((state) => state.setStageNote);
+  const setStageDate = useStore((state) => state.setStageDate);
 
   const [selectedComponent, setSelectedComponent] = useState<ComponentKey | null>(null);
   const [selectedMiscItem, setSelectedMiscItem] = useState<string | null>(null);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [editingStageNote, setEditingStageNote] = useState<StageKey | null>(null);
   const [stageNoteValue, setStageNoteValue] = useState('');
+  const [editingStageDate, setEditingStageDate] = useState<StageKey | null>(null);
+  const [stageDateValue, setStageDateValue] = useState('');
   const addMiscEquip = useStore((state) => state.addMiscEquip);
 
   const handleStageChange = useCallback(
@@ -113,13 +116,30 @@ export default function UnitDetailScreen({ route }: Props) {
               : null;
             const stageNote = unit.stagesNotes?.[stage.key];
             const isEditingNote = editingStageNote === stage.key;
+            const isEditingDate = editingStageDate === stage.key;
             return (
               <View key={stage.key} style={[s.stageRow, idx < STAGES.length - 1 && s.stageRowBorder]}>
                 <View style={s.stageRowMain}>
                   <StageStatusIcon status={stageStatus} />
                   <View style={s.stageInfo}>
                     <Text style={s.stageLabel}>{stage.label}</Text>
-                    <Text style={s.stageNum}>Stage {idx + 1} of {STAGES.length}{dateStr ? `  ·  ${dateStr}` : ''}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={s.stageNum}>Stage {idx + 1} of {STAGES.length}</Text>
+                      {stageStatus !== 'pending' && !isEditingDate && (
+                        <TouchableOpacity
+                          onPress={() => {
+                            setStageDateValue(unit.stagesDates?.[stage.key] ? format(new Date(unit.stagesDates![stage.key]!), 'MM/dd/yyyy') : format(new Date(), 'MM/dd/yyyy'));
+                            setEditingStageNote(null);
+                            setEditingStageDate(stage.key);
+                          }}
+                          activeOpacity={0.7}
+                          style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 6 }}
+                        >
+                          <Text style={s.stageDateText}>{dateStr ? `· ${dateStr}` : '· Set date'}</Text>
+                          <Ionicons name="pencil-outline" size={10} color="#6e7681" style={{ marginLeft: 3 }} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
                   <View style={s.stageBtns}>
                     {(['complete', 'inProgress', 'stuck'] as StageStatus[]).map((st) => (
@@ -134,6 +154,33 @@ export default function UnitDetailScreen({ route }: Props) {
                     ))}
                   </View>
                 </View>
+                {isEditingDate && (
+                  <View style={s.stageNoteEditArea}>
+                    <TextInput
+                      style={[s.stageNoteInput, { minHeight: undefined }]}
+                      value={stageDateValue}
+                      onChangeText={setStageDateValue}
+                      placeholder="MM/DD/YYYY"
+                      placeholderTextColor="#6e7681"
+                      autoFocus
+                    />
+                    <View style={s.stageNoteActions}>
+                      <TouchableOpacity
+                        style={s.stageNoteSaveBtn}
+                        onPress={() => {
+                          const p = parse(stageDateValue, 'MM/dd/yyyy', new Date());
+                          if (isValid(p)) { setStageDate(unitId, stage.key, p.toISOString()); pushToCloud().catch(() => {}); }
+                          setEditingStageDate(null);
+                        }}
+                      >
+                        <Text style={s.stageNoteSaveText}>Save</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => setEditingStageDate(null)}>
+                        <Text style={s.stageNoteCancelText}>Cancel</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
                 {isEditingNote ? (
                   <View style={s.stageNoteEditArea}>
                     <TextInput
@@ -164,7 +211,7 @@ export default function UnitDetailScreen({ route }: Props) {
                 ) : (
                   <TouchableOpacity
                     style={s.stageNoteRow}
-                    onPress={() => { setStageNoteValue(stageNote ?? ''); setEditingStageNote(stage.key); }}
+                    onPress={() => { setStageNoteValue(stageNote ?? ''); setEditingStageNote(stage.key); setEditingStageDate(null); }}
                     activeOpacity={0.7}
                   >
                     <Text style={stageNote ? s.stageNoteText : s.stageNotePlaceholder} numberOfLines={2}>
@@ -387,6 +434,7 @@ const s = StyleSheet.create({
   stageInfo: { flex: 1, marginRight: 8 },
   stageLabel: { color: '#e6edf3', fontSize: 14, fontWeight: '500' },
   stageNum: { color: '#6e7681', fontSize: 11, marginTop: 2 },
+  stageDateText: { color: '#6e7681', fontSize: 11, marginTop: 2 },
   stageBtns: { flexDirection: 'row', gap: 4 },
   stageBtn: {
     paddingVertical: 5, paddingHorizontal: 8,

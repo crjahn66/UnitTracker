@@ -240,7 +240,8 @@ function EditIssueForm({ issue, onSave, onCancel }: {
 }) {
   const fmt = (iso?: string) => { try { return iso ? format(new Date(iso), 'MM/dd/yyyy') : ''; } catch { return iso ?? ''; } };
   const [form, setForm] = useState({
-    dateFound: fmt(issue.dateFound), foundBy: issue.foundBy, responsibleParty: issue.responsibleParty ?? '', notes: issue.notes,
+    dateFound: fmt(issue.dateFound), dateUpdated: fmt(issue.dateUpdated), foundBy: issue.foundBy,
+    responsibleParty: issue.responsibleParty ?? '', notes: issue.notes,
     dateFixed: fmt(issue.dateFixed), fixedBy: issue.fixedBy ?? '', howFixed: issue.howFixed ?? '',
   });
   const set = (key: keyof typeof form, val: string) => setForm((p) => ({ ...p, [key]: val }));
@@ -251,6 +252,7 @@ function EditIssueForm({ issue, onSave, onCancel }: {
     if (!form.notes.trim()) { showAlert('Required', 'Please enter issue notes.'); return; }
     const updates: Partial<MiscIssue> = {
       dateFound: parseDate(form.dateFound, issue.dateFound),
+      dateUpdated: parseDate(form.dateUpdated, issue.dateUpdated ?? new Date().toISOString()),
       foundBy: form.foundBy, responsibleParty: form.responsibleParty || undefined, notes: form.notes,
     };
     if (issue.resolved) {
@@ -264,15 +266,16 @@ function EditIssueForm({ issue, onSave, onCancel }: {
   return (
     <View>
       <Text style={f.formTitle}>Edit Issue</Text>
-      <FormField label="Date Found" value={form.dateFound} onChangeText={(v) => set('dateFound', v)} placeholder="MM/DD/YYYY" />
-      <FormField label="Found By" value={form.foundBy} onChangeText={(v) => set('foundBy', v)} placeholder="Name / Tech ID" />
+      <FormField label="Date Found"        value={form.dateFound}        onChangeText={(v) => set('dateFound', v)}        placeholder="MM/DD/YYYY" />
+      <FormField label="Last Updated"      value={form.dateUpdated}      onChangeText={(v) => set('dateUpdated', v)}      placeholder="MM/DD/YYYY" />
+      <FormField label="Found By"          value={form.foundBy}          onChangeText={(v) => set('foundBy', v)}          placeholder="Name / Tech ID" />
       <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Name / Team" />
-      <FormField label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} placeholder="Describe the issue…" multiline />
+      <FormField label="Notes"             value={form.notes}            onChangeText={(v) => set('notes', v)}            placeholder="Describe the issue…" multiline />
       {issue.resolved && (
         <>
           <FormField label="Date Fixed" value={form.dateFixed} onChangeText={(v) => set('dateFixed', v)} placeholder="MM/DD/YYYY" />
-          <FormField label="Fixed By" value={form.fixedBy} onChangeText={(v) => set('fixedBy', v)} placeholder="Name / Tech ID" />
-          <FormField label="How Fixed" value={form.howFixed} onChangeText={(v) => set('howFixed', v)} placeholder="Describe the resolution…" multiline />
+          <FormField label="Fixed By"   value={form.fixedBy}   onChangeText={(v) => set('fixedBy', v)}   placeholder="Name / Tech ID" />
+          <FormField label="How Fixed"  value={form.howFixed}  onChangeText={(v) => set('howFixed', v)}  placeholder="Describe the resolution…" multiline />
         </>
       )}
       <View style={f.buttonRow}>
@@ -375,13 +378,14 @@ function GoodNoteForm({ initial, onSave, onSkip }: {
 // ─── Main Modal ────────────────────────────────────────────────────────────────
 
 export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
-  const unit         = useStore((state) => state.units[unitId]);
-  const updateMiscEquip = useStore((state) => state.updateMiscEquip);
-  const deleteMiscEquip = useStore((state) => state.deleteMiscEquip);
-  const addMiscEquip    = useStore((state) => state.addMiscEquip);
-  const addMiscIssue    = useStore((state) => state.addMiscIssue);
-  const updateMiscIssue = useStore((state) => state.updateMiscIssue);
-  const deleteMiscIssue = useStore((state) => state.deleteMiscIssue);
+  const unit              = useStore((state) => state.units[unitId]);
+  const updateMiscEquip   = useStore((state) => state.updateMiscEquip);
+  const deleteMiscEquip   = useStore((state) => state.deleteMiscEquip);
+  const addMiscEquip      = useStore((state) => state.addMiscEquip);
+  const addMiscIssue      = useStore((state) => state.addMiscIssue);
+  const updateMiscIssue   = useStore((state) => state.updateMiscIssue);
+  const deleteMiscIssue   = useStore((state) => state.deleteMiscIssue);
+  const setMiscEquipStatusDate = useStore((state) => state.setMiscEquipStatusDate);
 
   const item = (unit.miscEquipment ?? []).find((i) => i.id === itemId);
   const statusDate = !item ? undefined :
@@ -396,6 +400,8 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelValue, setLabelValue] = useState(item?.label ?? '');
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [editingStatusDate, setEditingStatusDate] = useState(false);
+  const [statusDateValue, setStatusDateValue] = useState('');
 
   const handleSaveLabel = useCallback(() => {
     const trimmed = labelValue.trim();
@@ -539,6 +545,39 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
             </TouchableOpacity>
           ))}
         </View>
+        {item.status !== 'unchecked' && (
+          <View style={m.statusDateRow}>
+            {editingStatusDate ? (
+              <View style={m.statusDateEdit}>
+                <TextInput
+                  style={m.statusDateInput}
+                  value={statusDateValue}
+                  onChangeText={setStatusDateValue}
+                  placeholder="MM/DD/YYYY"
+                  placeholderTextColor="#6e7681"
+                  autoFocus
+                />
+                <TouchableOpacity onPress={() => {
+                  const p = parse(statusDateValue, 'MM/dd/yyyy', new Date());
+                  if (isValid(p)) { setMiscEquipStatusDate(unitId, itemId, p.toISOString()); pushToCloud().catch(() => {}); }
+                  setEditingStatusDate(false);
+                }} style={m.statusDateSaveBtn}>
+                  <Text style={m.statusDateSaveText}>Save</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setEditingStatusDate(false)}>
+                  <Text style={m.statusDateCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={m.statusDateDisplay} onPress={() => { setStatusDateValue(statusDate ? format(new Date(statusDate), 'MM/dd/yyyy') : format(new Date(), 'MM/dd/yyyy')); setEditingStatusDate(true); }} activeOpacity={0.7}>
+                <Text style={m.statusDateLabel}>STATUS DATE</Text>
+                <Text style={m.statusDateValue}>{statusDate ? format(new Date(statusDate), 'MMM d, yyyy') : 'Not set'}</Text>
+                <Ionicons name="pencil-outline" size={12} color="#6e7681" style={{ marginLeft: 6 }} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {item.status === 'inProgress' && (
           <View style={m.progressNoteBox}>
             <TouchableOpacity style={m.noteBoxTop} onPress={() => setView('progressNote')} activeOpacity={0.7}>
@@ -701,6 +740,15 @@ const m = StyleSheet.create({
   archiveToggleText: { color: '#6e7681', fontSize: 13, fontWeight: '600' },
   deleteItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: '#f8514944' },
   deleteItemBtnText: { color: '#f85149', fontSize: 14, fontWeight: '600' },
+  statusDateRow: { marginBottom: 16, marginTop: -8 },
+  statusDateDisplay: { flexDirection: 'row', alignItems: 'center' },
+  statusDateLabel: { color: '#8b949e', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginRight: 8 },
+  statusDateValue: { color: '#58a6ff', fontSize: 12 },
+  statusDateEdit: { flexDirection: 'row', alignItems: 'center' },
+  statusDateInput: { flex: 1, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#30363d', borderRadius: 6, color: '#e6edf3', fontSize: 13, paddingHorizontal: 8, paddingVertical: 4, marginRight: 8 },
+  statusDateSaveBtn: { marginRight: 12 },
+  statusDateSaveText: { color: '#3fb950', fontSize: 13, fontWeight: '600' },
+  statusDateCancelText: { color: '#8b949e', fontSize: 13 },
   progressNoteBox: { backgroundColor: '#d2992211', borderRadius: 8, borderWidth: 1, borderColor: '#d2992244', padding: 10, marginBottom: 20 },
   noteBoxTop: { flexDirection: 'row', alignItems: 'center' },
   progressNoteLabel: { color: '#d29922', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 3 },

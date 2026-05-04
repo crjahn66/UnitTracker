@@ -13,7 +13,7 @@ interface Props {
   onClose: () => void;
 }
 
-type ModalView = 'list' | 'addIssue' | 'resolveIssue';
+type ModalView = 'list' | 'addIssue' | 'resolveIssue' | 'editIssue';
 
 const today = () => format(new Date(), 'MM/dd/yyyy');
 const EMPTY_ISSUE  = () => ({ dateFound: today(), foundBy: '', responsibleParty: '', notes: '' });
@@ -73,6 +73,61 @@ function AddIssueForm({ onSave, onCancel }: {
   );
 }
 
+// ─── Edit Issue Form ───────────────────────────────────────────────────────────
+
+function EditIssueForm({ issue, onSave, onCancel }: {
+  issue: GeneralIssue;
+  onSave: (updates: Partial<GeneralIssue>) => void;
+  onCancel: () => void;
+}) {
+  const fmt = (iso?: string) => { try { return iso ? format(new Date(iso), 'MM/dd/yyyy') : ''; } catch { return iso ?? ''; } };
+  const [form, setForm] = useState({
+    dateFound: fmt(issue.dateFound), dateUpdated: fmt(issue.dateUpdated), foundBy: issue.foundBy,
+    responsibleParty: issue.responsibleParty ?? '', notes: issue.notes,
+    dateFixed: fmt(issue.dateFixed), fixedBy: issue.fixedBy ?? '', howFixed: issue.howFixed ?? '',
+  });
+  const set = (key: keyof typeof form, val: string) => setForm((p) => ({ ...p, [key]: val }));
+  const pd = (s: string, fallback: string) => { const p = parse(s, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : fallback; };
+
+  const handleSave = () => {
+    if (!form.foundBy.trim()) { showAlert('Required', 'Please enter who found the issue.'); return; }
+    if (!form.notes.trim())   { showAlert('Required', 'Please enter issue notes.'); return; }
+    const updates: Partial<GeneralIssue> = {
+      dateFound:    pd(form.dateFound, issue.dateFound),
+      dateUpdated:  pd(form.dateUpdated, issue.dateUpdated ?? new Date().toISOString()),
+      foundBy: form.foundBy, responsibleParty: form.responsibleParty || undefined, notes: form.notes,
+    };
+    if (issue.resolved) {
+      updates.dateFixed  = pd(form.dateFixed, issue.dateFixed ?? new Date().toISOString());
+      updates.fixedBy    = form.fixedBy;
+      updates.howFixed   = form.howFixed;
+    }
+    onSave(updates);
+  };
+
+  return (
+    <View>
+      <Text style={f.formTitle}>Edit Issue</Text>
+      <FormField label="Date Found"        value={form.dateFound}        onChangeText={(v) => set('dateFound', v)}        placeholder="MM/DD/YYYY" />
+      <FormField label="Last Updated"      value={form.dateUpdated}      onChangeText={(v) => set('dateUpdated', v)}      placeholder="MM/DD/YYYY" />
+      <FormField label="Found By"          value={form.foundBy}          onChangeText={(v) => set('foundBy', v)}          placeholder="Name / Tech ID" />
+      <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Person / company responsible" />
+      <FormField label="Notes"             value={form.notes}            onChangeText={(v) => set('notes', v)}            placeholder="Describe the issue…" multiline />
+      {issue.resolved && (
+        <>
+          <FormField label="Date Fixed" value={form.dateFixed} onChangeText={(v) => set('dateFixed', v)} placeholder="MM/DD/YYYY" />
+          <FormField label="Fixed By"   value={form.fixedBy}   onChangeText={(v) => set('fixedBy', v)}   placeholder="Name / Tech ID" />
+          <FormField label="How Fixed"  value={form.howFixed}  onChangeText={(v) => set('howFixed', v)}  placeholder="Describe the resolution…" multiline />
+        </>
+      )}
+      <View style={f.buttonRow}>
+        <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={onCancel}><Text style={f.btnOutlineText}>Cancel</Text></TouchableOpacity>
+        <TouchableOpacity style={[f.btn, f.btnPrimary]} onPress={handleSave}><Text style={f.btnPrimaryText}>Save Changes</Text></TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 // ─── Resolve Form ──────────────────────────────────────────────────────────────
 
 function ResolveForm({ onSave, onCancel }: {
@@ -109,10 +164,11 @@ function ResolveForm({ onSave, onCancel }: {
 
 // ─── Issue Card ────────────────────────────────────────────────────────────────
 
-function IssueCard({ issue, onResolve, onDelete }: {
+function IssueCard({ issue, onResolve, onDelete, onEdit }: {
   issue: GeneralIssue;
   onResolve: () => void;
   onDelete: () => void;
+  onEdit: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -143,18 +199,22 @@ function IssueCard({ issue, onResolve, onDelete }: {
               {issue.howFixed   ? <Text style={ic.meta}>How: {issue.howFixed}</Text> : null}
             </>
           )}
-          {!issue.resolved && (
-            <View style={ic.actions}>
+          <View style={ic.actions}>
+            {!issue.resolved && (
               <TouchableOpacity style={[ic.actionBtn, ic.resolveBtn]} onPress={onResolve}>
                 <Ionicons name="checkmark-circle-outline" size={14} color="#3fb950" style={{ marginRight: 4 }} />
                 <Text style={ic.resolveBtnText}>Mark Resolved</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[ic.actionBtn, ic.deleteBtn]} onPress={onDelete}>
-                <Ionicons name="trash-outline" size={14} color="#f85149" style={{ marginRight: 4 }} />
-                <Text style={ic.deleteBtnText}>Delete</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+            )}
+            <TouchableOpacity style={[ic.actionBtn, ic.editBtn]} onPress={onEdit}>
+              <Ionicons name="pencil-outline" size={14} color="#d29922" style={{ marginRight: 4 }} />
+              <Text style={ic.editBtnText}>Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[ic.actionBtn, ic.deleteBtn]} onPress={onDelete}>
+              <Ionicons name="trash-outline" size={14} color="#f85149" style={{ marginRight: 4 }} />
+              <Text style={ic.deleteBtnText}>Delete</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
     </View>
@@ -171,6 +231,7 @@ export default function GeneralIssueModal({ onClose }: Props) {
 
   const [view, setView]           = useState<ModalView>('list');
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [editingId, setEditingId]     = useState<string | null>(null);
 
   const handleAdd = useCallback((data: { dateFound: string; foundBy: string; responsibleParty: string; notes: string }) => {
     addGeneralIssue({
@@ -185,6 +246,13 @@ export default function GeneralIssueModal({ onClose }: Props) {
     pushToCloud().catch(() => {});
     setView('list');
   }, [addGeneralIssue]);
+
+  const handleEdit = useCallback((issueId: string, updates: Partial<GeneralIssue>) => {
+    updateGeneralIssue(issueId, updates);
+    pushToCloud().catch(() => {});
+    setEditingId(null);
+    setView('list');
+  }, [updateGeneralIssue]);
 
   const handleResolve = useCallback((issueId: string, data: { dateFixed: string; fixedBy: string; howFixed: string }) => {
     updateGeneralIssue(issueId, {
@@ -236,6 +304,14 @@ export default function GeneralIssueModal({ onClose }: Props) {
             <ScrollView contentContainerStyle={m.body} keyboardShouldPersistTaps="handled">
               <AddIssueForm onSave={handleAdd} onCancel={() => setView('list')} />
             </ScrollView>
+          ) : view === 'editIssue' && editingId ? (
+            <ScrollView contentContainerStyle={m.body} keyboardShouldPersistTaps="handled">
+              <EditIssueForm
+                issue={generalIssues.find((i) => i.id === editingId)!}
+                onSave={(u) => handleEdit(editingId, u)}
+                onCancel={() => { setEditingId(null); setView('list'); }}
+              />
+            </ScrollView>
           ) : view === 'resolveIssue' && resolvingId ? (
             <ScrollView contentContainerStyle={m.body} keyboardShouldPersistTaps="handled">
               <ResolveForm
@@ -253,6 +329,7 @@ export default function GeneralIssueModal({ onClose }: Props) {
                   key={issue.id}
                   issue={issue}
                   onResolve={() => { setResolvingId(issue.id); setView('resolveIssue'); }}
+                  onEdit={() => { setEditingId(issue.id); setView('editIssue'); }}
                   onDelete={() => handleDelete(issue.id)}
                 />
               ))}
@@ -361,6 +438,8 @@ const ic = StyleSheet.create({
   },
   resolveBtn:     { borderColor: '#3fb950' },
   resolveBtnText: { color: '#3fb950', fontSize: 12, fontWeight: '600' },
+  editBtn:        { borderColor: '#d29922' },
+  editBtnText:    { color: '#d29922', fontSize: 12, fontWeight: '600' },
   deleteBtn:      { borderColor: '#f85149' },
   deleteBtnText:  { color: '#f85149', fontSize: 12, fontWeight: '600' },
 });

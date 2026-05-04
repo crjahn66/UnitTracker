@@ -37,6 +37,9 @@ interface StoreState {
   addMiscIssue: (unitId: string, itemId: string, issue: MiscIssue) => void;
   updateMiscIssue: (unitId: string, itemId: string, issueId: string, updates: Partial<MiscIssue>) => void;
   deleteMiscIssue: (unitId: string, itemId: string, issueId: string) => void;
+  setStageDate: (unitId: string, stage: StageKey, date: string) => void;
+  setComponentStatusDate: (unitId: string, component: ComponentKey, date: string) => void;
+  setMiscEquipStatusDate: (unitId: string, itemId: string, date: string) => void;
   addGeneralIssue: (issue: GeneralIssue) => void;
   updateGeneralIssue: (issueId: string, updates: Partial<GeneralIssue>) => void;
   deleteGeneralIssue: (issueId: string) => void;
@@ -185,7 +188,7 @@ export const useStore = create<StoreState>()(
                   [componentKey]: {
                     ...comp,
                     issues: comp.issues.map((i) =>
-                      i.id === issueId ? { ...i, ...updates, dateUpdated: new Date().toISOString() } : i
+                      i.id === issueId ? { ...i, dateUpdated: new Date().toISOString(), ...updates } : i
                     ),
                   },
                 },
@@ -328,7 +331,7 @@ export const useStore = create<StoreState>()(
                 ...u,
                 miscEquipment: (u.miscEquipment ?? []).map((item) =>
                   item.id === itemId
-                    ? { ...item, issues: item.issues.map((i) => i.id === issueId ? { ...i, ...updates, dateUpdated: new Date().toISOString() } : i) }
+                    ? { ...item, issues: item.issues.map((i) => i.id === issueId ? { ...i, dateUpdated: new Date().toISOString(), ...updates } : i) }
                     : item
                 ),
               },
@@ -354,13 +357,55 @@ export const useStore = create<StoreState>()(
           };
         }),
 
+      setStageDate: (unitId, stage, date) =>
+        set((state) => {
+          const u = state.units[unitId];
+          const dates = { ...(u.stagesDates ?? {}) };
+          if (date) { dates[stage] = date; } else { delete dates[stage]; }
+          return { units: { ...state.units, [unitId]: { ...u, stagesDates: dates } } };
+        }),
+
+      setComponentStatusDate: (unitId, component, date) =>
+        set((state) => {
+          const comp = state.units[unitId].components[component];
+          const s = comp.status;
+          const d = date || undefined;
+          const dateUpdates = s === 'good' ? { goodDate: d } : s === 'inProgress' ? { inProgressDate: d } : s === 'bad' ? { badDate: d } : {};
+          return {
+            units: {
+              ...state.units,
+              [unitId]: { ...state.units[unitId], components: { ...state.units[unitId].components, [component]: { ...comp, ...dateUpdates } } },
+            },
+          };
+        }),
+
+      setMiscEquipStatusDate: (unitId, itemId, date) =>
+        set((state) => {
+          const u = state.units[unitId];
+          const d = date || undefined;
+          return {
+            units: {
+              ...state.units,
+              [unitId]: {
+                ...u,
+                miscEquipment: (u.miscEquipment ?? []).map((item) => {
+                  if (item.id !== itemId) return item;
+                  const s = item.status;
+                  const dateUpdates = s === 'good' ? { goodDate: d } : s === 'inProgress' ? { inProgressDate: d } : s === 'bad' ? { badDate: d } : {};
+                  return { ...item, ...dateUpdates };
+                }),
+              },
+            },
+          };
+        }),
+
       addGeneralIssue: (issue) =>
         set((state) => ({ generalIssues: [...state.generalIssues, issue] })),
 
       updateGeneralIssue: (issueId, updates) =>
         set((state) => ({
           generalIssues: state.generalIssues.map((i) =>
-            i.id === issueId ? { ...i, ...updates, dateUpdated: new Date().toISOString() } : i
+            i.id === issueId ? { ...i, dateUpdated: new Date().toISOString(), ...updates } : i
           ),
         })),
 

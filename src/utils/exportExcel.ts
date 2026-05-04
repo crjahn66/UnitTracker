@@ -67,7 +67,7 @@ function rowClr(unit: Unit): Clr {
 // ─── Sheet 1: Overview ────────────────────────────────────────────────────────
 function buildOverview(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Overview');
-  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Stages Done', 'Open Issues', 'Status'];
+  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Stages Done', 'Open Issues', 'Status', 'Commissioned On'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
@@ -91,7 +91,8 @@ function buildOverview(wb: any, sorted: Unit[]) {
       const base = st === 'complete' ? '✓ Done' : st === 'inProgress' ? '⏳ In Progress' : st === 'stuck' ? '⚠ Stuck' : '—';
       return note ? `${base}\n${note}` : base;
     };
-    const rowData = [u.id, u.side, u.unitNumber, ...STAGES.map(stageLabel), `${done} / ${STAGES.length}`, open, status];
+    const commDate = u.stagesDates?.commissioning ? fmtDate(u.stagesDates.commissioning) : '';
+    const rowData = [u.id, u.side, u.unitNumber, ...STAGES.map(stageLabel), `${done} / ${STAGES.length}`, open, status, commDate];
     const r = ws.addRow(rowData);
     const hasNote = STAGES.some((s) => !!u.stagesNotes?.[s.key]);
     r.eachCell((cell: any, col: number) => {
@@ -103,7 +104,7 @@ function buildOverview(wb: any, sorted: Unit[]) {
     });
     r.height = hasNote ? 32 : 18;
   }
-  freezeAndWidth(ws, [9, 7, 7, 24, 22, 14, 16, 11, 10, 12]);
+  freezeAndWidth(ws, [9, 7, 7, 24, 22, 14, 16, 11, 10, 12, 14]);
 }
 
 // ─── Sheet 2: Component Status ────────────────────────────────────────────────
@@ -237,7 +238,7 @@ async function buildIssues(wb: any, sorted: Unit[]) {
 // ─── Sheet 4: Completed Units ─────────────────────────────────────────────────
 function buildCompleted(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Completed Units');
-  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Components Good', 'Total Issues'];
+  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Components Good', 'Total Issues', 'Commissioned On'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
@@ -257,6 +258,7 @@ function buildCompleted(wb: any, sorted: Unit[]) {
       ...STAGES.map(() => '✓ Done'),
       comps.filter((c) => c.status === 'good').length,
       comps.flatMap((c) => c.issues).length,
+      u.stagesDates?.commissioning ? fmtDate(u.stagesDates.commissioning) : '',
     ]);
     r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, GRN, col === 1, col >= 3));
     r.height = 18;
@@ -265,7 +267,7 @@ function buildCompleted(wb: any, sorted: Unit[]) {
     const r = ws.addRow(['No fully completed units yet']);
     applyCell(r.getCell(1), 'No fully completed units yet', WHT);
   }
-  freezeAndWidth(ws, [9, 7, 7, 24, 22, 14, 16, 16, 12]);
+  freezeAndWidth(ws, [9, 7, 7, 24, 22, 14, 16, 16, 12, 14]);
 }
 
 // ─── Sheet 5: Units with Issues ───────────────────────────────────────────────
