@@ -341,44 +341,50 @@ function buildCompleted(wb: any, sorted: Unit[]) {
 // ─── Sheet 5: Units with Issues ───────────────────────────────────────────────
 function buildWithIssues(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Units with Issues');
-  const colWidths = [9, 7, 7, 12, 12, 40, 20, 12, 20];
-  const headers = ['Unit ID', 'Side', 'Unit #', 'Open Issues', 'Total Issues', 'Components Affected', 'Responsible Party', 'Stages Done', 'Status'];
+  const colWidths = [9, 7, 7, 18, 12, 12, 14, 20, 40, 10];
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Component', 'Date Found', 'Last Updated', 'Found By', 'Responsible Party', 'Notes', 'Status'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
 
-  const affected = sorted.filter((u) => {
-    const compOpen = Object.values(u.components).flatMap((c) => c.issues).some((i) => !i.resolved && !i.deleted);
-    const miscOpen = (u.miscEquipment ?? []).flatMap((m) => m.issues).some((i) => !i.resolved && !(i as any).deleted);
-    return compOpen || miscOpen;
+  const rows: { issue: Issue | MiscIssue; unitId: string; side: string; unitNum: number; label: string }[] = [];
+  for (const u of sorted) {
+    for (const comp of COMPONENTS) {
+      const label = u.customComponentLabels?.[comp.key] ?? comp.label;
+      for (const issue of u.components[comp.key].issues.filter((i) => !i.deleted && !i.resolved)) {
+        rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label });
+      }
+    }
+    for (const item of (u.miscEquipment ?? [])) {
+      for (const issue of (item.issues ?? []).filter((i: any) => !i.deleted && !i.resolved)) {
+        rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label: item.label || 'Misc Equipment' });
+      }
+    }
+  }
+  rows.sort((a, b) => {
+    if (a.side !== b.side) return a.side === 'North' ? -1 : 1;
+    if (a.unitNum !== b.unitNum) return a.unitNum - b.unitNum;
+    return a.issue.dateFound.localeCompare(b.issue.dateFound);
   });
 
   let currentSide = '';
-  for (const u of affected) {
-    if (u.side !== currentSide) {
-      currentSide = u.side;
-      addSectionHeader(ws, u.side.toUpperCase(), headers.length);
+  for (const { issue, unitId, side, unitNum, label } of rows) {
+    if (side !== currentSide) {
+      currentSide = side;
+      addSectionHeader(ws, side.toUpperCase(), headers.length);
     }
-    const all = [
-      ...Object.values(u.components).flatMap((c) => c.issues),
-      ...(u.miscEquipment ?? []).flatMap((m) => m.issues),
-    ].filter((i) => !(i as any).deleted);
-    const open = all.filter((i) => !i.resolved).length;
-    const done = STAGES.filter((s) => normalizeStageStatus(u.stages[s.key]) === 'complete').length;
-    const names = [
-      ...COMPONENTS.filter((comp) => u.components[comp.key].issues.some((i) => !i.resolved && !i.deleted)).map((comp) => u.customComponentLabels?.[comp.key] ?? comp.label),
-      ...(u.miscEquipment ?? []).filter((m) => m.issues.some((i) => !i.resolved && !(i as any).deleted)).map((m) => m.label || 'Misc Equipment'),
-    ].join(', ');
-    const parties = [...new Set(
-      all.filter((i) => !i.resolved).map((i) => (i as any).responsibleParty).filter(Boolean)
-    )].join(', ');
-    const r = ws.addRow([u.id, u.side, u.unitNumber, open, all.length, names, parties, `${done} / ${STAGES.length}`, done === STAGES.length ? 'Complete (Issues)' : 'In Progress']);
+    const r = ws.addRow([
+      unitId, side, unitNum, label,
+      fmtDate(issue.dateFound), fmtDate(issue.dateUpdated),
+      issue.foundBy, (issue as any).responsibleParty ?? '',
+      issue.notes, issue.resolved ? 'Resolved' : 'Open',
+    ]);
     r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, RED, col === 1, col >= 3));
     r.height = autoRowHeight(r, colWidths);
   }
-  if (affected.length === 0) {
-    const r = ws.addRow(['No units with open issues']);
-    applyCell(r.getCell(1), 'No units with open issues', WHT);
+  if (rows.length === 0) {
+    const r = ws.addRow(['No open issues']);
+    applyCell(r.getCell(1), 'No open issues', WHT);
   }
   freezeAndWidth(ws, colWidths);
 }
