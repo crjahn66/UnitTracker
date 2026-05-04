@@ -76,7 +76,7 @@ function rowClr(unit: Unit): Clr {
 // ─── Sheet 1: Overview ────────────────────────────────────────────────────────
 function buildOverview(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Overview');
-  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Stages Done', 'Open Issues', 'Status', 'Commissioned On'];
+  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Stages Done', 'Open Issues', 'Status', 'RED Group Tested On'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
@@ -265,7 +265,7 @@ async function buildIssues(wb: any, sorted: Unit[]) {
 // ─── Sheet 4: Completed Units ─────────────────────────────────────────────────
 function buildCompleted(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Completed Units');
-  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Components Good', 'Total Issues', 'Commissioned On', 'Commissioned By'];
+  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Components Good', 'Total Issues', 'RED Group Tested On', 'Tested By'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
@@ -302,7 +302,7 @@ function buildCompleted(wb: any, sorted: Unit[]) {
   }
 
   const totalCols = headers.length;
-  const noteText = '⚠  NOTE: Certain equipment in these units is at high risk of failure. All commissioned units will require retesting once the affected equipment has been replaced.';
+  const noteText = '⚠  NOTE: Certain equipment in these units is at high risk of failure. All RED Group Tested units will require retesting once the affected equipment has been replaced.';
   const noteRow = ws.addRow([noteText]);
   noteRow.height = 40;
   ws.mergeCells(noteRow.number, 1, noteRow.number, totalCols);
