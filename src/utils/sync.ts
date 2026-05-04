@@ -67,8 +67,27 @@ async function checkForRemoteChanges() {
 }
 
 if (Platform.OS !== 'web') {
+  // Native: poll and flag — user taps Sync manually
   setTimeout(checkForRemoteChanges, 5000);
   setInterval(checkForRemoteChanges, 30000);
+} else {
+  // Web: poll and auto-apply so changes from APK appear without manual interaction
+  async function webAutoPoll() {
+    try {
+      const { data } = await supabase
+        .from('sync_state')
+        .select('updated_at')
+        .eq('id', 1)
+        .single();
+      if (!data?.updated_at) return;
+      const remoteTime = new Date(data.updated_at).getTime();
+      if (remoteTime > _lastPushedAt + 10000) {
+        await syncWithCloud();
+      }
+    } catch {}
+  }
+  setTimeout(webAutoPoll, 5000);
+  setInterval(webAutoPoll, 30000);
 }
 
 function collectRemoteImageUrls(units: UnitsStore): string[] {
