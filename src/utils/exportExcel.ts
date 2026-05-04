@@ -155,12 +155,12 @@ function buildComponents(wb: any, sorted: Unit[]) {
 // ─── Sheet 3: Issues Log (with embedded images) ───────────────────────────────
 async function buildIssues(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Issues Log');
-  const headers = ['Unit ID', 'Side', 'Unit #', 'Component', 'Date Found', 'Found By', 'Responsible Party', 'Notes', 'Status', 'Date Fixed', 'Fixed By', 'How Fixed', 'Photos'];
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Component', 'Date Found', 'Last Updated', 'Found By', 'Responsible Party', 'Notes', 'Status', 'Date Fixed', 'Fixed By', 'How Fixed', 'Photos'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
 
-  const IMG_COL = 13; // 1-indexed column for photos
+  const IMG_COL = 14; // 1-indexed column for photos
   const IMG_H   = 80; // pixel height for thumbnail rows
   const IMG_W   = 80; // pixel width per thumbnail
 
@@ -190,7 +190,7 @@ async function buildIssues(wb: any, sorted: Unit[]) {
 
     const r = ws.addRow([
       unitId, side, unitNum, label,
-      fmtDate(issue.dateFound), issue.foundBy, (issue as any).responsibleParty ?? '', issue.notes,
+      fmtDate(issue.dateFound), fmtDate(issue.dateUpdated), issue.foundBy, (issue as any).responsibleParty ?? '', issue.notes,
       issue.resolved ? 'Resolved' : 'Open',
       fmtDate(issue.dateFixed), issue.fixedBy ?? '', issue.howFixed ?? '',
       '',
@@ -231,7 +231,7 @@ async function buildIssues(wb: any, sorted: Unit[]) {
     applyCell(r.getCell(1), 'No issues logged', WHT, false);
   }
 
-  freezeAndWidth(ws, [9, 7, 7, 18, 12, 14, 18, 40, 10, 12, 14, 40, 60]);
+  freezeAndWidth(ws, [9, 7, 7, 18, 12, 12, 14, 18, 40, 10, 12, 14, 40, 60]);
 }
 
 // ─── Sheet 4: Completed Units ─────────────────────────────────────────────────
@@ -304,7 +304,7 @@ function buildWithIssues(wb: any, sorted: Unit[]) {
 // ─── Sheet 6: General Issues ──────────────────────────────────────────────────
 function buildGeneralIssues(wb: any, issues: GeneralIssue[]) {
   const ws = wb.addWorksheet('General Issues');
-  const headers = ['Date Found', 'Found By', 'Responsible Party', 'Notes', 'Status', 'Date Fixed', 'Fixed By', 'How Fixed'];
+  const headers = ['Date Found', 'Last Updated', 'Found By', 'Responsible Party', 'Notes', 'Status', 'Date Fixed', 'Fixed By', 'How Fixed'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
@@ -312,15 +312,15 @@ function buildGeneralIssues(wb: any, issues: GeneralIssue[]) {
   const sorted = [...issues].sort((a, b) => b.dateFound.localeCompare(a.dateFound));
   for (const issue of sorted) {
     const clr = issue.resolved ? GRN : RED;
-    const r = ws.addRow([fmtDate(issue.dateFound), issue.foundBy, issue.responsibleParty ?? '', issue.notes, issue.resolved ? 'Resolved' : 'Open', fmtDate(issue.dateFixed), issue.fixedBy ?? '', issue.howFixed ?? '']);
-    r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, clr, col === 5, col === 1 || col >= 5));
+    const r = ws.addRow([fmtDate(issue.dateFound), fmtDate(issue.dateUpdated), issue.foundBy, issue.responsibleParty ?? '', issue.notes, issue.resolved ? 'Resolved' : 'Open', fmtDate(issue.dateFixed), issue.fixedBy ?? '', issue.howFixed ?? '']);
+    r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, clr, col === 6, col === 1 || col >= 6));
     r.height = 18;
   }
   if (issues.length === 0) {
     const r = ws.addRow(['No general issues logged']);
     applyCell(r.getCell(1), 'No general issues logged', WHT);
   }
-  freezeAndWidth(ws, [12, 14, 18, 40, 10, 12, 14, 40]);
+  freezeAndWidth(ws, [12, 12, 14, 18, 40, 10, 12, 14, 40]);
 }
 
 // ─── Export entry point ───────────────────────────────────────────────────────

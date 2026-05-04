@@ -194,6 +194,7 @@ function IssueCard({ issue, onResolve, onDelete, onEdit, onAddImage, onRemoveIma
       {expanded && (
         <View style={ic.body}>
           {!!issue.notes && <View style={ic.detailRow}><Text style={ic.detailLabel}>Notes:</Text><Text style={ic.detailValue}>{issue.notes}</Text></View>}
+          {!!issue.dateUpdated && <View style={ic.detailRow}><Text style={ic.detailLabel}>Last Updated:</Text><Text style={ic.detailValue}>{fmtDate(issue.dateUpdated)}</Text></View>}
           {issue.resolved && (
             <>
               <View style={ic.detailRow}><Text style={ic.detailLabel}>Fixed:</Text><Text style={ic.detailValue}>{fmtDate(issue.dateFixed)}</Text></View>
@@ -415,9 +416,11 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
 
   const handleAddIssue = useCallback((data: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; images: string[] }) => {
     const id = genId();
+    const now = new Date().toISOString();
     const issue: MiscIssue = {
       id,
-      dateFound: (() => { const p = parse(data.dateFound, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : new Date().toISOString(); })(),
+      dateFound: (() => { const p = parse(data.dateFound, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : now; })(),
+      dateUpdated: now,
       foundBy: data.foundBy, responsibleParty: data.responsibleParty || undefined, notes: data.notes, resolved: false,
       images: data.images.length > 0 ? data.images : undefined,
     };

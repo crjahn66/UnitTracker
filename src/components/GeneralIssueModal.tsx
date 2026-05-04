@@ -135,6 +135,7 @@ function IssueCard({ issue, onResolve, onDelete }: {
         <View style={ic.body}>
           <Text style={ic.notes}>{issue.notes}</Text>
           {issue.responsibleParty ? <Text style={ic.meta}>Responsible: {issue.responsibleParty}</Text> : null}
+          {issue.dateUpdated ? <Text style={ic.meta}>Last Updated: {fmtDate(issue.dateUpdated)}</Text> : null}
           {issue.resolved && (
             <>
               {issue.dateFixed  ? <Text style={ic.meta}>Fixed: {fmtDate(issue.dateFixed)}</Text> : null}
@@ -175,6 +176,7 @@ export default function GeneralIssueModal({ onClose }: Props) {
     addGeneralIssue({
       id: genId(),
       dateFound: parseDate(data.dateFound),
+      dateUpdated: new Date().toISOString(),
       foundBy: data.foundBy,
       responsibleParty: data.responsibleParty || undefined,
       notes: data.notes,

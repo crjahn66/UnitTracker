@@ -40,6 +40,7 @@ export interface Issue {
   id: string;
   componentKey: ComponentKey;
   dateFound: string;
+  dateUpdated?: string;
   foundBy: string;
   responsibleParty?: string;
   notes: string;
@@ -69,6 +70,7 @@ export type ComponentsData = Record<ComponentKey, ComponentData>;
 export interface MiscIssue {
   id: string;
   dateFound: string;
+  dateUpdated?: string;
   foundBy: string;
   responsibleParty?: string;
   notes: string;
@@ -112,6 +114,7 @@ export type UnitsStore = Record<string, Unit>;
 export interface GeneralIssue {
   id: string;
   dateFound: string;
+  dateUpdated?: string;
   foundBy: string;
   responsibleParty?: string;
   notes: string;

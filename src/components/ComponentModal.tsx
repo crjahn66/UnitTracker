@@ -238,6 +238,7 @@ function IssueCard({ issue, onResolve, onDelete, onEdit, onAddImage, onRemoveIma
       {expanded && (
         <View style={ic.body}>
           <DetailRow label="Notes" value={issue.notes} />
+          {issue.dateUpdated && <DetailRow label="Last Updated" value={fmtDate(issue.dateUpdated)} />}
           {issue.resolved && (
             <>
               <DetailRow label="Fixed" value={fmtDate(issue.dateFixed)} />
@@ -501,10 +502,12 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
   const handleAddIssue = useCallback(
     (data: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; images: string[] }) => {
       const id = genId();
+      const now = new Date().toISOString();
       const issue: Issue = {
         id,
         componentKey,
-        dateFound: (() => { const p = parse(data.dateFound, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : new Date().toISOString(); })(),
+        dateFound: (() => { const p = parse(data.dateFound, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : now; })(),
+        dateUpdated: now,
         foundBy: data.foundBy,
         responsibleParty: data.responsibleParty || undefined,
         notes: data.notes,

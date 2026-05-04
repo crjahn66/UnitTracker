@@ -185,7 +185,7 @@ export const useStore = create<StoreState>()(
                   [componentKey]: {
                     ...comp,
                     issues: comp.issues.map((i) =>
-                      i.id === issueId ? { ...i, ...updates } : i
+                      i.id === issueId ? { ...i, ...updates, dateUpdated: new Date().toISOString() } : i
                     ),
                   },
                 },
@@ -328,7 +328,7 @@ export const useStore = create<StoreState>()(
                 ...u,
                 miscEquipment: (u.miscEquipment ?? []).map((item) =>
                   item.id === itemId
-                    ? { ...item, issues: item.issues.map((i) => i.id === issueId ? { ...i, ...updates } : i) }
+                    ? { ...item, issues: item.issues.map((i) => i.id === issueId ? { ...i, ...updates, dateUpdated: new Date().toISOString() } : i) }
                     : item
                 ),
               },
@@ -360,7 +360,7 @@ export const useStore = create<StoreState>()(
       updateGeneralIssue: (issueId, updates) =>
         set((state) => ({
           generalIssues: state.generalIssues.map((i) =>
-            i.id === issueId ? { ...i, ...updates } : i
+            i.id === issueId ? { ...i, ...updates, dateUpdated: new Date().toISOString() } : i
           ),
         })),
 
@@ -415,7 +415,10 @@ export const useStore = create<StoreState>()(
                 if (!impIssue) return existIssue;
                 const deleted = existIssue.deleted || impIssue.deleted;
                 const { deleted: _d, images: _i, ...rest } = { ...existIssue, ...impIssue };
-                return { ...rest, images: mergeImages(existIssue.images, impIssue.images) ?? [], ...(deleted ? { deleted: true } : {}) };
+                const dateUpdated = (existIssue.dateUpdated && impIssue.dateUpdated)
+                  ? (existIssue.dateUpdated > impIssue.dateUpdated ? existIssue.dateUpdated : impIssue.dateUpdated)
+                  : (existIssue.dateUpdated ?? impIssue.dateUpdated);
+                return { ...rest, images: mergeImages(existIssue.images, impIssue.images) ?? [], ...(deleted ? { deleted: true } : {}), ...(dateUpdated ? { dateUpdated } : {}) };
               });
               const existIds = new Set(existComp.issues.map((i: any) => i.id));
               const newIssues = (impComp.issues ?? []).filter((i: any) => !existIds.has(i.id));
@@ -448,7 +451,10 @@ export const useStore = create<StoreState>()(
                   if (!impIssue) return existIssue;
                   const deleted = existIssue.deleted || impIssue.deleted;
                   const { deleted: _d, images: _i, ...rest } = { ...existIssue, ...impIssue };
-                  return { ...rest, images: mergeImages(existIssue.images, impIssue.images) ?? [], ...(deleted ? { deleted: true } : {}) };
+                  const dateUpdated = (existIssue.dateUpdated && impIssue.dateUpdated)
+                    ? (existIssue.dateUpdated > impIssue.dateUpdated ? existIssue.dateUpdated : impIssue.dateUpdated)
+                    : (existIssue.dateUpdated ?? impIssue.dateUpdated);
+                  return { ...rest, images: mergeImages(existIssue.images, impIssue.images) ?? [], ...(deleted ? { deleted: true } : {}), ...(dateUpdated ? { dateUpdated } : {}) };
                 });
                 const existIds = new Set(existingMisc[idx].issues.map((i) => i.id));
                 const newIssues = importItem.issues.filter((i: any) => !existIds.has(i.id));
@@ -502,7 +508,10 @@ export const useStore = create<StoreState>()(
             const imp = importGeneralMap.get(i.id);
             if (!imp) return i;
             const deleted = i.deleted || imp.deleted || undefined;
-            return { ...i, ...(deleted ? { deleted } : {}) };
+            const dateUpdated = (i.dateUpdated && imp.dateUpdated)
+              ? (i.dateUpdated > imp.dateUpdated ? i.dateUpdated : imp.dateUpdated)
+              : (i.dateUpdated ?? imp.dateUpdated);
+            return { ...i, ...imp, ...(deleted ? { deleted } : {}), ...(dateUpdated ? { dateUpdated } : {}) };
           });
           const existGeneralIds = new Set(state.generalIssues.map((i) => i.id));
           const newGeneral = importGeneralIssues.filter((i) => !existGeneralIds.has(i.id));
