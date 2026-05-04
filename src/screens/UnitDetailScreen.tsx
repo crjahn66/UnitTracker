@@ -80,10 +80,9 @@ export default function UnitDetailScreen({ route }: Props) {
           <>
             <SectionHeader title="Network" icon="wifi-outline" />
             <View style={s.card}>
-              {networkEntry.unitType ? <NetRow label="Unit Type"   value={networkEntry.unitType} first /> : null}
-              <NetRow label="Gateway IP"  value={networkEntry.gatewayIp}  first={!networkEntry.unitType} />
-              <NetRow label="PLC IP"      value={networkEntry.plcIp} />
-              <NetRow label="Chiller IP"  value={networkEntry.chillerIp}  last />
+              <NetRow label="Gateway IP" value={networkEntry.gatewayIp} first />
+              <NetRow label="PLC IP"     value={networkEntry.plcIp} />
+              <NetRow label="Chiller IP" value={networkEntry.chillerIp} last />
             </View>
           </>
         )}
