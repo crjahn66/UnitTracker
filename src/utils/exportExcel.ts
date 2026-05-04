@@ -171,12 +171,12 @@ async function buildIssues(wb: any, sorted: Unit[]) {
   for (const u of sorted) {
     for (const comp of COMPONENTS) {
       const label = u.customComponentLabels?.[comp.key] ?? comp.label;
-      for (const issue of u.components[comp.key].issues) {
+      for (const issue of u.components[comp.key].issues.filter((i) => !i.deleted)) {
         rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label });
       }
     }
     for (const item of (u.miscEquipment ?? [])) {
-      for (const issue of item.issues) {
+      for (const issue of (item.issues ?? []).filter((i: any) => !i.deleted)) {
         rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label: item.label || 'Misc Equipment' });
       }
     }
@@ -291,26 +291,32 @@ function buildCompleted(wb: any, sorted: Unit[]) {
 // ─── Sheet 5: Units with Issues ───────────────────────────────────────────────
 function buildWithIssues(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Units with Issues');
-  const headers = ['Unit ID', 'Side', 'Unit #', 'Open Issues', 'Total Issues', 'Components Affected', 'Stages Done', 'Status'];
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Open Issues', 'Total Issues', 'Components Affected', 'Responsible Party', 'Stages Done', 'Status'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
 
   const affected = sorted.filter((u) => {
-    const compOpen = Object.values(u.components).flatMap((c) => c.issues).some((i) => !i.resolved);
-    const miscOpen = (u.miscEquipment ?? []).flatMap((m) => m.issues).some((i) => !i.resolved);
+    const compOpen = Object.values(u.components).flatMap((c) => c.issues).some((i) => !i.resolved && !i.deleted);
+    const miscOpen = (u.miscEquipment ?? []).flatMap((m) => m.issues).some((i) => !i.resolved && !(i as any).deleted);
     return compOpen || miscOpen;
   });
 
   for (const u of affected) {
-    const all = [...Object.values(u.components).flatMap((c) => c.issues), ...(u.miscEquipment ?? []).flatMap((m) => m.issues)];
+    const all = [
+      ...Object.values(u.components).flatMap((c) => c.issues),
+      ...(u.miscEquipment ?? []).flatMap((m) => m.issues),
+    ].filter((i) => !(i as any).deleted);
     const open = all.filter((i) => !i.resolved).length;
     const done = STAGES.filter((s) => normalizeStageStatus(u.stages[s.key]) === 'complete').length;
     const names = [
-      ...COMPONENTS.filter((comp) => u.components[comp.key].issues.some((i) => !i.resolved)).map((comp) => u.customComponentLabels?.[comp.key] ?? comp.label),
-      ...(u.miscEquipment ?? []).filter((m) => m.issues.some((i) => !i.resolved)).map((m) => m.label || 'Misc Equipment'),
+      ...COMPONENTS.filter((comp) => u.components[comp.key].issues.some((i) => !i.resolved && !i.deleted)).map((comp) => u.customComponentLabels?.[comp.key] ?? comp.label),
+      ...(u.miscEquipment ?? []).filter((m) => m.issues.some((i) => !i.resolved && !(i as any).deleted)).map((m) => m.label || 'Misc Equipment'),
     ].join(', ');
-    const r = ws.addRow([u.id, u.side, u.unitNumber, open, all.length, names, `${done} / ${STAGES.length}`, done === STAGES.length ? 'Complete (Issues)' : 'In Progress']);
+    const parties = [...new Set(
+      all.filter((i) => !i.resolved).map((i) => (i as any).responsibleParty).filter(Boolean)
+    )].join(', ');
+    const r = ws.addRow([u.id, u.side, u.unitNumber, open, all.length, names, parties, `${done} / ${STAGES.length}`, done === STAGES.length ? 'Complete (Issues)' : 'In Progress']);
     r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, RED, col === 1, col >= 3));
     r.height = 18;
   }
@@ -318,7 +324,7 @@ function buildWithIssues(wb: any, sorted: Unit[]) {
     const r = ws.addRow(['No units with open issues']);
     applyCell(r.getCell(1), 'No units with open issues', WHT);
   }
-  freezeAndWidth(ws, [9, 7, 7, 12, 12, 40, 12, 20]);
+  freezeAndWidth(ws, [9, 7, 7, 12, 12, 40, 20, 12, 20]);
 }
 
 // ─── Sheet 6: General Issues ──────────────────────────────────────────────────
