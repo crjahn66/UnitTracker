@@ -10,6 +10,7 @@ import { STAGES, COMPONENTS, UnitsStore, GeneralIssue, Unit } from '../types';
 import { exportToExcel } from '../utils/exportExcel';
 import { backupData, restoreData } from '../utils/backup';
 import { syncWithCloud, wipeAllPhotos } from '../utils/sync';
+import { supabase } from '../utils/supabase';
 import GeneralIssueModal from '../components/GeneralIssueModal';
 
 function isUnitCommissioned(unit: Unit): boolean {
@@ -431,6 +432,17 @@ export default function ReportsScreen() {
 
       {generalModalOpen && <GeneralIssueModal onClose={() => setGeneralModalOpen(false)} />}
 
+      {Platform.OS === 'web' && (
+        <TouchableOpacity
+          style={s.logoutBtn}
+          onPress={() => supabase.auth.signOut()}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="log-out-outline" size={16} color="#6e7681" style={{ marginRight: 6 }} />
+          <Text style={s.logoutBtnText}>Sign Out</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Overall progress */}
       <SectionHeader title="Overall Progress" />
       <View style={s.card}>
@@ -643,4 +655,9 @@ const s = StyleSheet.create({
   issueDate: { color: '#6e7681', fontSize: 11 },
   issueNotes: { color: '#e6edf3', fontSize: 13, marginBottom: 4 },
   issueBy: { color: '#6e7681', fontSize: 11 },
+  logoutBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    marginTop: 32, paddingVertical: 10,
+  },
+  logoutBtnText: { color: '#6e7681', fontSize: 13 },
 });

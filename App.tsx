@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import Navigation from './src/navigation';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import AuthGate from './src/components/AuthGate';
 import { useStore } from './src/store/useStore';
 import { pushToCloud } from './src/utils/sync';
 
@@ -23,7 +24,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       <StatusBar style="light" />
-      <Navigation />
+      <AuthGate>
+        <Navigation />
+      </AuthGate>
     </ErrorBoundary>
   );
 }
