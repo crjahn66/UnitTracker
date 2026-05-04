@@ -408,6 +408,64 @@ function buildGeneralIssues(wb: any, issues: GeneralIssue[]) {
   freezeAndWidth(ws, colWidths);
 }
 
+// ─── Sheet 7: Commissioning Readiness ─────────────────────────────────────────
+const SOUTH_READY_UNITS = new Set([3, 6, 9, 12, 15]);
+
+function buildReadiness(wb: any, sorted: Unit[]) {
+  const ws = wb.addWorksheet('Commissioning Readiness');
+  const colWidths = [9, 7, 7, 16, 58];
+  const totalCols = colWidths.length;
+
+  const banners: { text: string; isTitle: boolean }[] = [
+    { text: 'COMMISSIONING READINESS STATUS', isTitle: true },
+    { text: '⚠  Units marked NOT READY have not been signed off by Integra for RED Group to complete testing.' , isTitle: false },
+    { text: '⚠  All NORTH SIDE units are currently unavailable — pending Integra sign-off.', isTitle: false },
+    { text: '⚠  SOUTH SIDE: VFD chillers are not available except on units 3, 6, 9, 12, and 15.', isTitle: false },
+    { text: '⚠  DATA HALL 2 units (North & South) are unavailable pending equipment availability.', isTitle: false },
+  ];
+  for (const { text, isTitle } of banners) {
+    const r = ws.addRow([text]);
+    ws.mergeCells(r.number, 1, r.number, totalCols);
+    const cell = r.getCell(1);
+    cell.value = text;
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isTitle ? 'FF1E3A5F' : 'FFFCE4D6' } };
+    cell.font = { name: 'Calibri', size: isTitle ? 12 : 10, bold: true, color: { argb: isTitle ? 'FFFFFFFF' : 'FF833C00' } };
+    cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FFD0D0D0' } }, bottom: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+      left: { style: 'thin', color: { argb: 'FFD0D0D0' } }, right: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+    };
+    r.height = isTitle ? 26 : 20;
+  }
+
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Status', 'Notes / Reason'];
+  const hdrRow = ws.addRow(headers);
+  hdrRow.eachCell((cell: any) => applyHeader(cell, cell.value));
+  hdrRow.height = 28;
+
+  let currentSide = '';
+  for (const u of sorted) {
+    if (u.side !== currentSide) {
+      currentSide = u.side;
+      addSectionHeader(ws, u.side.toUpperCase(), totalCols);
+    }
+    const ready = u.side === 'South' && SOUTH_READY_UNITS.has(u.unitNumber);
+    const status = ready ? 'READY' : 'NOT READY';
+    const reason = ready
+      ? 'Available for full commissioning'
+      : u.side === 'North'
+        ? 'All North side units are unavailable — pending Integra sign-off'
+        : 'VFD chiller unavailable — pending Integra sign-off';
+    const clr = ready ? GRN : RED;
+    const r = ws.addRow([u.id, u.side, u.unitNumber, status, reason]);
+    r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, clr, col === 4, col >= 2));
+    r.height = autoRowHeight(r, colWidths);
+  }
+
+  ws.views = [{ state: 'frozen', ySplit: 6 }];
+  ws.columns = colWidths.map((width) => ({ width }));
+}
+
 // ─── Export entry point ───────────────────────────────────────────────────────
 export const exportToExcel = async (units: Record<string, Unit>, generalIssues: GeneralIssue[]): Promise<void> => {
   const wb = new ExcelJS.Workbook();
@@ -424,6 +482,7 @@ export const exportToExcel = async (units: Record<string, Unit>, generalIssues: 
   buildCompleted(wb, sorted);
   buildWithIssues(wb, sorted);
   buildGeneralIssues(wb, generalIssues);
+  buildReadiness(wb, sorted);
 
   const filename = `UnitTracker_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`;
   const buffer: ArrayBuffer = await wb.xlsx.writeBuffer();
