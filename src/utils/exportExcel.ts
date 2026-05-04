@@ -87,20 +87,21 @@ function buildOverview(wb: any, sorted: Unit[]) {
                  : done > 0 ? 'In Progress' : 'Not Started';
     const stageLabel = (s: typeof STAGES[number]) => {
       const st = normalizeStageStatus(u.stages[s.key]);
-      if (st === 'complete')   return '✓ Done';
-      if (st === 'inProgress') return '⏳ In Progress';
-      if (st === 'stuck')      return '⚠ Stuck';
-      return '—';
+      const note = u.stagesNotes?.[s.key];
+      const base = st === 'complete' ? '✓ Done' : st === 'inProgress' ? '⏳ In Progress' : st === 'stuck' ? '⚠ Stuck' : '—';
+      return note ? `${base}\n${note}` : base;
     };
     const rowData = [u.id, u.side, u.unitNumber, ...STAGES.map(stageLabel), `${done} / ${STAGES.length}`, open, status];
     const r = ws.addRow(rowData);
+    const hasNote = STAGES.some((s) => !!u.stagesNotes?.[s.key]);
     r.eachCell((cell: any, col: number) => {
       const isStageCol = col >= 4 && col <= 3 + STAGES.length;
-      const stageClr = isStageCol ? (cell.value === '✓ Done' ? GRN : cell.value?.startsWith?.('⚠') ? RED : cell.value?.startsWith?.('⏳') ? AMB : GRY) : null;
+      const rawVal = typeof cell.value === 'string' ? cell.value.split('\n')[0] : cell.value;
+      const stageClr = isStageCol ? (rawVal === '✓ Done' ? GRN : rawVal?.startsWith?.('⚠') ? RED : rawVal?.startsWith?.('⏳') ? AMB : GRY) : null;
       const c = isStageCol ? stageClr! : (col === 3 + STAGES.length + 2 && open > 0 ? RED : clr);
       applyCell(cell, cell.value, c, col === 1 || isStageCol, col >= 3);
     });
-    r.height = 18;
+    r.height = hasNote ? 32 : 18;
   }
   freezeAndWidth(ws, [9, 7, 7, 24, 22, 14, 16, 11, 10, 12]);
 }
