@@ -408,14 +408,15 @@ export const useStore = create<StoreState>()(
               const existIds = new Set(existComp.issues.map((i: any) => i.id));
               const newIssues = (impComp.issues ?? []).filter((i: any) => !existIds.has(i.id));
 
+              const mergedStatus = impComp.status ?? existComp.status;
               mergedComponents[comp] = {
-                status: impComp.status ?? existComp.status,
+                status: mergedStatus,
                 issues: [...mergedIssues, ...newIssues],
                 progressNote: 'progressNote' in impComp ? impComp.progressNote : existComp.progressNote,
                 goodNote: 'goodNote' in impComp ? impComp.goodNote : existComp.goodNote,
-                goodDate:       'goodDate'       in impComp ? impComp.goodDate       : existComp.goodDate,
-                inProgressDate: 'inProgressDate' in impComp ? impComp.inProgressDate : existComp.inProgressDate,
-                badDate:        'badDate'        in impComp ? impComp.badDate        : existComp.badDate,
+                goodDate:       mergedStatus === 'good'       ? (impComp.goodDate       ?? existComp.goodDate)       : undefined,
+                inProgressDate: mergedStatus === 'inProgress' ? (impComp.inProgressDate ?? existComp.inProgressDate) : undefined,
+                badDate:        mergedStatus === 'bad'        ? (impComp.badDate        ?? existComp.badDate)        : undefined,
                 progressImages: mergeImages(existComp.progressImages, impComp.progressImages),
                 goodImages: mergeImages(existComp.goodImages, impComp.goodImages),
               };
@@ -440,14 +441,17 @@ export const useStore = create<StoreState>()(
                 const existIds = new Set(existingMisc[idx].issues.map((i) => i.id));
                 const newIssues = importItem.issues.filter((i: any) => !existIds.has(i.id));
                 const miscDeleted = existingMisc[idx].deleted || importItem.deleted || undefined;
+                const mergedMiscStatus = importItem.status ?? existingMisc[idx].status;
                 existingMisc[idx] = {
                   ...existingMisc[idx],
                   ...(miscDeleted ? { deleted: miscDeleted } : {}),
-                  status: importItem.status ?? existingMisc[idx].status,
+                  status: mergedMiscStatus,
                   issues: [...mergedMiscIssues, ...newIssues],
                   progressNote: 'progressNote' in importItem ? importItem.progressNote : existingMisc[idx].progressNote,
                   goodNote: 'goodNote' in importItem ? importItem.goodNote : existingMisc[idx].goodNote,
-                  goodDate: 'goodDate' in importItem ? importItem.goodDate : existingMisc[idx].goodDate,
+                  goodDate:       mergedMiscStatus === 'good'       ? (importItem.goodDate       ?? existingMisc[idx].goodDate)       : undefined,
+                  inProgressDate: mergedMiscStatus === 'inProgress' ? (importItem.inProgressDate ?? existingMisc[idx].inProgressDate) : undefined,
+                  badDate:        mergedMiscStatus === 'bad'        ? (importItem.badDate        ?? existingMisc[idx].badDate)        : undefined,
                   progressImages: mergeImages(existingMisc[idx].progressImages, importItem.progressImages),
                   goodImages: mergeImages(existingMisc[idx].goodImages, importItem.goodImages),
                 };
