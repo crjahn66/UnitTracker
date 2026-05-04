@@ -1,8 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Alert, Platform,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { format } from 'date-fns';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +12,7 @@ import { useStore } from '../store/useStore';
 import { STAGES, COMPONENTS, ComponentKey, StageKey } from '../types';
 import ComponentModal from '../components/ComponentModal';
 import MiscEquipModal from '../components/MiscEquipModal';
+import PhotoGalleryModal from '../components/PhotoGalleryModal';
 import { getNetworkEntry } from '../data/networkData';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitDetail'>;
@@ -22,6 +24,7 @@ export default function UnitDetailScreen({ route }: Props) {
 
   const [selectedComponent, setSelectedComponent] = useState<ComponentKey | null>(null);
   const [selectedMiscItem, setSelectedMiscItem] = useState<string | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const addMiscEquip = useStore((state) => state.addMiscEquip);
 
   const handleStageToggle = useCallback(
@@ -57,6 +60,23 @@ export default function UnitDetailScreen({ route }: Props) {
 
   const networkEntry = getNetworkEntry(unit.side, unit.unitNumber);
   const stagesComplete = STAGES.filter((st) => unit.stages[st.key]).length;
+
+  const photoCount = useMemo(() => {
+    let n = 0;
+    for (const comp of allComps) {
+      n += (comp.progressImages ?? []).filter((u) => u.startsWith('https://')).length;
+      n += (comp.goodImages ?? []).filter((u) => u.startsWith('https://')).length;
+      for (const issue of comp.issues.filter((i) => !i.deleted))
+        n += (issue.images ?? []).filter((u) => u.startsWith('https://')).length;
+    }
+    for (const item of miscItems) {
+      n += (item.progressImages ?? []).filter((u) => u.startsWith('https://')).length;
+      n += (item.goodImages ?? []).filter((u) => u.startsWith('https://')).length;
+      for (const issue of item.issues.filter((i) => !i.deleted))
+        n += (issue.images ?? []).filter((u) => u.startsWith('https://')).length;
+    }
+    return n;
+  }, [allComps, miscItems]);
   const allComps = Object.values(unit.components);
   const miscItems = (unit.miscEquipment ?? []).filter((m) => !m.deleted);
   const goodCount = allComps.filter((c) => c.status === 'good').length + miscItems.filter((m) => m.status === 'good').length;
@@ -75,6 +95,15 @@ export default function UnitDetailScreen({ route }: Props) {
       </View>
 
       <ScrollView contentContainerStyle={s.scroll}>
+        {/* Photo gallery shortcut */}
+        {photoCount > 0 && (
+          <TouchableOpacity style={s.galleryBtn} onPress={() => setGalleryOpen(true)} activeOpacity={0.7}>
+            <Ionicons name="images-outline" size={16} color="#58a6ff" style={{ marginRight: 8 }} />
+            <Text style={s.galleryBtnText}>View {photoCount} Photo{photoCount !== 1 ? 's' : ''}</Text>
+            <Ionicons name="chevron-forward" size={14} color="#6e7681" style={{ marginLeft: 'auto' as any }} />
+          </TouchableOpacity>
+        )}
+
         {/* Network Info */}
         {networkEntry && (
           <>
@@ -199,6 +228,7 @@ export default function UnitDetailScreen({ route }: Props) {
         </View>
       </ScrollView>
 
+      {galleryOpen && <PhotoGalleryModal unit={unit} onClose={() => setGalleryOpen(false)} />}
       {selectedComponent && (
         <ComponentModal
           unitId={unitId}
@@ -235,12 +265,21 @@ function SectionHeader({ title, icon }: { title: string; icon: React.ComponentPr
   );
 }
 
-function NetRow({ label, value, first, last }: { label: string; value: string; first?: boolean; last?: boolean }) {
+function NetRow({ label, value, last }: { label: string; value: string; first?: boolean; last?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    await Clipboard.setStringAsync(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
   return (
-    <View style={[s.netRow, !last && s.netRowBorder, first && s.netRowFirst]}>
+    <TouchableOpacity style={[s.netRow, !last && s.netRowBorder]} onPress={handleCopy} activeOpacity={0.7}>
       <Text style={s.netLabel}>{label}</Text>
-      <Text style={s.netValue}>{value}</Text>
-    </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        {copied && <Text style={s.netCopied}>Copied  </Text>}
+        <Text style={s.netValue}>{value}</Text>
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -333,7 +372,13 @@ const s = StyleSheet.create({
   chevron: { marginLeft: 2 },
   netRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 14 },
   netRowBorder: { borderBottomWidth: 1, borderBottomColor: '#21262d' },
-  netRowFirst: {},
   netLabel: { color: '#8b949e', fontSize: 13, fontWeight: '500' },
   netValue: { color: '#e6edf3', fontSize: 13, fontWeight: '500', fontVariant: ['tabular-nums'] },
+  netCopied: { color: '#3fb950', fontSize: 11, fontWeight: '600' },
+  galleryBtn: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#161b22', borderRadius: 10, borderWidth: 1, borderColor: '#21262d',
+    paddingVertical: 12, paddingHorizontal: 14, marginBottom: 14,
+  },
+  galleryBtnText: { color: '#58a6ff', fontSize: 14, fontWeight: '600' },
 });

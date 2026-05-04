@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import UnitListScreen from '../screens/UnitListScreen';
 import UnitDetailScreen from '../screens/UnitDetailScreen';
 import ReportsScreen from '../screens/ReportsScreen';
+import DashboardScreen from '../screens/DashboardScreen';
 import SyncStatusBar from '../components/SyncStatusBar';
 import { Side } from '../types';
 
@@ -18,6 +19,7 @@ export type UnitStackParamList = {
 export type RootTabParamList = {
   NorthTab: undefined;
   SouthTab: undefined;
+  DashboardTab: undefined;
   Reports: undefined;
 };
 
@@ -72,9 +74,10 @@ export default function Navigation() {
           tabBarInactiveTintColor: '#6e7681',
           tabBarIcon: ({ focused, color, size }) => {
             const icons: Record<string, [string, string]> = {
-              NorthTab: ['arrow-up-circle', 'arrow-up-circle-outline'],
-              SouthTab: ['arrow-down-circle', 'arrow-down-circle-outline'],
-              Reports: ['bar-chart', 'bar-chart-outline'],
+              NorthTab:     ['arrow-up-circle',   'arrow-up-circle-outline'],
+              SouthTab:     ['arrow-down-circle', 'arrow-down-circle-outline'],
+              DashboardTab: ['grid',              'grid-outline'],
+              Reports:      ['bar-chart',         'bar-chart-outline'],
             };
             const [active, inactive] = icons[route.name] ?? ['ellipse', 'ellipse-outline'];
             return (
@@ -89,6 +92,18 @@ export default function Navigation() {
       >
         <Tab.Screen name="NorthTab" component={NorthStack} options={{ tabBarLabel: 'North (26)' }} />
         <Tab.Screen name="SouthTab" component={SouthStack} options={{ tabBarLabel: 'South (25)' }} />
+        <Tab.Screen
+          name="DashboardTab"
+          component={DashboardScreen}
+          options={{
+            headerShown: true,
+            tabBarLabel: 'Dashboard',
+            headerStyle: HEADER_STYLE,
+            headerTintColor: '#e6edf3',
+            title: 'Dashboard',
+            headerRight: () => <SyncStatusBar />,
+          }}
+        />
         <Tab.Screen
           name="Reports"
           component={ReportsScreen}
