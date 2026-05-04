@@ -48,6 +48,17 @@ function freezeAndWidth(ws: any, widths: number[]) {
   ws.columns = widths.map((width) => ({ width }));
 }
 
+function addSectionHeader(ws: any, label: string, totalCols: number) {
+  const r = ws.addRow([label]);
+  ws.mergeCells(r.number, 1, r.number, totalCols);
+  const cell = r.getCell(1);
+  cell.value = label;
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } };
+  cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+  cell.alignment = { horizontal: 'center', vertical: 'middle' };
+  r.height = 22;
+}
+
 const fmtDate = (iso?: string) => {
   if (!iso) return '';
   try { return format(new Date(iso), 'MM/dd/yyyy'); } catch { return iso; }
@@ -72,7 +83,12 @@ function buildOverview(wb: any, sorted: Unit[]) {
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
 
+  let currentSide = '';
   for (const u of sorted) {
+    if (u.side !== currentSide) {
+      currentSide = u.side;
+      addSectionHeader(ws, u.side.toUpperCase(), headers.length);
+    }
     const clr = rowClr(u);
     const allIssues = [
       ...Object.values(u.components).flatMap((c) => c.issues),
@@ -115,6 +131,7 @@ function buildComponents(wb: any, sorted: Unit[]) {
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
 
+  let currentSide = '';
   for (const u of sorted) {
     const clr = rowClr(u);
     const misc = u.miscEquipment ?? [];
@@ -126,6 +143,10 @@ function buildComponents(wb: any, sorted: Unit[]) {
     }).join(', ');
     const miscClr = misc.some((m) => m.status === 'bad') ? RED : misc.some((m) => m.status === 'inProgress') ? AMB : misc.some((m) => m.status === 'good') ? GRN : GRY;
 
+    if (u.side !== currentSide) {
+      currentSide = u.side;
+      addSectionHeader(ws, u.side.toUpperCase(), headers.length);
+    }
     const rowData: (string | number)[] = [u.id, u.side, u.unitNumber];
     const compClrs: Clr[] = [];
     let anyDate = false;
@@ -188,10 +209,14 @@ async function buildIssues(wb: any, sorted: Unit[]) {
     return a.issue.dateFound.localeCompare(b.issue.dateFound);
   });
 
+  let currentSide = '';
   for (let idx = 0; idx < rows.length; idx++) {
     const { issue, unitId, side, unitNum, label } = rows[idx];
     const clr = issue.resolved ? GRN : RED;
-    const excelRow = idx + 2; // 1-indexed, row 1 is header
+    if (side !== currentSide) {
+      currentSide = side;
+      addSectionHeader(ws, side.toUpperCase(), IMG_COL);
+    }
 
     const r = ws.addRow([
       unitId, side, unitNum, label,
@@ -200,6 +225,7 @@ async function buildIssues(wb: any, sorted: Unit[]) {
       fmtDate(issue.dateFixed), issue.fixedBy ?? '', issue.howFixed ?? '',
       '',
     ]);
+    const excelRow = r.number;
     r.eachCell((cell: any, col: number) => {
       if (col === IMG_COL) return;
       applyCell(cell, cell.value, clr, col === 1, col >= 3);
@@ -254,7 +280,12 @@ function buildCompleted(wb: any, sorted: Unit[]) {
     return STAGES.every((s) => normalizeStageStatus(u.stages[s.key]) === 'complete') && open === 0;
   });
 
+  let currentSide = '';
   for (const u of done) {
+    if (u.side !== currentSide) {
+      currentSide = u.side;
+      addSectionHeader(ws, u.side.toUpperCase(), headers.length);
+    }
     const comps = Object.values(u.components);
     const r = ws.addRow([
       u.id, u.side, u.unitNumber,
@@ -306,7 +337,12 @@ function buildWithIssues(wb: any, sorted: Unit[]) {
     return compOpen || miscOpen;
   });
 
+  let currentSide = '';
   for (const u of affected) {
+    if (u.side !== currentSide) {
+      currentSide = u.side;
+      addSectionHeader(ws, u.side.toUpperCase(), headers.length);
+    }
     const all = [
       ...Object.values(u.components).flatMap((c) => c.issues),
       ...(u.miscEquipment ?? []).flatMap((m) => m.issues),
