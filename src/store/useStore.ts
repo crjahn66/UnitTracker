@@ -503,7 +503,12 @@ export const useStore = create<StoreState>()(
                 });
                 const existIds = new Set(existingMisc[idx].issues.map((i) => i.id));
                 const newIssues = importItem.issues.filter((i: any) => !existIds.has(i.id));
-                const miscDeleted = existingMisc[idx].deleted || importItem.deleted || undefined;
+                // If the incoming side is alive and brings new issues that don't exist
+                // locally, treat it as a resurrection: the item was un-deleted on the
+                // other device (e.g. APK added an issue before pulling the tombstone).
+                const miscDeleted = (!importItem.deleted && newIssues.length > 0)
+                  ? undefined
+                  : (existingMisc[idx].deleted || importItem.deleted || undefined);
                 const mergedMiscStatus = importItem.status ?? existingMisc[idx].status;
                 existingMisc[idx] = {
                   ...existingMisc[idx],
