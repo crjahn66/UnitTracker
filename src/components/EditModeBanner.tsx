@@ -6,7 +6,7 @@ import { EDIT_TIMEOUT_MS, useEditMode } from '../context/EditModeContext';
 const STATUS_BAR_HEIGHT = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) : 0;
 
 export default function EditModeBanner() {
-  const { isEditMode, lastActivity, enterEditMode } = useEditMode();
+  const { isEditMode, lastActivity, isPaused, enterEditMode } = useEditMode();
   const [secondsLeft, setSecondsLeft] = useState(30);
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export default function EditModeBanner() {
       <View style={[s.banner, s.editBanner]}>
         <Ionicons name="pencil" size={12} color="#fff" style={{ marginRight: 6 }} />
         <Text style={s.editText}>EDIT MODE</Text>
-        <Text style={s.countdown}>  ·  Locks in {secondsLeft}s</Text>
+        <Text style={s.countdown}>  ·  {isPaused ? 'Syncing...' : `Locks in ${secondsLeft}s`}</Text>
       </View>
     );
   }

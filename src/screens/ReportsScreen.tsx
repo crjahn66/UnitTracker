@@ -166,7 +166,7 @@ export default function ReportsScreen() {
   const generalIssues = useStore((state) => state.generalIssues);
   const loadBackup    = useStore((state) => state.loadBackup);
   const mergeImport   = useStore((state) => state.mergeImport);
-  const { isEditMode } = useEditMode();
+  const { isEditMode, pauseTimer, resumeTimer } = useEditMode();
   const [exporting, setExporting]           = useState(false);
   const [backingUp, setBackingUp]           = useState(false);
   const [restoring, setRestoring]           = useState(false);
@@ -304,13 +304,22 @@ export default function ReportsScreen() {
     setSyncing(true);
     setSyncError(null);
     setSyncWarning(null);
-    const result = await syncWithCloud();
-    setSyncing(false);
-    if (result.success) {
-      setLastSync(format(new Date(), 'h:mm a'));
-      setSyncWarning(result.warning ?? null);
-    } else {
-      setSyncError(result.error ?? 'Sync failed');
+
+    // Pause edit mode timer during sync to prevent auto-lock
+    pauseTimer();
+
+    try {
+      const result = await syncWithCloud();
+      if (result.success) {
+        setLastSync(format(new Date(), 'h:mm a'));
+        setSyncWarning(result.warning ?? null);
+      } else {
+        setSyncError(result.error ?? 'Sync failed');
+      }
+    } finally {
+      setSyncing(false);
+      // Resume edit mode timer after sync completes
+      resumeTimer();
     }
   };
 
