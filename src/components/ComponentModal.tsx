@@ -395,18 +395,20 @@ function EditIssueForm({ issue, onSave, onCancel }: {
 
 // ─── Status Image Strip (for good/inProgress note boxes) ─────────────────────
 
-function StatusImageStrip({ images, onAdd, onRemove, onView, accentColor }: {
+function StatusImageStrip({ images, onAdd, onRemove, onView, accentColor, canEdit }: {
   images: string[];
   onAdd: (uri: string, file?: File) => void;
   onRemove: (uri: string) => void;
   onView: (uri: string) => void;
   accentColor: string;
+  canEdit: boolean;
 }) {
   const pick = async () => {
     const result = await DocumentPicker.getDocumentAsync({ type: 'image/*', multiple: true, copyToCacheDirectory: true });
     if (!result.canceled) result.assets.forEach((a) => onAdd(a.uri, (a as any).file));
   };
   if (images.length === 0) {
+    if (!canEdit) return null;
     return (
       <TouchableOpacity style={[img.statusAddBtn, { borderColor: accentColor + '66' }]} onPress={pick} activeOpacity={0.7}>
         <Ionicons name="camera-outline" size={14} color={accentColor} />
@@ -414,10 +416,11 @@ function StatusImageStrip({ images, onAdd, onRemove, onView, accentColor }: {
       </TouchableOpacity>
     );
   }
+  const listData = canEdit ? [...images, '__add__'] : images;
   return (
     <FlatList
       horizontal
-      data={[...images, '__add__']}
+      data={listData}
       keyExtractor={(item) => item}
       style={{ marginTop: 8 }}
       renderItem={({ item }) => {
@@ -441,9 +444,11 @@ function StatusImageStrip({ images, onAdd, onRemove, onView, accentColor }: {
                 </View>
               )}
             </TouchableOpacity>
-            <TouchableOpacity style={img.removeBtn} onPress={() => onRemove(item)}>
-              <Ionicons name="close-circle" size={18} color="#f85149" />
-            </TouchableOpacity>
+            {canEdit && (
+              <TouchableOpacity style={img.removeBtn} onPress={() => onRemove(item)}>
+                <Ionicons name="close-circle" size={18} color="#f85149" />
+              </TouchableOpacity>
+            )}
           </View>
         );
       }}
@@ -705,25 +710,39 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
                   <Text style={m.statusDateCancelText}>Cancel</Text>
                 </TouchableOpacity>
               </View>
-            ) : (
+            ) : isEditMode ? (
               <TouchableOpacity style={m.statusDateDisplay} onPress={() => { setStatusDateValue(statusDate ? format(new Date(statusDate), 'MM/dd/yyyy') : format(new Date(), 'MM/dd/yyyy')); setEditingStatusDate(true); }} activeOpacity={0.7}>
                 <Text style={m.statusDateLabel}>STATUS DATE</Text>
                 <Text style={m.statusDateValue}>{statusDate ? format(new Date(statusDate), 'MMM d, yyyy') : 'Not set'}</Text>
                 <Ionicons name="pencil-outline" size={12} color="#6e7681" style={{ marginLeft: 6 }} />
               </TouchableOpacity>
+            ) : (
+              <View style={m.statusDateDisplay}>
+                <Text style={m.statusDateLabel}>STATUS DATE</Text>
+                <Text style={m.statusDateValue}>{statusDate ? format(new Date(statusDate), 'MMM d, yyyy') : '—'}</Text>
+              </View>
             )}
           </View>
         )}
 
         {compData.status === 'inProgress' && (
           <View style={m.progressNoteBox}>
-            <TouchableOpacity style={m.noteBoxTop} onPress={() => setView('progressNote')} activeOpacity={0.7}>
-              <View style={{ flex: 1 }}>
-                <Text style={m.progressNoteLabel}>IN PROGRESS NOTE</Text>
-                <Text style={m.progressNoteText}>{compData.progressNote || '(tap to add note)'}</Text>
+            {isEditMode ? (
+              <TouchableOpacity style={m.noteBoxTop} onPress={() => setView('progressNote')} activeOpacity={0.7}>
+                <View style={{ flex: 1 }}>
+                  <Text style={m.progressNoteLabel}>IN PROGRESS NOTE</Text>
+                  <Text style={m.progressNoteText}>{compData.progressNote || '(tap to add note)'}</Text>
+                </View>
+                <Ionicons name="pencil-outline" size={14} color="#d29922" />
+              </TouchableOpacity>
+            ) : (
+              <View style={m.noteBoxTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={m.progressNoteLabel}>IN PROGRESS NOTE</Text>
+                  <Text style={m.progressNoteText}>{compData.progressNote || '—'}</Text>
+                </View>
               </View>
-              <Ionicons name="pencil-outline" size={14} color="#d29922" />
-            </TouchableOpacity>
+            )}
             <StatusImageStrip
               images={compData.progressImages ?? []}
               onAdd={async (uri, file) => {
@@ -736,19 +755,29 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
               }}
               onView={setViewingPhoto}
               accentColor="#d29922"
+              canEdit={isEditMode}
             />
           </View>
         )}
 
         {compData.status === 'good' && (
           <View style={m.goodNoteBox}>
-            <TouchableOpacity style={m.noteBoxTop} onPress={() => setView('goodNote')} activeOpacity={0.7}>
-              <View style={{ flex: 1 }}>
-                <Text style={m.goodNoteLabel}>COMMISSIONING NOTE</Text>
-                <Text style={m.goodNoteText}>{compData.goodNote || '(tap to add note)'}</Text>
+            {isEditMode ? (
+              <TouchableOpacity style={m.noteBoxTop} onPress={() => setView('goodNote')} activeOpacity={0.7}>
+                <View style={{ flex: 1 }}>
+                  <Text style={m.goodNoteLabel}>COMMISSIONING NOTE</Text>
+                  <Text style={m.goodNoteText}>{compData.goodNote || '(tap to add note)'}</Text>
+                </View>
+                <Ionicons name="pencil-outline" size={14} color="#3fb950" />
+              </TouchableOpacity>
+            ) : (
+              <View style={m.noteBoxTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={m.goodNoteLabel}>COMMISSIONING NOTE</Text>
+                  <Text style={m.goodNoteText}>{compData.goodNote || '—'}</Text>
+                </View>
               </View>
-              <Ionicons name="pencil-outline" size={14} color="#3fb950" />
-            </TouchableOpacity>
+            )}
             <StatusImageStrip
               images={compData.goodImages ?? []}
               onAdd={async (uri, file) => {
@@ -761,6 +790,7 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
               }}
               onView={setViewingPhoto}
               accentColor="#3fb950"
+              canEdit={isEditMode}
             />
           </View>
         )}

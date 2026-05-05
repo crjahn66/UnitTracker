@@ -5,7 +5,7 @@ import { EDIT_TIMEOUT_MS, useEditMode } from '../context/EditModeContext';
 
 export default function EditModeBanner() {
   const { isEditMode, lastActivity, enterEditMode } = useEditMode();
-  const [secondsLeft, setSecondsLeft] = useState(30);
+  const [secondsLeft, setSecondsLeft] = useState(60);
 
   useEffect(() => {
     if (!isEditMode) return;
