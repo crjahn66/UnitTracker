@@ -57,6 +57,7 @@ interface StoreState {
   updateGeneralIssue: (issueId: string, updates: Partial<GeneralIssue>) => void;
   deleteGeneralIssue: (issueId: string) => void;
   mergeImport: (importUnits: UnitsStore, importGeneralIssues: GeneralIssue[]) => void;
+  mergeAdditive: (importUnits: UnitsStore, importGeneralIssues: GeneralIssue[]) => void;
   loadBackup: (units: UnitsStore, generalIssues?: GeneralIssue[]) => void;
   clearAllPhotos: () => void;
 }
@@ -614,6 +615,74 @@ export const useStore = create<StoreState>()(
           const newGeneral = importGeneralIssues.filter((i) => !existGeneralIds.has(i.id));
 
           return { units: merged, generalIssues: [...mergedGeneral, ...newGeneral] };
+        }),
+
+      // Used by web auto-push (pushToCloud): pull in items the cloud has that
+      // local doesn't (new APK issues, misc items, photos) without overwriting
+      // any field local already has. Local is treated as authoritative for
+      // status, notes, dates, and deletion state because the user just made
+      // those changes — using mergeImport here would clobber them with stale
+      // cloud values from before the user's edit.
+      mergeAdditive: (importUnits, importGeneralIssues) =>
+        set((state) => {
+          const merged: UnitsStore = { ...state.units };
+
+          const unionPhotos = (a: string[] | undefined, b: string[] | undefined): string[] | undefined => {
+            const all = [...new Set([...(a ?? []), ...(b ?? [])])].filter(Boolean);
+            return all.length ? all : undefined;
+          };
+
+          for (const [uid, importUnit] of Object.entries(importUnits)) {
+            if (!merged[uid]) { merged[uid] = importUnit as any; continue; }
+            const existing = merged[uid];
+            const imp = importUnit as any;
+
+            // Components: add missing issues + union photos. Never touch status, notes, dates.
+            const mergedComponents = { ...existing.components };
+            for (const comp of (Object.keys(existing.components) as ComponentKey[])) {
+              const existComp = existing.components[comp];
+              const impComp = imp.components?.[comp];
+              if (!impComp) continue;
+              const existIds = new Set(existComp.issues.map((i) => i.id));
+              const newIssues = (impComp.issues ?? []).filter((i: any) => !existIds.has(i.id));
+              mergedComponents[comp] = {
+                ...existComp,
+                issues: newIssues.length ? [...existComp.issues, ...newIssues] : existComp.issues,
+                progressImages: unionPhotos(existComp.progressImages, impComp.progressImages),
+                goodImages: unionPhotos(existComp.goodImages, impComp.goodImages),
+              };
+            }
+
+            // Misc equipment: add missing items + missing issues + union photos.
+            const existingMisc = [...(existing.miscEquipment ?? [])];
+            for (const importItem of (imp.miscEquipment ?? [])) {
+              let idx = existingMisc.findIndex((m) => m.id && importItem.id && m.id === importItem.id);
+              if (idx === -1) idx = existingMisc.findIndex((m) => m.label.toLowerCase() === importItem.label.toLowerCase());
+              if (idx === -1) {
+                existingMisc.push(importItem);
+              } else {
+                const existIds = new Set(existingMisc[idx].issues.map((i) => i.id));
+                const newIssues = importItem.issues.filter((i: any) => !existIds.has(i.id));
+                existingMisc[idx] = {
+                  ...existingMisc[idx],
+                  issues: newIssues.length ? [...existingMisc[idx].issues, ...newIssues] : existingMisc[idx].issues,
+                  progressImages: unionPhotos(existingMisc[idx].progressImages, importItem.progressImages),
+                  goodImages: unionPhotos(existingMisc[idx].goodImages, importItem.goodImages),
+                };
+              }
+            }
+
+            merged[uid] = { ...existing, components: mergedComponents, miscEquipment: existingMisc };
+          }
+
+          // General issues: add missing only.
+          const existGeneralIds = new Set(state.generalIssues.map((i) => i.id));
+          const newGeneral = importGeneralIssues.filter((i) => !existGeneralIds.has(i.id));
+          const mergedGeneral = newGeneral.length
+            ? [...state.generalIssues, ...newGeneral]
+            : state.generalIssues;
+
+          return { units: merged, generalIssues: mergedGeneral };
         }),
 
       clearAllPhotos: () =>

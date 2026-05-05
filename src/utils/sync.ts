@@ -331,14 +331,16 @@ export async function pushToCloud(): Promise<void> {
       }
     } catch {}
 
-    // Full merge of remote state so APK changes (issues, statuses, notes) are not
-    // overwritten. The old injectRemotePhotos only preserved photo URLs; any issue
-    // or status change from the APK since web's last sync was silently lost.
+    // Additive merge: pull in any items the cloud has that local doesn't (new
+    // APK issues, misc items, photos), but never overwrite local fields. Local
+    // is the freshest source for status/notes/dates because the user just
+    // edited — using mergeImport here would let cloud's pre-edit values clobber
+    // the user's change before the push lands.
     try {
       const { data } = await supabase.from('sync_state').select('units, general_issues').eq('id', 1).single();
       if (data?.units && typeof data.units === 'object') {
         _suppressDepth++;
-        useStore.getState().mergeImport(data.units as UnitsStore, (data.general_issues ?? []) as GeneralIssue[]);
+        useStore.getState().mergeAdditive(data.units as UnitsStore, (data.general_issues ?? []) as GeneralIssue[]);
         _suppressDepth--;
       }
     } catch {}
