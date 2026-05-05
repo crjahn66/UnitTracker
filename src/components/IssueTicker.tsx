@@ -47,7 +47,6 @@ export default function IssueTicker() {
   const [text, setText] = useState('');
   const [contentWidth, setContentWidth] = useState(0);
   const translateX = useRef(new Animated.Value(0)).current;
-  const animRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const refresh = useCallback(() => setText(buildTickerText()), []);
 
@@ -61,23 +60,25 @@ export default function IssueTicker() {
   useEffect(() => {
     if (!text || contentWidth === 0 || screenWidth === 0) return;
 
-    animRef.current?.stop();
-    translateX.setValue(screenWidth);
-
     const duration = ((screenWidth + contentWidth) / SPEED) * 1000;
+    let stopped = false;
 
-    animRef.current = Animated.loop(
+    function run() {
+      if (stopped) return;
+      translateX.setValue(screenWidth);
       Animated.timing(translateX, {
         toValue: -contentWidth,
         duration,
         easing: Easing.linear,
         useNativeDriver: Platform.OS !== 'web',
         isInteraction: false,
-      })
-    );
-    animRef.current.start();
+      }).start(({ finished }) => {
+        if (finished && !stopped) run();
+      });
+    }
 
-    return () => { animRef.current?.stop(); };
+    run();
+    return () => { stopped = true; translateX.stopAnimation(); };
   }, [text, contentWidth, screenWidth, translateX]);
 
   if (!isViewOnly || !text) return null;
