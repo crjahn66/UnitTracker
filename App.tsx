@@ -20,7 +20,8 @@ function useAutoPush() {
   const { isEditMode } = useEditMode();
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
-    const unsubscribe = useStore.subscribe(() => {
+    const unsubscribe = useStore.subscribe((state, prev) => {
+      if (state.units === prev.units && state.generalIssues === prev.generalIssues) return;
       if (isSuppressingAutoPush() || !isEditMode) return;
       clearTimeout(timer);
       timer = setTimeout(() => { pushToCloud().catch(() => {}); }, 2000);

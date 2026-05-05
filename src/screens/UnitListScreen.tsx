@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
 } from 'react-native';
@@ -46,7 +46,7 @@ function isInProgress(unit: Unit): boolean {
     || (unit.miscEquipment ?? []).some((m) => m.status !== 'unchecked');
 }
 
-function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
+const UnitCard = React.memo(function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
   const comps = Object.values(unit.components);
   const stagesComplete = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
   const good = comps.filter((c) => c.status === 'good').length;
@@ -95,7 +95,7 @@ function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
       </View>
     </TouchableOpacity>
   );
-}
+}, (prev, next) => prev.unit === next.unit);
 
 export default function UnitListScreen({ navigation, route }: Props) {
   const { side } = route.params;
@@ -128,6 +128,13 @@ export default function UnitListScreen({ navigation, route }: Props) {
     if (activeFilter === 'complete') return sideUnits.filter(isComplete);
     return sideUnits;
   }, [sideUnits, activeFilter]);
+
+  const renderItem = useCallback(({ item }: { item: Unit }) => (
+    <UnitCard
+      unit={item}
+      onPress={() => navigation.navigate('UnitDetail', { unitId: item.id })}
+    />
+  ), [navigation]);
 
   const FILTERS: { key: Filter; label: string; color: string; count: number }[] = [
     { key: 'all',        label: 'All',        color: '#58a6ff', count: sideUnits.length },
@@ -175,12 +182,7 @@ export default function UnitListScreen({ navigation, route }: Props) {
         ListEmptyComponent={
           <Text style={s.emptyText}>No units match this filter.</Text>
         }
-        renderItem={({ item }) => (
-          <UnitCard
-            unit={item}
-            onPress={() => navigation.navigate('UnitDetail', { unitId: item.id })}
-          />
-        )}
+        renderItem={renderItem}
       />
     </View>
   );

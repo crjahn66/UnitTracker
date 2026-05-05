@@ -16,6 +16,19 @@ import {
 } from '../types';
 import { createInitialUnits } from '../utils/initialData';
 
+// Debounce AsyncStorage writes — avoids a blocking I/O call on every keystroke.
+// Reads are still synchronous/immediate; only setItem is deferred.
+let _persistWriteTimer: ReturnType<typeof setTimeout>;
+const debouncedStorage = {
+  getItem: (name: string) => AsyncStorage.getItem(name),
+  setItem: (name: string, value: string) => {
+    clearTimeout(_persistWriteTimer);
+    _persistWriteTimer = setTimeout(() => AsyncStorage.setItem(name, value), 300);
+    return Promise.resolve();
+  },
+  removeItem: (name: string) => AsyncStorage.removeItem(name),
+};
+
 interface StoreState {
   units: UnitsStore;
   generalIssues: GeneralIssue[];
@@ -591,7 +604,7 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: 'unit-tracker-v1',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => debouncedStorage),
       // On web, strip image arrays before writing to localStorage to avoid
       // QuotaExceededError. Images are always retrievable from Supabase on
       // next sync; stripping them here only affects what's cached between

@@ -18,7 +18,7 @@ export default function EditModeBanner() {
       setSecondsLeft(Math.max(0, Math.ceil((EDIT_TIMEOUT_MS - elapsed) / 1000)));
     };
     tick();
-    const id = setInterval(tick, 500);
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [isEditMode, lastActivity]);
 
