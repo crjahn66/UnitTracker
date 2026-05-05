@@ -13,6 +13,7 @@ import { syncWithCloud, wipeAllPhotos } from '../utils/sync';
 import { supabase } from '../utils/supabase';
 import GeneralIssueModal from '../components/GeneralIssueModal';
 import { useEditMode } from '../context/EditModeContext';
+import { useUser } from '../context/UserContext';
 
 function isUnitCommissioned(unit: Unit): boolean {
   return STAGES.every(s => normalizeStageStatus(unit.stages[s.key]) === 'complete') &&
@@ -167,6 +168,7 @@ export default function ReportsScreen() {
   const loadBackup    = useStore((state) => state.loadBackup);
   const mergeImport   = useStore((state) => state.mergeImport);
   const { isEditMode, pauseTimer, resumeTimer } = useEditMode();
+  const { isViewOnly } = useUser();
   const [exporting, setExporting]           = useState(false);
   const [backingUp, setBackingUp]           = useState(false);
   const [restoring, setRestoring]           = useState(false);
@@ -349,24 +351,28 @@ export default function ReportsScreen() {
   return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
       {/* Export button */}
-      <TouchableOpacity style={s.exportBtn} onPress={handleExport} disabled={exporting} activeOpacity={0.8}>
-        {exporting ? <ActivityIndicator color="#0d1117" size="small" /> : <Ionicons name="download-outline" size={20} color="#0d1117" style={{ marginRight: 8 }} />}
-        <Text style={s.exportBtnText}>{exporting ? 'Generating…' : 'Export to Excel'}</Text>
-      </TouchableOpacity>
+      {!isViewOnly && (
+        <TouchableOpacity style={s.exportBtn} onPress={handleExport} disabled={exporting} activeOpacity={0.8}>
+          {exporting ? <ActivityIndicator color="#0d1117" size="small" /> : <Ionicons name="download-outline" size={20} color="#0d1117" style={{ marginRight: 8 }} />}
+          <Text style={s.exportBtnText}>{exporting ? 'Generating…' : 'Export to Excel'}</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Backup / Restore */}
-      <View style={s.backupRow}>
-        <TouchableOpacity style={[s.backupBtn, backingUp && s.btnDisabled]} onPress={handleBackup} disabled={backingUp} activeOpacity={0.8}>
-          {backingUp ? <ActivityIndicator color="#58a6ff" size="small" /> : <Ionicons name="cloud-upload-outline" size={17} color="#58a6ff" style={{ marginRight: 6 }} />}
-          <Text style={s.backupBtnText}>{backingUp ? 'Saving…' : 'Backup Data'}</Text>
-        </TouchableOpacity>
-        {isEditMode && (
-          <TouchableOpacity style={[s.restoreBtn, restoring && s.btnDisabled]} onPress={handleRestore} disabled={restoring} activeOpacity={0.8}>
-            {restoring ? <ActivityIndicator color="#d29922" size="small" /> : <Ionicons name="cloud-download-outline" size={17} color="#d29922" style={{ marginRight: 6 }} />}
-            <Text style={s.restoreBtnText}>{restoring ? 'Loading…' : 'Restore Backup'}</Text>
+      {!isViewOnly && (
+        <View style={s.backupRow}>
+          <TouchableOpacity style={[s.backupBtn, backingUp && s.btnDisabled]} onPress={handleBackup} disabled={backingUp} activeOpacity={0.8}>
+            {backingUp ? <ActivityIndicator color="#58a6ff" size="small" /> : <Ionicons name="cloud-upload-outline" size={17} color="#58a6ff" style={{ marginRight: 6 }} />}
+            <Text style={s.backupBtnText}>{backingUp ? 'Saving…' : 'Backup Data'}</Text>
           </TouchableOpacity>
-        )}
-      </View>
+          {isEditMode && (
+            <TouchableOpacity style={[s.restoreBtn, restoring && s.btnDisabled]} onPress={handleRestore} disabled={restoring} activeOpacity={0.8}>
+              {restoring ? <ActivityIndicator color="#d29922" size="small" /> : <Ionicons name="cloud-download-outline" size={17} color="#d29922" style={{ marginRight: 6 }} />}
+              <Text style={s.restoreBtnText}>{restoring ? 'Loading…' : 'Restore Backup'}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
       {false && (
         <TouchableOpacity style={[s.importBtn, importing && s.btnDisabled]} onPress={handleImport} disabled={importing} activeOpacity={0.8}>
           {importing ? <ActivityIndicator color="#3fb950" size="small" /> : <Ionicons name="git-merge-outline" size={17} color="#3fb950" style={{ marginRight: 6 }} />}
@@ -374,10 +380,12 @@ export default function ReportsScreen() {
         </TouchableOpacity>
       )}
 
-      <TouchableOpacity style={s.dailyReportBtn} onPress={() => setDailyReportOpen(true)} activeOpacity={0.8}>
-        <Ionicons name="clipboard-outline" size={17} color="#e6edf3" style={{ marginRight: 6 }} />
-        <Text style={s.dailyReportBtnText}>Daily Report</Text>
-      </TouchableOpacity>
+      {!isViewOnly && (
+        <TouchableOpacity style={s.dailyReportBtn} onPress={() => setDailyReportOpen(true)} activeOpacity={0.8}>
+          <Ionicons name="clipboard-outline" size={17} color="#e6edf3" style={{ marginRight: 6 }} />
+          <Text style={s.dailyReportBtnText}>Daily Report</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Sync */}
       <TouchableOpacity style={[s.syncBtn, (syncing || !isEditMode) && s.btnDisabled]} onPress={handleSync} disabled={syncing || !isEditMode} activeOpacity={0.8}>
