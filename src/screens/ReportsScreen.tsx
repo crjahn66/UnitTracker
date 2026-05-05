@@ -371,11 +371,11 @@ export default function ReportsScreen() {
       </TouchableOpacity>
 
       {/* Sync */}
-      <TouchableOpacity style={[s.syncBtn, syncing && s.btnDisabled]} onPress={handleSync} disabled={syncing} activeOpacity={0.8}>
+      <TouchableOpacity style={[s.syncBtn, (syncing || !isEditMode) && s.btnDisabled]} onPress={handleSync} disabled={syncing || !isEditMode} activeOpacity={0.8}>
         {syncing
           ? <ActivityIndicator color="#a371f7" size="small" style={{ marginRight: 8 }} />
           : <Ionicons name="sync-outline" size={18} color="#a371f7" style={{ marginRight: 8 }} />}
-        <Text style={s.syncBtnText}>{syncing ? 'Syncing…' : 'Sync with Cloud'}</Text>
+        <Text style={s.syncBtnText}>{syncing ? 'Syncing…' : isEditMode ? 'Sync with Cloud' : 'Enter Edit Mode to Sync'}</Text>
       </TouchableOpacity>
       {lastSync !== null && !syncError && (
         <Text style={s.syncStatus}>Last synced at {lastSync}</Text>

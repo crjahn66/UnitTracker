@@ -13,16 +13,18 @@ import { pushToCloud, isSuppressingAutoPush } from './src/utils/sync';
 import { startAutoBackup } from './src/utils/backup';
 
 // Auto-push store state to sync_state 2s after any change on both platforms.
+// Note: Auto-push only happens in edit mode to prevent conflicts with view-only state.
 function useAutoPush() {
+  const { isEditMode } = useEditMode();
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const unsubscribe = useStore.subscribe(() => {
-      if (isSuppressingAutoPush()) return;
+      if (isSuppressingAutoPush() || !isEditMode) return;
       clearTimeout(timer);
       timer = setTimeout(() => { pushToCloud().catch(() => {}); }, 2000);
     });
     return () => { unsubscribe(); clearTimeout(timer); };
-  }, []);
+  }, [isEditMode]);
 }
 
 // Local backup to /storage/emulated/0/Download/Dicvon/bak every 15 min (native only).
