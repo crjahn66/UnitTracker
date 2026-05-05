@@ -6,6 +6,7 @@ import Navigation from './src/navigation';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import AuthGate from './src/components/AuthGate';
 import EditModeBanner from './src/components/EditModeBanner';
+import IssueTicker from './src/components/IssueTicker';
 import { EditModeProvider, useEditMode } from './src/context/EditModeContext';
 import { UserProvider } from './src/context/UserContext';
 import { useSessionTimeout } from './src/hooks/useSessionTimeout';
@@ -44,6 +45,7 @@ function AppShell() {
   return (
     <View style={{ flex: 1 }} onTouchStart={handleTouch}>
       <EditModeBanner />
+      <IssueTicker />
       <Navigation />
     </View>
   );
