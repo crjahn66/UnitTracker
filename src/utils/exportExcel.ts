@@ -120,7 +120,7 @@ function buildOverview(wb: any, sorted: Unit[]) {
     const stageLabel = (s: typeof STAGES[number]) => {
       const st = normalizeStageStatus(u.stages[s.key]);
       const note = u.stagesNotes?.[s.key];
-      const date = u.stagesDates?.[s.key] ? fmtDate(u.stagesDates[s.key]) : null;
+      const date = st !== 'pending' && u.stagesDates?.[s.key] ? fmtDate(u.stagesDates[s.key]) : null;
       const base = st === 'complete' ? '✓ Done' : st === 'inProgress' ? '⏳ In Progress' : st === 'stuck' ? '⚠ Stuck' : '—';
       return [base, date, note].filter(Boolean).join('\n');
     };

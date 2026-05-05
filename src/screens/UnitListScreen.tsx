@@ -57,7 +57,7 @@ function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
   const pct = Math.round(
     (stagesComplete / STAGES.length) * 70 + (good / COMPONENTS.length) * 30
   );
-  const commDateStr = unit.stagesDates?.commissioning
+  const commDateStr = normalizeStageStatus(unit.stages.commissioning) === 'complete' && unit.stagesDates?.commissioning
     ? (() => { try { return format(new Date(unit.stagesDates!.commissioning!), 'MMM d, yyyy'); } catch { return null; } })()
     : null;
 
