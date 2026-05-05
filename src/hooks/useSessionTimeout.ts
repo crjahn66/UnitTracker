@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { supabase } from '../utils/supabase';
 
-const SESSION_TIMEOUT_MS = 60_000;
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
 export function useSessionTimeout() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
