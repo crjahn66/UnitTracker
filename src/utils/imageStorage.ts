@@ -144,6 +144,30 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
   const upload = async (uri: string): Promise<string> => {
     if (!uri || uri.startsWith('https://')) return uri;
     localFound++;
+
+    // base64 data URI — decode, write to a temp file, then upload via normal path
+    if (uri.startsWith('data:')) {
+      try {
+        const match = uri.match(/^data:([^;]+);base64,(.+)$/s);
+        if (!match) { failed++; errors.push('Unparseable data URI'); return uri; }
+        const ext = match[1] === 'image/png' ? 'png' : 'jpg';
+        const tmpPath = IMAGES_DIR + `datauri_${Date.now()}.${ext}`;
+        await ensureImagesDir();
+        await FileSystem.writeAsStringAsync(tmpPath, match[2], { encoding: 'base64' as any });
+        const url = await uploadFile(tmpPath);
+        await FileSystem.deleteAsync(tmpPath, { idempotent: true }).catch(() => {});
+        if (!url) { skippedHeic++; return uri; }
+        uploaded++;
+        updated = true;
+        return url;
+      } catch (e: any) {
+        failed++;
+        errors.push(e?.message ?? String(e));
+        console.warn('base64 photo upload failed:', e?.message);
+        return uri;
+      }
+    }
+
     try {
       const info = await FileSystem.getInfoAsync(uri);
       if (!info.exists) { skippedMissing++; return uri; }

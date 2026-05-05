@@ -173,6 +173,8 @@ async function _syncBody(): Promise<SyncResult> {
 
   // 4. Push merged state back to cloud (25s timeout, aborts the underlying request)
   const { units: finalUnits, generalIssues: finalGeneralIssues } = useStore.getState();
+  const payloadSize = JSON.stringify(finalUnits).length + JSON.stringify(finalGeneralIssues).length;
+  if (payloadSize > 500_000) console.warn(`[sync] payload is ${(payloadSize / 1024).toFixed(0)} KB — check for embedded base64 images`);
   const now = new Date().toISOString();
   try {
     const pushResult = await withAbortTimeout(

@@ -140,7 +140,52 @@ export async function readResizedBase64(uri: string, maxDim = 400, quality = 0.6
 }
 
 export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ units: Record<string, any>; updated: boolean; status: string }> {
-  return { units, updated: false, status: '' };
+  let updated = false;
+  let uploaded = 0, failed = 0;
+  const result = JSON.parse(JSON.stringify(units));
+
+  const upload = async (uri: string): Promise<string> => {
+    if (!uri || uri.startsWith('https://')) return uri;
+    // Only handle base64 data URIs on web — file:// paths don't exist here
+    if (!uri.startsWith('data:')) return uri;
+    try {
+      const match = uri.match(/^data:([^;]+);base64,(.+)$/s);
+      if (!match) return uri;
+      const mimeType = match[1];
+      const ext = mimeType === 'image/png' ? 'png' : 'jpg';
+      const fileName = `datauri_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const bytes = Uint8Array.from(atob(match[2]), c => c.charCodeAt(0));
+      const { error } = await supabase.storage.from('photos').upload(fileName, bytes, { contentType: mimeType, upsert: false });
+      if (error) throw error;
+      uploaded++;
+      updated = true;
+      return supabase.storage.from('photos').getPublicUrl(fileName).data.publicUrl;
+    } catch (e: any) {
+      failed++;
+      console.warn('[web] base64 photo upload failed:', e?.message);
+      return uri;
+    }
+  };
+
+  for (const unit of Object.values(result) as any[]) {
+    for (const comp of Object.values(unit.components) as any[]) {
+      if (comp.issues) comp.issues = await Promise.all(comp.issues.map(async (iss: any) => ({
+        ...iss, images: iss.images ? await Promise.all(iss.images.map(upload)) : undefined,
+      })));
+      if (comp.progressImages) comp.progressImages = await Promise.all(comp.progressImages.map(upload));
+      if (comp.goodImages) comp.goodImages = await Promise.all(comp.goodImages.map(upload));
+    }
+    for (const item of (unit.miscEquipment ?? []) as any[]) {
+      if (item.issues) item.issues = await Promise.all(item.issues.map(async (iss: any) => ({
+        ...iss, images: iss.images ? await Promise.all(iss.images.map(upload)) : undefined,
+      })));
+      if (item.progressImages) item.progressImages = await Promise.all(item.progressImages.map(upload));
+      if (item.goodImages) item.goodImages = await Promise.all(item.goodImages.map(upload));
+    }
+  }
+
+  const status = uploaded > 0 ? `${uploaded} base64 photo(s) uploaded to storage` : '';
+  return { units: result, updated, status };
 }
 
 export async function downloadPhotosToDevice(_units: Record<string, any>): Promise<{ downloaded: number; status: string }> {
