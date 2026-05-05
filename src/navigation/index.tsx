@@ -1,7 +1,8 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createNativeStackNavigator, type NativeStackHeaderProps } from '@react-navigation/native-stack';
+import { Header, getHeaderTitle } from '@react-navigation/elements';
 import { Ionicons } from '@expo/vector-icons';
 
 import UnitListScreen from '../screens/UnitListScreen';
@@ -34,15 +35,39 @@ const HEADER_STYLE = {
 // so tell React Navigation not to add its own status-bar padding to headers.
 const HEADER_STATUS_BAR_HEIGHT = 0;
 
+// JS-based header for the nested native-stack. The native Android header from
+// react-native-screens still applies its own top inset on Android even with
+// headerStatusBarHeight=0, leaving a visible gap below EditModeBanner. Rendering
+// a JS header (the same one bottom-tabs uses) makes the stack screens flush
+// with the banner like the Dashboard/Reports tabs.
+function FlushHeader({ route, options, back, navigation }: NativeStackHeaderProps) {
+  return (
+    <Header
+      title={getHeaderTitle(options, route.name)}
+      back={back}
+      headerStatusBarHeight={0}
+      headerStyle={{ ...HEADER_STYLE, height: 56 }}
+      headerTintColor="#e6edf3"
+      headerTitleStyle={{ fontWeight: '600' }}
+      headerRight={() => <SyncStatusBar />}
+      headerLeft={back ? () => (
+        <Ionicons
+          name="chevron-back"
+          size={28}
+          color="#e6edf3"
+          onPress={() => navigation.goBack()}
+          style={{ paddingHorizontal: 8 }}
+        />
+      ) : undefined}
+    />
+  );
+}
+
 function UnitStack({ side, title }: { side: Side; title: string }) {
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle: HEADER_STYLE,
-        headerTintColor: '#e6edf3',
-        headerTitleStyle: { fontWeight: '600' },
-        headerRight: () => <SyncStatusBar />,
-        headerStatusBarHeight: HEADER_STATUS_BAR_HEIGHT,
+        header: (props) => <FlushHeader {...props} />,
       }}
     >
       <Stack.Screen
