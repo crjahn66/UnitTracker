@@ -424,7 +424,7 @@ function buildReadiness(wb: any, sorted: Unit[]) {
     { text: 'COMMISSIONING READINESS STATUS', isTitle: true },
     { text: '⚠  Units marked NOT READY have not been signed off by Integra for RED Group to complete testing.' , isTitle: false },
     { text: '⚠  All NORTH SIDE units are currently unavailable — pending Integra sign-off.', isTitle: false },
-    { text: '⚠  SOUTH SIDE: VFD chillers are not available except on units 3, 6, 9, 12, and 15.', isTitle: false },
+    { text: '⚠  SOUTH SIDE: VFD chiller units (every unit NOT divisible by 3) are unavailable. Only non-VFD units 3, 6, 9, 12, 15 are cleared for testing.', isTitle: false },
     { text: '⚠  DATA HALL 2 units (North & South) are unavailable pending equipment availability.', isTitle: false },
   ];
   for (const { text, isTitle } of banners) {
@@ -459,7 +459,9 @@ function buildReadiness(wb: any, sorted: Unit[]) {
       ? 'Available for full commissioning'
       : u.side === 'North'
         ? 'All North side units are unavailable — pending Integra sign-off'
-        : 'VFD chiller unavailable — pending Integra sign-off';
+        : u.unitNumber % 3 !== 0
+          ? 'VFD chiller unit — unavailable pending equipment availability'
+          : 'Pending Integra sign-off';
     const clr = ready ? GRN : RED;
     const r = ws.addRow([u.id, u.side, u.unitNumber, status, reason]);
     r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, clr, col === 4, col >= 2));
