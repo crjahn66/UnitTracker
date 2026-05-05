@@ -175,8 +175,8 @@ export async function verifyAndRepairPhotos(units: Record<string, any>): Promise
 
   // Check which files actually exist in the bucket
   const { data: existing, error: listError } = await supabase.storage.from('photos').list('', { limit: 1000 });
-  // If the list call fails, bail out — better to keep stale refs than to drop valid ones
-  if (listError || !existing) return { units: result, repaired: 0, dropped: 0, status: '' };
+  // Bail if list fails or is full (>= 1000 means results may be truncated — don't risk dropping valid refs)
+  if (listError || !existing || existing.length >= 1000) return { units: result, repaired: 0, dropped: 0, status: '' };
   const existingNames = new Set(existing.map((f: any) => f.name));
 
   const dropSet = new Set<string>();
