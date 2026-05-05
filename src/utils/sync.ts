@@ -179,13 +179,63 @@ export async function syncWithCloud(): Promise<SyncResult> {
   }
 }
 
-// Lightweight push — just writes current store state to sync_state, no merge or verify.
-// Used for web auto-push so changes propagate to other devices without a full sync.
+// Union https:// photo arrays from two sources (a=local, b=remote), no Zustand mutation.
+function unionPhotoArrays(a: string[] | undefined, b: string[] | undefined): string[] | undefined {
+  const aR = (a ?? []).filter(u => u?.startsWith('https://'));
+  const bR = (b ?? []).filter(u => u?.startsWith('https://'));
+  const all = [...new Set([...aR, ...bR])];
+  return all.length ? all : undefined;
+}
+
+// Merge remote photo URLs into a deep-copy of localUnits without touching the Zustand store.
+// Prevents web's auto-push from erasing native photos that haven't been synced to web yet.
+function injectRemotePhotos(localUnits: Record<string, any>, remoteUnits: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = JSON.parse(JSON.stringify(localUnits));
+  for (const [uid, remUnit] of Object.entries(remoteUnits) as [string, any][]) {
+    if (!result[uid]) continue;
+    for (const [ck, remComp] of Object.entries((remUnit as any).components ?? {}) as [string, any][]) {
+      const localComp = result[uid].components?.[ck];
+      if (!localComp) continue;
+      localComp.progressImages = unionPhotoArrays(localComp.progressImages, remComp.progressImages);
+      localComp.goodImages = unionPhotoArrays(localComp.goodImages, remComp.goodImages);
+      for (const localIssue of (localComp.issues ?? [])) {
+        const remIssue = (remComp.issues ?? []).find((i: any) => i.id === localIssue.id);
+        if (remIssue) localIssue.images = unionPhotoArrays(localIssue.images, remIssue.images) ?? [];
+      }
+    }
+    for (const localItem of (result[uid].miscEquipment ?? [])) {
+      const remItem = ((remUnit as any).miscEquipment ?? []).find((m: any) => m.id === localItem.id);
+      if (!remItem) continue;
+      localItem.progressImages = unionPhotoArrays(localItem.progressImages, remItem.progressImages);
+      localItem.goodImages = unionPhotoArrays(localItem.goodImages, remItem.goodImages);
+      for (const localIssue of (localItem.issues ?? [])) {
+        const remIssue = (remItem.issues ?? []).find((i: any) => i.id === localIssue.id);
+        if (remIssue) localIssue.images = unionPhotoArrays(localIssue.images, remIssue.images) ?? [];
+      }
+    }
+  }
+  return result;
+}
+
+// Lightweight push — writes current store state to sync_state.
+// On web: fetches remote photo URLs first and preserves them to avoid clobbering native photos
+// that the web hasn't yet synced into its local store.
 export async function pushToCloud(): Promise<void> {
-  const { units, generalIssues } = useStore.getState();
+  const { units: localUnits, generalIssues } = useStore.getState();
+  let unitsToPush: Record<string, any> = localUnits;
+
+  if (Platform.OS === 'web') {
+    try {
+      const { data } = await supabase.from('sync_state').select('units').eq('id', 1).single();
+      if (data?.units && typeof data.units === 'object') {
+        unitsToPush = injectRemotePhotos(localUnits, data.units as Record<string, any>);
+      }
+    } catch {}
+  }
+
   const { error } = await supabase
     .from('sync_state')
-    .update({ units, general_issues: generalIssues, updated_at: new Date().toISOString() })
+    .update({ units: unitsToPush, general_issues: generalIssues, updated_at: new Date().toISOString() })
     .eq('id', 1);
   if (error) { markFailure(); } else { markSuccess(); }
 }
