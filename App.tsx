@@ -36,6 +36,7 @@ function useLocalAutoBackup() {
 }
 
 function AppShell() {
+  useAutoPush();
   const { resetTimer } = useEditMode();
   const { resetSessionTimer } = useSessionTimeout();
   const handleTouch = () => { resetTimer(); resetSessionTimer(); };
@@ -48,7 +49,6 @@ function AppShell() {
 }
 
 export default function App() {
-  useAutoPush();
   useLocalAutoBackup();
   return (
     <ErrorBoundary>
