@@ -412,19 +412,19 @@ function buildGeneralIssues(wb: any, issues: GeneralIssue[]) {
   freezeAndWidth(ws, colWidths);
 }
 
-// ─── Sheet 7: Commissioning Readiness ─────────────────────────────────────────
+// ─── Sheet 7: Testing Readiness ───────────────────────────────────────────────
 const SOUTH_READY_UNITS = new Set([3, 6, 9, 12, 15]);
 
 function buildReadiness(wb: any, sorted: Unit[]) {
-  const ws = wb.addWorksheet('Commissioning Readiness');
+  const ws = wb.addWorksheet('Testing Readiness');
   const colWidths = [9, 7, 7, 16, 58];
   const totalCols = colWidths.length;
 
   const banners: { text: string; isTitle: boolean }[] = [
-    { text: 'COMMISSIONING READINESS STATUS', isTitle: true },
-    { text: '⚠  Units marked NOT READY have not been signed off by Integra for RED Group to complete testing.' , isTitle: false },
+    { text: 'RED GROUP TESTING READINESS', isTitle: true },
+    { text: '⚠  Units marked NOT READY have not been signed off by Integra for RED Group to complete testing.', isTitle: false },
     { text: '⚠  All NORTH SIDE units are currently unavailable — pending Integra sign-off.', isTitle: false },
-    { text: '⚠  SOUTH SIDE: VFD chiller units (every unit NOT divisible by 3) are unavailable. Only non-VFD units 3, 6, 9, 12, 15 are cleared for testing.', isTitle: false },
+    { text: '⚠  SOUTH SIDE: VFD chiller units are not available for testing.', isTitle: false },
     { text: '⚠  DATA HALL 2 units (North & South) are unavailable pending equipment availability.', isTitle: false },
   ];
   for (const { text, isTitle } of banners) {
@@ -456,12 +456,8 @@ function buildReadiness(wb: any, sorted: Unit[]) {
     const ready = u.side === 'South' && SOUTH_READY_UNITS.has(u.unitNumber);
     const status = ready ? 'READY' : 'NOT READY';
     const reason = ready
-      ? 'Available for full commissioning'
-      : u.side === 'North'
-        ? 'All North side units are unavailable — pending Integra sign-off'
-        : u.unitNumber % 3 !== 0
-          ? 'VFD chiller unit — unavailable pending equipment availability'
-          : 'Pending Integra sign-off';
+      ? 'Integra sign-off received — ready for RED Group testing'
+      : 'Integra sign-off not received — not cleared for RED Group testing';
     const clr = ready ? GRN : RED;
     const r = ws.addRow([u.id, u.side, u.unitNumber, status, reason]);
     r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, clr, col === 4, col >= 2));
