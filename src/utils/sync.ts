@@ -19,6 +19,10 @@ let _lastSyncedAt: number | null = (() => {
 let _isOnline: boolean = true;
 let _hasPendingChanges: boolean = false;
 let _lastPushedAt: number = 0;
+// Tracks the updated_at timestamp of the last state we pushed to the DB.
+// webAutoPoll compares against this — not _lastPushedAt — so ANY newer remote
+// push (APK or another browser) is detected regardless of timing.
+let _lastKnownRemoteAt: number = 0;
 type SyncStatusListener = () => void;
 const _listeners = new Set<SyncStatusListener>();
 
@@ -83,7 +87,7 @@ if (Platform.OS !== 'web') {
         .single();
       if (!data?.updated_at) return;
       const remoteTime = new Date(data.updated_at).getTime();
-      if (_firstPoll || remoteTime > _lastPushedAt + 10000) {
+      if (_firstPoll || remoteTime > _lastKnownRemoteAt) {
         _firstPoll = false;
         await syncWithCloud();
       }
@@ -204,6 +208,7 @@ async function _syncBody(): Promise<SyncResult> {
       'Push to cloud'
     );
     if (pushResult.error) return { success: false, error: pushResult.error.message ?? 'Failed to push to cloud' };
+    _lastKnownRemoteAt = new Date(now).getTime();
   } catch (err: any) {
     return { success: false, error: err.message ?? 'Failed to push to cloud' };
   }
@@ -308,16 +313,14 @@ function injectRemotePhotos(localUnits: Record<string, any>, remoteUnits: Record
 let _suppressDepth = 0;
 export function isSuppressingAutoPush(): boolean { return _suppressDepth > 0; }
 
-// Lightweight push — writes current store state to sync_state.
-// On web: fetches remote photo URLs first, injects any missing into the local store
-// (suppressing the subscribe to avoid a loop), then writes the enriched state.
+// Lightweight push — merges remote state into local then writes back to sync_state.
+// On web: uploads any base64 URIs, then mergeImports the full remote state so APK
+// changes (new issues, status updates, etc.) are preserved rather than overwritten.
 export async function pushToCloud(): Promise<void> {
   let { units: localUnits, generalIssues } = useStore.getState();
-  let unitsToPush: Record<string, any> = localUnits;
 
   if (Platform.OS === 'web') {
     // Upload any base64 data: URIs before they reach the DB row.
-    // This is the last line of defence against embedded images bloating sync_state.
     try {
       const uploadResult = await uploadLocalPhotos(localUnits);
       if (uploadResult.updated) {
@@ -328,29 +331,30 @@ export async function pushToCloud(): Promise<void> {
       }
     } catch {}
 
+    // Full merge of remote state so APK changes (issues, statuses, notes) are not
+    // overwritten. The old injectRemotePhotos only preserved photo URLs; any issue
+    // or status change from the APK since web's last sync was silently lost.
     try {
-      const { data } = await supabase.from('sync_state').select('units').eq('id', 1).single();
+      const { data } = await supabase.from('sync_state').select('units, general_issues').eq('id', 1).single();
       if (data?.units && typeof data.units === 'object') {
-        const merged = injectRemotePhotos(localUnits, data.units as Record<string, any>);
-        const localCount = collectRemoteImageUrls(localUnits as UnitsStore).length;
-        const mergedCount = collectRemoteImageUrls(merged as UnitsStore).length;
-        if (mergedCount > localCount) {
-          // New remote photos — update local store so UI shows them immediately.
-          // Suppress subscribe to avoid triggering another pushToCloud.
-          _suppressDepth++;
-          useStore.getState().loadBackup(merged as UnitsStore, generalIssues);
-          _suppressDepth--;
-        }
-        unitsToPush = merged;
+        _suppressDepth++;
+        useStore.getState().mergeImport(data.units as UnitsStore, (data.general_issues ?? []) as GeneralIssue[]);
+        _suppressDepth--;
       }
     } catch {}
   }
 
+  // Read the final merged state and push it
+  const { units: finalUnits, generalIssues: finalGeneralIssues } = useStore.getState();
+  const now = new Date().toISOString();
   const { error } = await supabase
     .from('sync_state')
-    .update({ units: unitsToPush, general_issues: generalIssues, updated_at: new Date().toISOString() })
+    .update({ units: finalUnits, general_issues: finalGeneralIssues, updated_at: now })
     .eq('id', 1);
-  if (error) { markFailure(); } else { markSuccess(); }
+  if (error) { markFailure(); } else {
+    _lastKnownRemoteAt = new Date(now).getTime();
+    markSuccess();
+  }
 }
 
 // Delete all photos from the bucket, clear refs from the store, and push the
