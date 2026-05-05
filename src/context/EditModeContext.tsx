@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useUser } from './UserContext';
 
 export const EDIT_TIMEOUT_MS = 60_000;
 
@@ -29,6 +30,7 @@ export function EditModeProvider({ children }: { children: React.ReactNode }) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Ref mirrors isPaused so startTimer always sees the current value without stale closures.
   const isPausedRef = useRef(false);
+  const { isViewOnly } = useUser();
 
   const exitEditMode = useCallback(() => setIsEditMode(false), []);
 
@@ -39,10 +41,11 @@ export function EditModeProvider({ children }: { children: React.ReactNode }) {
   }, [exitEditMode]);
 
   const enterEditMode = useCallback(() => {
+    if (isViewOnly) return;
     setIsEditMode(true);
     setLastActivity(Date.now());
     startTimer();
-  }, [startTimer]);
+  }, [startTimer, isViewOnly]);
 
   const resetTimer = useCallback(() => {
     if (!isEditMode || isPausedRef.current) return;

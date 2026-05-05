@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { Platform, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { EDIT_TIMEOUT_MS, useEditMode } from '../context/EditModeContext';
+import { useUser } from '../context/UserContext';
 
 const STATUS_BAR_HEIGHT = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) : 0;
 
 export default function EditModeBanner() {
   const { isEditMode, lastActivity, isPaused, enterEditMode } = useEditMode();
+  const { isViewOnly } = useUser();
   const [secondsLeft, setSecondsLeft] = useState(30);
 
   useEffect(() => {
@@ -19,6 +21,15 @@ export default function EditModeBanner() {
     const id = setInterval(tick, 500);
     return () => clearInterval(id);
   }, [isEditMode, lastActivity]);
+
+  if (isViewOnly) {
+    return (
+      <View style={[s.banner, s.viewBanner]}>
+        <Ionicons name="lock-closed" size={12} color="#8b949e" style={{ marginRight: 6 }} />
+        <Text style={s.viewText}>VIEW ONLY</Text>
+      </View>
+    );
+  }
 
   if (isEditMode) {
     return (

@@ -7,6 +7,7 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 import AuthGate from './src/components/AuthGate';
 import EditModeBanner from './src/components/EditModeBanner';
 import { EditModeProvider, useEditMode } from './src/context/EditModeContext';
+import { UserProvider } from './src/context/UserContext';
 import { useSessionTimeout } from './src/hooks/useSessionTimeout';
 import { useStore } from './src/store/useStore';
 import { pushToCloud, isSuppressingAutoPush } from './src/utils/sync';
@@ -52,12 +53,14 @@ export default function App() {
   useLocalAutoBackup();
   return (
     <ErrorBoundary>
-      <EditModeProvider>
-        <StatusBar style="light" />
-        <AuthGate>
-          <AppShell />
-        </AuthGate>
-      </EditModeProvider>
+      <UserProvider>
+        <EditModeProvider>
+          <StatusBar style="light" />
+          <AuthGate>
+            <AppShell />
+          </AuthGate>
+        </EditModeProvider>
+      </UserProvider>
     </ErrorBoundary>
   );
 }
