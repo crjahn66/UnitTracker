@@ -108,74 +108,89 @@ function collectRemoteImageUrls(units: UnitsStore): string[] {
   return urls.filter((u) => u?.startsWith('https://'));
 }
 
-export async function syncWithCloud(): Promise<SyncResult> {
+async function _syncBody(): Promise<SyncResult> {
+  const { units: localUnits, generalIssues: localGeneralIssues } = useStore.getState();
+  let uploadStatus = '';
+
+  // 1. Upload any local file-path photos to Supabase Storage
   try {
-    const { units: localUnits, generalIssues: localGeneralIssues } = useStore.getState();
-    let uploadStatus = '';
-
-    // 1. Upload any local file-path photos to Supabase Storage
-    try {
-      const uploadResult = await uploadLocalPhotos(localUnits);
-      if (uploadResult.updated) {
-        useStore.getState().loadBackup(uploadResult.units as UnitsStore, localGeneralIssues);
-      }
-      uploadStatus = uploadResult.status;
-    } catch (photoErr: any) {
-      return { success: false, error: `Photo upload failed: ${photoErr?.message ?? photoErr}` };
+    const uploadResult = await uploadLocalPhotos(localUnits);
+    if (uploadResult.updated) {
+      useStore.getState().loadBackup(uploadResult.units as UnitsStore, localGeneralIssues);
     }
+    uploadStatus = uploadResult.status;
+  } catch (photoErr: any) {
+    return { success: false, error: `Photo upload failed: ${photoErr?.message ?? photoErr}` };
+  }
 
-    // 2. Fetch remote state
-    const { data, error } = await supabase
-      .from('sync_state')
-      .select('units, general_issues')
-      .eq('id', 1)
-      .single();
+  // 2. Fetch remote state
+  const { data, error } = await supabase
+    .from('sync_state')
+    .select('units, general_issues')
+    .eq('id', 1)
+    .single();
 
-    if (error) throw error;
+  if (error) throw error;
 
-    // 3. Merge remote into local
-    const remoteUnits = (data.units ?? {}) as UnitsStore;
-    const remoteGeneralIssues = (data.general_issues ?? []) as GeneralIssue[];
-    if (Object.keys(remoteUnits).length > 0 || remoteGeneralIssues.length > 0) {
-      useStore.getState().mergeImport(remoteUnits, remoteGeneralIssues);
+  // 3. Merge remote into local
+  const remoteUnits = (data.units ?? {}) as UnitsStore;
+  const remoteGeneralIssues = (data.general_issues ?? []) as GeneralIssue[];
+  if (Object.keys(remoteUnits).length > 0 || remoteGeneralIssues.length > 0) {
+    useStore.getState().mergeImport(remoteUnits, remoteGeneralIssues);
+  }
+
+  // 4. Verify photos AFTER merge — 20s timeout so a slow/hung storage list can't stall sync.
+  const { units: postMergeUnits, generalIssues: postMergeGeneral } = useStore.getState();
+  let repairStatus = '';
+  try {
+    const repairResult = await Promise.race([
+      verifyAndRepairPhotos(postMergeUnits),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('verify timeout')), 20_000)),
+    ]);
+    if (repairResult.repaired > 0 || repairResult.dropped > 0) {
+      useStore.getState().loadBackup(repairResult.units as UnitsStore, postMergeGeneral);
     }
+    repairStatus = repairResult.status;
+  } catch { /* non-fatal — push whatever we have */ }
 
-    // 4. Verify photos AFTER merge — drops/repairs any https:// URLs that don't exist in the
-    //    bucket, including ones the merge just restored from stale sync_state data (e.g. a photo
-    //    the user deleted before this sync ran).
-    const { units: postMergeUnits, generalIssues: postMergeGeneral } = useStore.getState();
-    let repairStatus = '';
-    try {
-      const repairResult = await verifyAndRepairPhotos(postMergeUnits);
-      if (repairResult.repaired > 0 || repairResult.dropped > 0) {
-        useStore.getState().loadBackup(repairResult.units as UnitsStore, postMergeGeneral);
-      }
-      repairStatus = repairResult.status;
-    } catch { /* non-fatal — push whatever we have */ }
+  // 5. Push merged + repaired state back to cloud
+  const { units: finalUnits, generalIssues: finalGeneralIssues } = useStore.getState();
+  const now = new Date().toISOString();
 
-    // 5. Push merged + repaired state back to cloud
-    const { units: finalUnits, generalIssues: finalGeneralIssues } = useStore.getState();
-    const now = new Date().toISOString();
+  const { error: pushError } = await supabase
+    .from('sync_state')
+    .update({ units: finalUnits, general_issues: finalGeneralIssues, updated_at: now })
+    .eq('id', 1);
 
-    const { error: pushError } = await supabase
-      .from('sync_state')
-      .update({ units: finalUnits, general_issues: finalGeneralIssues, updated_at: now })
-      .eq('id', 1);
+  if (pushError) throw pushError;
 
-    if (pushError) throw pushError;
+  // 6. Download any missing remote photos to device for offline access (native only).
+  // Fire-and-forget — don't await so a slow download can't hang the sync completion.
+  if (Platform.OS !== 'web') {
+    downloadPhotosToDevice(finalUnits).catch(() => {});
+  }
 
-    // 6. Download any missing remote photos to device for offline access (native only).
-    // Fire-and-forget — don't await so a slow download can't hang the sync completion.
-    if (Platform.OS !== 'web') {
-      downloadPhotosToDevice(finalUnits).catch(() => {});
-    }
+  const photoStatus = [uploadStatus, repairStatus].filter(Boolean).join(' | ') || 'Photos up to date';
+  markSuccess();
+  return { success: true, timestamp: now, warning: photoStatus };
+}
 
-    const photoStatus = [uploadStatus, repairStatus].filter(Boolean).join(' | ') || 'Photos up to date';
-    markSuccess();
-    return { success: true, timestamp: now, warning: photoStatus };
+export async function syncWithCloud(): Promise<SyncResult> {
+  // Suppress useAutoPush during sync — store changes inside _syncBody (mergeImport, loadBackup)
+  // would otherwise trigger concurrent pushToCloud calls while sync is still in flight.
+  _suppressAutoPush = true;
+  try {
+    return await Promise.race([
+      _syncBody(),
+      new Promise<SyncResult>((resolve) =>
+        setTimeout(() => resolve({ success: false, error: 'Sync timed out — check connection' }), 45_000)
+      ),
+    ]);
   } catch (err: any) {
     markFailure();
     return { success: false, error: err?.message ?? 'Sync failed' };
+  } finally {
+    _suppressAutoPush = false;
   }
 }
 
