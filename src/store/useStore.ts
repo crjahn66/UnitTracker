@@ -222,7 +222,7 @@ export const useStore = create<StoreState>()(
                   ...state.units[unitId].components,
                   [componentKey]: {
                     ...comp,
-                    issues: comp.issues.map((i) => i.id === issueId ? { ...i, deleted: true } : i),
+                    issues: comp.issues.map((i) => i.id === issueId ? { ...i, deleted: true, deletedAt: new Date().toISOString() } : i),
                   },
                 },
               },
@@ -309,7 +309,7 @@ export const useStore = create<StoreState>()(
               [unitId]: {
                 ...u,
                 miscEquipment: (u.miscEquipment ?? []).map((item) =>
-                  item.id === itemId ? { ...item, deleted: true } : item
+                  item.id === itemId ? { ...item, deleted: true, deletedAt: new Date().toISOString() } : item
                 ),
               },
             },
@@ -362,7 +362,7 @@ export const useStore = create<StoreState>()(
                 ...u,
                 miscEquipment: (u.miscEquipment ?? []).map((item) =>
                   item.id === itemId
-                    ? { ...item, issues: item.issues.map((i) => i.id === issueId ? { ...i, deleted: true } : i) }
+                    ? { ...item, issues: item.issues.map((i) => i.id === issueId ? { ...i, deleted: true, deletedAt: new Date().toISOString() } : i) }
                     : item
                 ),
               },
@@ -424,7 +424,7 @@ export const useStore = create<StoreState>()(
 
       deleteGeneralIssue: (issueId) =>
         set((state) => ({
-          generalIssues: state.generalIssues.map((i) => i.id === issueId ? { ...i, deleted: true } : i),
+          generalIssues: state.generalIssues.map((i) => i.id === issueId ? { ...i, deleted: true, deletedAt: new Date().toISOString() } : i),
         })),
 
       mergeImport: (importUnits, importGeneralIssues) =>
@@ -446,6 +446,29 @@ export const useStore = create<StoreState>()(
             // Both sides are remote https:// — union them
             const all = [...new Set([...aRemote, ...b.filter(u => u.startsWith('https://'))])];
             return all.length ? all : undefined;
+          };
+
+          // Resolve deleted state by comparing each side's deletion timestamp against
+          // the freshest live activity for the entity. Live activity newer than the
+          // most recent deletion resurrects the entity; otherwise the latest tombstone
+          // wins. Legacy rows without `deletedAt` are treated as epoch (any live
+          // dateUpdated will resurrect them) so existing stuck tombstones recover on
+          // first merge after deploy.
+          const resolveDeletion = (
+            local: { deleted?: boolean; deletedAt?: string },
+            imp: { deleted?: boolean; deletedAt?: string },
+            liveActivityAt: string | undefined,
+          ): { deleted?: true; deletedAt?: string } => {
+            const localDel = local.deleted ? (local.deletedAt ?? '0') : null;
+            const impDel = imp.deleted ? (imp.deletedAt ?? '0') : null;
+            if (!localDel && !impDel) return {};
+            const latestDel = (localDel && impDel)
+              ? (localDel > impDel ? localDel : impDel)
+              : (localDel || impDel)!;
+            if (liveActivityAt && liveActivityAt > latestDel) return {};
+            return latestDel === '0'
+              ? { deleted: true }
+              : { deleted: true, deletedAt: latestDel };
           };
 
           for (const [uid, importUnit] of Object.entries(importUnits)) {
@@ -471,12 +494,12 @@ export const useStore = create<StoreState>()(
               const mergedIssues = existComp.issues.map((existIssue: any) => {
                 const impIssue = impIssueMap.get(existIssue.id);
                 if (!impIssue) return existIssue;
-                const deleted = existIssue.deleted || impIssue.deleted;
-                const { deleted: _d, images: _i, ...rest } = { ...existIssue, ...impIssue };
+                const { deleted: _d, deletedAt: _dA, images: _i, ...rest } = { ...existIssue, ...impIssue };
                 const dateUpdated = (existIssue.dateUpdated && impIssue.dateUpdated)
                   ? (existIssue.dateUpdated > impIssue.dateUpdated ? existIssue.dateUpdated : impIssue.dateUpdated)
                   : (existIssue.dateUpdated ?? impIssue.dateUpdated);
-                return { ...rest, images: mergeImages(existIssue.images, impIssue.images) ?? [], ...(deleted ? { deleted: true } : {}), ...(dateUpdated ? { dateUpdated } : {}) };
+                const delResult = resolveDeletion(existIssue, impIssue, dateUpdated);
+                return { ...rest, images: mergeImages(existIssue.images, impIssue.images) ?? [], ...delResult, ...(dateUpdated ? { dateUpdated } : {}) };
               });
               const existIds = new Set(existComp.issues.map((i: any) => i.id));
               const newIssues = (impComp.issues ?? []).filter((i: any) => !existIds.has(i.id));
@@ -507,25 +530,34 @@ export const useStore = create<StoreState>()(
                 const mergedMiscIssues = existingMisc[idx].issues.map((existIssue: any) => {
                   const impIssue = impMiscIssueMap.get(existIssue.id);
                   if (!impIssue) return existIssue;
-                  const deleted = existIssue.deleted || impIssue.deleted;
-                  const { deleted: _d, images: _i, ...rest } = { ...existIssue, ...impIssue };
+                  const { deleted: _d, deletedAt: _dA, images: _i, ...rest } = { ...existIssue, ...impIssue };
                   const dateUpdated = (existIssue.dateUpdated && impIssue.dateUpdated)
                     ? (existIssue.dateUpdated > impIssue.dateUpdated ? existIssue.dateUpdated : impIssue.dateUpdated)
                     : (existIssue.dateUpdated ?? impIssue.dateUpdated);
-                  return { ...rest, images: mergeImages(existIssue.images, impIssue.images) ?? [], ...(deleted ? { deleted: true } : {}), ...(dateUpdated ? { dateUpdated } : {}) };
+                  const delResult = resolveDeletion(existIssue, impIssue, dateUpdated);
+                  return { ...rest, images: mergeImages(existIssue.images, impIssue.images) ?? [], ...delResult, ...(dateUpdated ? { dateUpdated } : {}) };
                 });
                 const existIds = new Set(existingMisc[idx].issues.map((i) => i.id));
                 const newIssues = importItem.issues.filter((i: any) => !existIds.has(i.id));
-                // If the incoming side is alive and brings new issues that don't exist
-                // locally, treat it as a resurrection: the item was un-deleted on the
-                // other device (e.g. APK added an issue before pulling the tombstone).
-                const miscDeleted = (!importItem.deleted && newIssues.length > 0)
-                  ? undefined
-                  : (existingMisc[idx].deleted || importItem.deleted || undefined);
+                // Resurrection: compare the latest deletion timestamp against the freshest
+                // dateUpdated of any live child issue. If a live child was touched after the
+                // tombstone, the deletion is stale and the parent comes back. Otherwise the
+                // tombstone wins. Solves the race the previous "live wins" heuristic had with
+                // delete-then-immediate-sync.
+                const liveActivityAt = [...mergedMiscIssues, ...newIssues]
+                  .filter((i: any) => !i.deleted)
+                  .map((i: any) => i.dateUpdated)
+                  .filter((d: string | undefined): d is string => !!d)
+                  .sort()
+                  .pop();
+                const miscDelResult = resolveDeletion(existingMisc[idx], importItem, liveActivityAt);
                 const mergedMiscStatus = importItem.status ?? existingMisc[idx].status;
+                // Strip deleted/deletedAt from the spread so resolveDeletion's outcome wins:
+                // if it returned {} (resurrected), neither field is set on the merged item.
+                const { deleted: _md, deletedAt: _mdA, ...miscRest } = existingMisc[idx];
                 existingMisc[idx] = {
-                  ...existingMisc[idx],
-                  ...(miscDeleted ? { deleted: miscDeleted } : {}),
+                  ...miscRest,
+                  ...miscDelResult,
                   status: mergedMiscStatus,
                   issues: [...mergedMiscIssues, ...newIssues],
                   progressNote: 'progressNote' in importItem ? importItem.progressNote : existingMisc[idx].progressNote,
@@ -565,16 +597,18 @@ export const useStore = create<StoreState>()(
             };
           }
 
-          // Merge general issues — propagate deleted flag, add new ones
+          // Merge general issues — resolve deleted via timestamps, add new ones
           const importGeneralMap = new Map(importGeneralIssues.map((i) => [i.id, i]));
           const mergedGeneral = state.generalIssues.map((i) => {
             const imp = importGeneralMap.get(i.id);
             if (!imp) return i;
-            const deleted = i.deleted || imp.deleted || undefined;
             const dateUpdated = (i.dateUpdated && imp.dateUpdated)
               ? (i.dateUpdated > imp.dateUpdated ? i.dateUpdated : imp.dateUpdated)
               : (i.dateUpdated ?? imp.dateUpdated);
-            return { ...i, ...imp, ...(deleted ? { deleted } : {}), ...(dateUpdated ? { dateUpdated } : {}) };
+            const delResult = resolveDeletion(i, imp, dateUpdated);
+            const { deleted: _gd, deletedAt: _gdA, ...impRest } = imp as any;
+            const { deleted: _ld, deletedAt: _ldA, ...localRest } = i as any;
+            return { ...localRest, ...impRest, ...delResult, ...(dateUpdated ? { dateUpdated } : {}) };
           });
           const existGeneralIds = new Set(state.generalIssues.map((i) => i.id));
           const newGeneral = importGeneralIssues.filter((i) => !existGeneralIds.has(i.id));

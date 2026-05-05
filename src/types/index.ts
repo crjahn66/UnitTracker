@@ -50,6 +50,7 @@ export interface Issue {
   howFixed?: string;
   images?: string[];
   deleted?: boolean;
+  deletedAt?: string;
 }
 
 export interface ComponentData {
@@ -80,6 +81,7 @@ export interface MiscIssue {
   howFixed?: string;
   images?: string[];
   deleted?: boolean;
+  deletedAt?: string;
 }
 
 export interface MiscEquipItem {
@@ -95,6 +97,7 @@ export interface MiscEquipItem {
   inProgressDate?: string;
   badDate?: string;
   deleted?: boolean;
+  deletedAt?: string;
 }
 
 export interface Unit {
@@ -123,4 +126,5 @@ export interface GeneralIssue {
   fixedBy?: string;
   howFixed?: string;
   deleted?: boolean;
+  deletedAt?: string;
 }
