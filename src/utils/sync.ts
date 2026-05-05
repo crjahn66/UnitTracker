@@ -174,6 +174,24 @@ async function _syncBody(): Promise<SyncResult> {
   }
   console.log(`[sync] merge done (${elapsed()})`);
 
+  // 3b. Upload any base64 photos that arrived from remote during merge (web only path).
+  // Remote sync_state can contain data: URIs written by an older client or a failed
+  // uploadLocalPhotos call; if we push them straight back they re-pollute the DB row.
+  try {
+    const { units: mergedUnits, generalIssues: mergedGeneral } = useStore.getState();
+    const postMergeResult = await Promise.race([
+      uploadLocalPhotos(mergedUnits),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('post-merge upload timed out after 30s')), 30_000)),
+    ]);
+    if (postMergeResult.updated) {
+      useStore.getState().loadBackup(postMergeResult.units as UnitsStore, mergedGeneral);
+      if (postMergeResult.status) uploadStatus = postMergeResult.status;
+    }
+    console.log(`[sync] post-merge upload done (${elapsed()})`);
+  } catch (postErr: any) {
+    console.warn(`[sync] post-merge upload failed (non-fatal): ${postErr?.message ?? postErr}`);
+  }
+
   // 4. Push merged state back to cloud (25s timeout, aborts the underlying request)
   const { units: finalUnits, generalIssues: finalGeneralIssues } = useStore.getState();
   const payloadSize = JSON.stringify(finalUnits).length + JSON.stringify(finalGeneralIssues).length;
