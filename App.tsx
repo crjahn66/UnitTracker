@@ -7,6 +7,7 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 import AuthGate from './src/components/AuthGate';
 import EditModeBanner from './src/components/EditModeBanner';
 import { EditModeProvider, useEditMode } from './src/context/EditModeContext';
+import { useSessionTimeout } from './src/hooks/useSessionTimeout';
 import { useStore } from './src/store/useStore';
 import { pushToCloud } from './src/utils/sync';
 import { startAutoBackup } from './src/utils/backup';
@@ -33,8 +34,10 @@ function useLocalAutoBackup() {
 
 function AppShell() {
   const { resetTimer } = useEditMode();
+  const { resetSessionTimer } = useSessionTimeout();
+  const handleTouch = () => { resetTimer(); resetSessionTimer(); };
   return (
-    <View style={{ flex: 1 }} onTouchStart={resetTimer}>
+    <View style={{ flex: 1 }} onTouchStart={handleTouch}>
       <EditModeBanner />
       <Navigation />
     </View>
