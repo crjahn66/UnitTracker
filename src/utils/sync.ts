@@ -108,32 +108,60 @@ function collectRemoteImageUrls(units: UnitsStore): string[] {
   return urls.filter((u) => u?.startsWith('https://'));
 }
 
+// Wraps a Supabase call with an AbortController-backed timeout. Aborts the
+// underlying fetch so the connection is actually released, not just abandoned.
+async function withAbortTimeout<T>(
+  fn: (signal: AbortSignal) => Promise<T>,
+  ms: number,
+  label: string
+): Promise<T> {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), ms);
+  try {
+    return await fn(ac.signal);
+  } catch (err: any) {
+    if (ac.signal.aborted) throw new Error(`${label} timed out after ${ms / 1000}s`);
+    throw err;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function _syncBody(): Promise<SyncResult> {
+  const t0 = Date.now();
+  const elapsed = () => `${Date.now() - t0}ms`;
   const { units: localUnits, generalIssues: localGeneralIssues } = useStore.getState();
   let uploadStatus = '';
 
-  // 1. Upload any local file-path photos to Supabase Storage (30s timeout per run)
+  // 1. Upload any local file-path photos to Supabase Storage (30s timeout)
   try {
     const uploadResult = await Promise.race([
       uploadLocalPhotos(localUnits),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('upload timeout')), 30_000)),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('upload timed out after 30s')), 30_000)),
     ]);
     if (uploadResult.updated) {
       useStore.getState().loadBackup(uploadResult.units as UnitsStore, localGeneralIssues);
     }
     uploadStatus = uploadResult.status;
+    console.log(`[sync] upload done (${elapsed()})`);
   } catch (photoErr: any) {
     return { success: false, error: `Photo upload failed: ${photoErr?.message ?? photoErr}` };
   }
 
-  // 2. Fetch remote state
-  const { data, error } = await supabase
-    .from('sync_state')
-    .select('units, general_issues')
-    .eq('id', 1)
-    .single();
-
-  if (error) return { success: false, error: error.message ?? 'Failed to fetch remote state' };
+  // 2. Fetch remote state (20s timeout, aborts the underlying request)
+  let data: any;
+  try {
+    const result = await withAbortTimeout(
+      (signal) => supabase.from('sync_state').select('units, general_issues').eq('id', 1).single().abortSignal(signal),
+      20_000,
+      'Fetch remote state'
+    );
+    if (result.error) return { success: false, error: result.error.message ?? 'Failed to fetch remote state' };
+    data = result.data;
+  } catch (err: any) {
+    return { success: false, error: err.message ?? 'Failed to fetch remote state' };
+  }
+  console.log(`[sync] fetch done (${elapsed()})`);
 
   // 3. Merge remote into local
   const remoteUnits = (data.units ?? {}) as UnitsStore;
@@ -141,17 +169,22 @@ async function _syncBody(): Promise<SyncResult> {
   if (Object.keys(remoteUnits).length > 0 || remoteGeneralIssues.length > 0) {
     useStore.getState().mergeImport(remoteUnits, remoteGeneralIssues);
   }
+  console.log(`[sync] merge done (${elapsed()})`);
 
-  // 4. Push merged state back to cloud
+  // 4. Push merged state back to cloud (25s timeout, aborts the underlying request)
   const { units: finalUnits, generalIssues: finalGeneralIssues } = useStore.getState();
   const now = new Date().toISOString();
-
-  const { error: pushError } = await supabase
-    .from('sync_state')
-    .update({ units: finalUnits, general_issues: finalGeneralIssues, updated_at: now })
-    .eq('id', 1);
-
-  if (pushError) return { success: false, error: pushError.message ?? 'Failed to push to cloud' };
+  try {
+    const pushResult = await withAbortTimeout(
+      (signal) => supabase.from('sync_state').update({ units: finalUnits, general_issues: finalGeneralIssues, updated_at: now }).eq('id', 1).abortSignal(signal),
+      25_000,
+      'Push to cloud'
+    );
+    if (pushResult.error) return { success: false, error: pushResult.error.message ?? 'Failed to push to cloud' };
+  } catch (err: any) {
+    return { success: false, error: err.message ?? 'Failed to push to cloud' };
+  }
+  console.log(`[sync] push done (${elapsed()})`);
 
   // 5. Download any missing remote photos to device for offline access (native only).
   // Fire-and-forget — don't await so a slow download can't hang the sync completion.
@@ -179,7 +212,7 @@ export async function syncWithCloud(): Promise<SyncResult> {
   const result = await Promise.race([
     bodyPromise,
     new Promise<SyncResult>((resolve) =>
-      setTimeout(() => resolve({ success: false, error: 'Sync timed out — check connection' }), 45_000)
+      setTimeout(() => resolve({ success: false, error: 'Sync timed out — check connection' }), 90_000)
     ),
   ]);
 
