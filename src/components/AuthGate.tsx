@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Platform, View, ActivityIndicator } from 'react-native';
 import { supabase } from '../utils/supabase';
+import { syncWithCloud } from '../utils/sync';
 import LoginScreen from '../screens/LoginScreen';
 
 const SESSION_KEY = 'ut_login_time';
@@ -41,7 +42,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') recordLoginTime();
+      if (event === 'SIGNED_IN') {
+        recordLoginTime();
+        syncWithCloud().catch(() => {});
+      }
       if (event === 'SIGNED_OUT') clearLoginTime();
       setAuthed(!!session);
     });
