@@ -18,6 +18,37 @@ async function convertHeicToJpeg(blob: Blob): Promise<Blob> {
   return Array.isArray(result) ? result[0] : result;
 }
 
+// Resize to max 1600px and compress to 0.8 quality using canvas.
+// Falls back to original blob if canvas is unavailable or fails.
+const MAX_UPLOAD_DIM = 1600;
+const UPLOAD_QUALITY = 0.8;
+
+async function compressBlob(blob: Blob): Promise<Blob> {
+  try {
+    const blobUrl = URL.createObjectURL(blob);
+    const compressed = await new Promise<Blob | null>((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(blobUrl);
+        const scale = Math.min(1, MAX_UPLOAD_DIM / img.width, MAX_UPLOAD_DIM / img.height);
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(null); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob((b) => resolve(b), 'image/jpeg', UPLOAD_QUALITY);
+      };
+      img.onerror = () => { URL.revokeObjectURL(blobUrl); resolve(null); };
+      img.src = blobUrl;
+    });
+    return compressed ?? blob;
+  } catch {
+    return blob;
+  }
+}
+
 export async function saveImage(issueId: string, sourceUri: string, file?: File): Promise<string> {
   let blob: Blob;
   if (file) {
@@ -28,9 +59,10 @@ export async function saveImage(issueId: string, sourceUri: string, file?: File)
     blob = isHeicBlob(raw) ? await convertHeicToJpeg(raw) : raw;
   }
 
-  const mimeType = blob.type || 'image/jpeg';
-  const ext = mimeType === 'image/jpeg' ? 'jpg' : (mimeType.split('/')[1] ?? 'jpg');
-  const fileName = `${issueId}_${Date.now()}.${ext}`;
+  blob = await compressBlob(blob);
+
+  const mimeType = 'image/jpeg';
+  const fileName = `${issueId}_${Date.now()}.jpg`;
 
   const { error } = await supabase.storage.from('photos').upload(fileName, blob, { contentType: mimeType });
   if (error) throw error;
