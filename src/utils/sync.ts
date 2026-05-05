@@ -71,7 +71,9 @@ if (Platform.OS !== 'web') {
   setTimeout(checkForRemoteChanges, 5000);
   setInterval(checkForRemoteChanges, 30000);
 } else {
-  // Web: poll and auto-apply so changes from APK appear without manual interaction
+  // Web: on first load always sync to pull remote photos into local store.
+  // Subsequent polls only sync if remote updated_at is > 10s newer than our last push.
+  let _firstPoll = true;
   async function webAutoPoll() {
     try {
       const { data } = await supabase
@@ -81,7 +83,8 @@ if (Platform.OS !== 'web') {
         .single();
       if (!data?.updated_at) return;
       const remoteTime = new Date(data.updated_at).getTime();
-      if (remoteTime > _lastPushedAt + 10000) {
+      if (_firstPoll || remoteTime > _lastPushedAt + 10000) {
+        _firstPoll = false;
         await syncWithCloud();
       }
     } catch {}
