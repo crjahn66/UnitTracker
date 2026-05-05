@@ -118,7 +118,10 @@ async function withAbortTimeout<T>(
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), ms);
   try {
-    return await fn(ac.signal);
+    const result = await fn(ac.signal);
+    // supabase-js v2 returns abort errors in the result object instead of throwing
+    if (ac.signal.aborted) throw new Error(`${label} timed out after ${ms / 1000}s`);
+    return result;
   } catch (err: any) {
     if (ac.signal.aborted) throw new Error(`${label} timed out after ${ms / 1000}s`);
     throw err;
