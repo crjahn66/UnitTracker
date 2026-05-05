@@ -27,14 +27,16 @@ export function EditModeProvider({ children }: { children: React.ReactNode }) {
   const [lastActivity, setLastActivity] = useState(Date.now());
   const [isPaused, setIsPaused] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Ref mirrors isPaused so startTimer always sees the current value without stale closures.
+  const isPausedRef = useRef(false);
 
   const exitEditMode = useCallback(() => setIsEditMode(false), []);
 
   const startTimer = useCallback(() => {
-    if (isPaused) return;
+    if (isPausedRef.current) return;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(exitEditMode, EDIT_TIMEOUT_MS);
-  }, [exitEditMode, isPaused]);
+  }, [exitEditMode]);
 
   const enterEditMode = useCallback(() => {
     setIsEditMode(true);
@@ -43,17 +45,19 @@ export function EditModeProvider({ children }: { children: React.ReactNode }) {
   }, [startTimer]);
 
   const resetTimer = useCallback(() => {
-    if (!isEditMode || isPaused) return;
+    if (!isEditMode || isPausedRef.current) return;
     setLastActivity(Date.now());
     startTimer();
-  }, [isEditMode, isPaused, startTimer]);
+  }, [isEditMode, startTimer]);
 
   const pauseTimer = useCallback(() => {
+    isPausedRef.current = true;
     setIsPaused(true);
     if (timerRef.current) clearTimeout(timerRef.current);
   }, []);
 
   const resumeTimer = useCallback(() => {
+    isPausedRef.current = false;
     setIsPaused(false);
     if (isEditMode) {
       setLastActivity(Date.now());

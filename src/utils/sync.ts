@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import { supabase } from './supabase';
 import { useStore } from '../store/useStore';
 import { UnitsStore, GeneralIssue } from '../types';
-import { uploadLocalPhotos, verifyAndRepairPhotos, downloadPhotosToDevice } from './imageStorage';
+import { uploadLocalPhotos, downloadPhotosToDevice } from './imageStorage';
 
 export interface SyncResult {
   success: boolean;
@@ -112,9 +112,12 @@ async function _syncBody(): Promise<SyncResult> {
   const { units: localUnits, generalIssues: localGeneralIssues } = useStore.getState();
   let uploadStatus = '';
 
-  // 1. Upload any local file-path photos to Supabase Storage
+  // 1. Upload any local file-path photos to Supabase Storage (30s timeout per run)
   try {
-    const uploadResult = await uploadLocalPhotos(localUnits);
+    const uploadResult = await Promise.race([
+      uploadLocalPhotos(localUnits),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('upload timeout')), 30_000)),
+    ]);
     if (uploadResult.updated) {
       useStore.getState().loadBackup(uploadResult.units as UnitsStore, localGeneralIssues);
     }
@@ -130,7 +133,7 @@ async function _syncBody(): Promise<SyncResult> {
     .eq('id', 1)
     .single();
 
-  if (error) throw error;
+  if (error) return { success: false, error: error.message ?? 'Failed to fetch remote state' };
 
   // 3. Merge remote into local
   const remoteUnits = (data.units ?? {}) as UnitsStore;
@@ -139,21 +142,7 @@ async function _syncBody(): Promise<SyncResult> {
     useStore.getState().mergeImport(remoteUnits, remoteGeneralIssues);
   }
 
-  // 4. Verify photos AFTER merge — 20s timeout so a slow/hung storage list can't stall sync.
-  const { units: postMergeUnits, generalIssues: postMergeGeneral } = useStore.getState();
-  let repairStatus = '';
-  try {
-    const repairResult = await Promise.race([
-      verifyAndRepairPhotos(postMergeUnits),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('verify timeout')), 20_000)),
-    ]);
-    if (repairResult.repaired > 0 || repairResult.dropped > 0) {
-      useStore.getState().loadBackup(repairResult.units as UnitsStore, postMergeGeneral);
-    }
-    repairStatus = repairResult.status;
-  } catch { /* non-fatal — push whatever we have */ }
-
-  // 5. Push merged + repaired state back to cloud
+  // 4. Push merged state back to cloud
   const { units: finalUnits, generalIssues: finalGeneralIssues } = useStore.getState();
   const now = new Date().toISOString();
 
@@ -162,36 +151,44 @@ async function _syncBody(): Promise<SyncResult> {
     .update({ units: finalUnits, general_issues: finalGeneralIssues, updated_at: now })
     .eq('id', 1);
 
-  if (pushError) throw pushError;
+  if (pushError) return { success: false, error: pushError.message ?? 'Failed to push to cloud' };
 
-  // 6. Download any missing remote photos to device for offline access (native only).
+  // 5. Download any missing remote photos to device for offline access (native only).
   // Fire-and-forget — don't await so a slow download can't hang the sync completion.
   if (Platform.OS !== 'web') {
     downloadPhotosToDevice(finalUnits).catch(() => {});
   }
 
-  const photoStatus = [uploadStatus, repairStatus].filter(Boolean).join(' | ') || 'Photos up to date';
+  const photoStatus = uploadStatus || 'Photos up to date';
   markSuccess();
   return { success: true, timestamp: now, warning: photoStatus };
 }
 
 export async function syncWithCloud(): Promise<SyncResult> {
-  // Suppress useAutoPush during sync — store changes inside _syncBody (mergeImport, loadBackup)
-  // would otherwise trigger concurrent pushToCloud calls while sync is still in flight.
-  _suppressAutoPush = true;
-  try {
-    return await Promise.race([
-      _syncBody(),
-      new Promise<SyncResult>((resolve) =>
-        setTimeout(() => resolve({ success: false, error: 'Sync timed out — check connection' }), 45_000)
-      ),
-    ]);
-  } catch (err: any) {
+  // Suppress useAutoPush during sync — store mutations inside _syncBody (mergeImport, loadBackup)
+  // must not trigger concurrent pushToCloud calls while sync is still in flight.
+  _suppressDepth++;
+
+  // Attach .catch() immediately so any rejection from _syncBody is always handled,
+  // even if the 45s timeout wins the race and this promise settles after we return.
+  const bodyPromise = _syncBody().catch((err: any): SyncResult => {
     markFailure();
     return { success: false, error: err?.message ?? 'Sync failed' };
-  } finally {
-    _suppressAutoPush = false;
-  }
+  });
+
+  const result = await Promise.race([
+    bodyPromise,
+    new Promise<SyncResult>((resolve) =>
+      setTimeout(() => resolve({ success: false, error: 'Sync timed out — check connection' }), 45_000)
+    ),
+  ]);
+
+  // Decrement only after bodyPromise settles — if the timeout won, _syncBody is still
+  // running and mutating the store; decrementing now would let a concurrent sync's
+  // auto-push fire while this stalled body is mid-merge.
+  bodyPromise.then(() => { _suppressDepth = Math.max(0, _suppressDepth - 1); });
+
+  return result;
 }
 
 // Union https:// photo arrays from two sources (a=local, b=remote), no Zustand mutation.
@@ -250,9 +247,10 @@ function injectRemotePhotos(localUnits: Record<string, any>, remoteUnits: Record
   return result;
 }
 
-// Set true while pushToCloud is updating the local store to prevent a push loop.
-let _suppressAutoPush = false;
-export function isSuppressingAutoPush(): boolean { return _suppressAutoPush; }
+// Ref-counter: >0 means suppress auto-push. Use increment/decrement so concurrent
+// syncs (e.g. stalled body + new manual sync) don't prematurely re-enable auto-push.
+let _suppressDepth = 0;
+export function isSuppressingAutoPush(): boolean { return _suppressDepth > 0; }
 
 // Lightweight push — writes current store state to sync_state.
 // On web: fetches remote photo URLs first, injects any missing into the local store
@@ -271,9 +269,9 @@ export async function pushToCloud(): Promise<void> {
         if (mergedCount > localCount) {
           // New remote photos — update local store so UI shows them immediately.
           // Suppress subscribe to avoid triggering another pushToCloud.
-          _suppressAutoPush = true;
+          _suppressDepth++;
           useStore.getState().loadBackup(merged as UnitsStore, generalIssues);
-          _suppressAutoPush = false;
+          _suppressDepth--;
         }
         unitsToPush = merged;
       }
