@@ -11,3 +11,8 @@ dist/
 *.orig.*
 web-build/
 expo.log
+
+# temp script artifacts
+scripts/tmp_photos/
+scripts/*.jpg
+scripts/*.png
