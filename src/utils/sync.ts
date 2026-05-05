@@ -217,9 +217,13 @@ function injectRemotePhotos(localUnits: Record<string, any>, remoteUnits: Record
   return result;
 }
 
+// Set true while pushToCloud is updating the local store to prevent a push loop.
+let _suppressAutoPush = false;
+export function isSuppressingAutoPush(): boolean { return _suppressAutoPush; }
+
 // Lightweight push — writes current store state to sync_state.
-// On web: fetches remote photo URLs first and preserves them to avoid clobbering native photos
-// that the web hasn't yet synced into its local store.
+// On web: fetches remote photo URLs first, injects any missing into the local store
+// (suppressing the subscribe to avoid a loop), then writes the enriched state.
 export async function pushToCloud(): Promise<void> {
   const { units: localUnits, generalIssues } = useStore.getState();
   let unitsToPush: Record<string, any> = localUnits;
@@ -228,7 +232,17 @@ export async function pushToCloud(): Promise<void> {
     try {
       const { data } = await supabase.from('sync_state').select('units').eq('id', 1).single();
       if (data?.units && typeof data.units === 'object') {
-        unitsToPush = injectRemotePhotos(localUnits, data.units as Record<string, any>);
+        const merged = injectRemotePhotos(localUnits, data.units as Record<string, any>);
+        const localCount = collectRemoteImageUrls(localUnits as UnitsStore).length;
+        const mergedCount = collectRemoteImageUrls(merged as UnitsStore).length;
+        if (mergedCount > localCount) {
+          // New remote photos — update local store so UI shows them immediately.
+          // Suppress subscribe to avoid triggering another pushToCloud.
+          _suppressAutoPush = true;
+          useStore.getState().loadBackup(merged as UnitsStore, generalIssues);
+          _suppressAutoPush = false;
+        }
+        unitsToPush = merged;
       }
     } catch {}
   }

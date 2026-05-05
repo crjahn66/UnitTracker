@@ -36,6 +36,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         clearLoginTime();
         setAuthed(false);
       } else {
+        if (session) syncWithCloud().catch(() => {});
         setAuthed(!!session);
       }
       setChecking(false);

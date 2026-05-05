@@ -9,7 +9,7 @@ import EditModeBanner from './src/components/EditModeBanner';
 import { EditModeProvider, useEditMode } from './src/context/EditModeContext';
 import { useSessionTimeout } from './src/hooks/useSessionTimeout';
 import { useStore } from './src/store/useStore';
-import { pushToCloud } from './src/utils/sync';
+import { pushToCloud, isSuppressingAutoPush } from './src/utils/sync';
 import { startAutoBackup } from './src/utils/backup';
 
 // Auto-push store state to sync_state 2s after any change on both platforms.
@@ -17,6 +17,7 @@ function useAutoPush() {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const unsubscribe = useStore.subscribe(() => {
+      if (isSuppressingAutoPush()) return;
       clearTimeout(timer);
       timer = setTimeout(() => { pushToCloud().catch(() => {}); }, 2000);
     });
