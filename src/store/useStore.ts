@@ -587,6 +587,40 @@ export const useStore = create<StoreState>()(
     {
       name: 'unit-tracker-v1',
       storage: createJSONStorage(() => AsyncStorage),
+      // On web, strip image arrays before writing to localStorage to avoid
+      // QuotaExceededError. Images are always retrievable from Supabase on
+      // next sync; stripping them here only affects what's cached between
+      // page loads, not the in-memory store for the current session.
+      ...(typeof document !== 'undefined' && {
+        partialize: (state: StoreState) => ({
+          ...state,
+          units: Object.fromEntries(
+            Object.entries(state.units).map(([uid, unit]) => [
+              uid,
+              {
+                ...unit,
+                components: Object.fromEntries(
+                  Object.entries(unit.components).map(([ck, comp]) => [
+                    ck,
+                    {
+                      ...comp,
+                      progressImages: undefined,
+                      goodImages: undefined,
+                      issues: comp.issues.map((iss) => ({ ...iss, images: undefined })),
+                    },
+                  ])
+                ),
+                miscEquipment: (unit.miscEquipment ?? []).map((item) => ({
+                  ...item,
+                  progressImages: undefined,
+                  goodImages: undefined,
+                  issues: item.issues.map((iss) => ({ ...iss, images: undefined })),
+                })),
+              },
+            ])
+          ),
+        }),
+      }),
     }
   )
 );
