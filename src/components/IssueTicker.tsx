@@ -90,7 +90,7 @@ export default function IssueTicker() {
           {text}
         </Text>
       </View>
-      <Animated.Text style={[s.text, { transform: [{ translateX }] }]} numberOfLines={1}>
+      <Animated.Text style={[s.text, { transform: [{ translateX }] }]}>
         {text}
       </Animated.Text>
     </View>
