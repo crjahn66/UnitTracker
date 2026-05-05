@@ -164,16 +164,13 @@ export async function syncWithCloud(): Promise<SyncResult> {
 
     if (pushError) throw pushError;
 
-    // 6. Download any missing remote photos to device for offline access (native only)
-    let downloadStatus = '';
+    // 6. Download any missing remote photos to device for offline access (native only).
+    // Fire-and-forget — don't await so a slow download can't hang the sync completion.
     if (Platform.OS !== 'web') {
-      try {
-        const dlResult = await downloadPhotosToDevice(finalUnits);
-        downloadStatus = dlResult.status;
-      } catch {}
+      downloadPhotosToDevice(finalUnits).catch(() => {});
     }
 
-    const photoStatus = [uploadStatus, repairStatus, downloadStatus].filter(Boolean).join(' | ') || 'Photos up to date';
+    const photoStatus = [uploadStatus, repairStatus].filter(Boolean).join(' | ') || 'Photos up to date';
     markSuccess();
     return { success: true, timestamp: now, warning: photoStatus };
   } catch (err: any) {
@@ -191,7 +188,8 @@ function unionPhotoArrays(a: string[] | undefined, b: string[] | undefined): str
 }
 
 // Merge remote photo URLs into a deep-copy of localUnits without touching the Zustand store.
-// Prevents web's auto-push from erasing native photos that haven't been synced to web yet.
+// Iterates over REMOTE issues so photos on issues that don't yet exist in the web local store
+// are still carried into the push, preventing web's auto-push from silently dropping them.
 function injectRemotePhotos(localUnits: Record<string, any>, remoteUnits: Record<string, any>): Record<string, any> {
   const result: Record<string, any> = JSON.parse(JSON.stringify(localUnits));
   for (const [uid, remUnit] of Object.entries(remoteUnits) as [string, any][]) {
@@ -201,19 +199,36 @@ function injectRemotePhotos(localUnits: Record<string, any>, remoteUnits: Record
       if (!localComp) continue;
       localComp.progressImages = unionPhotoArrays(localComp.progressImages, remComp.progressImages);
       localComp.goodImages = unionPhotoArrays(localComp.goodImages, remComp.goodImages);
-      for (const localIssue of (localComp.issues ?? [])) {
-        const remIssue = (remComp.issues ?? []).find((i: any) => i.id === localIssue.id);
-        if (remIssue) localIssue.images = unionPhotoArrays(localIssue.images, remIssue.images) ?? [];
+      // Iterate over REMOTE issues — adds photos for issues not yet in web local store
+      const localIssueMap = new Map<string, any>((localComp.issues ?? []).map((i: any) => [i.id, i]));
+      for (const remIssue of (remComp.issues ?? [])) {
+        const remPhotos = (remIssue.images ?? []).filter((u: string) => u?.startsWith('https://'));
+        if (remPhotos.length === 0) continue;
+        const localIssue = localIssueMap.get(remIssue.id);
+        if (localIssue) {
+          localIssue.images = unionPhotoArrays(localIssue.images, remIssue.images) ?? [];
+        } else {
+          // Remote issue not in local — add it so its photo URL isn't lost on push
+          localComp.issues = [...(localComp.issues ?? []), { ...remIssue, images: remPhotos }];
+        }
       }
     }
-    for (const localItem of (result[uid].miscEquipment ?? [])) {
-      const remItem = ((remUnit as any).miscEquipment ?? []).find((m: any) => m.id === localItem.id);
-      if (!remItem) continue;
+    const localMiscMap = new Map<string, any>((result[uid].miscEquipment ?? []).map((m: any) => [m.id, m]));
+    for (const remItem of ((remUnit as any).miscEquipment ?? [])) {
+      const localItem = localMiscMap.get(remItem.id);
+      if (!localItem) continue;
       localItem.progressImages = unionPhotoArrays(localItem.progressImages, remItem.progressImages);
       localItem.goodImages = unionPhotoArrays(localItem.goodImages, remItem.goodImages);
-      for (const localIssue of (localItem.issues ?? [])) {
-        const remIssue = (remItem.issues ?? []).find((i: any) => i.id === localIssue.id);
-        if (remIssue) localIssue.images = unionPhotoArrays(localIssue.images, remIssue.images) ?? [];
+      const localIssueMap2 = new Map<string, any>((localItem.issues ?? []).map((i: any) => [i.id, i]));
+      for (const remIssue of (remItem.issues ?? [])) {
+        const remPhotos = (remIssue.images ?? []).filter((u: string) => u?.startsWith('https://'));
+        if (remPhotos.length === 0) continue;
+        const localIssue = localIssueMap2.get(remIssue.id);
+        if (localIssue) {
+          localIssue.images = unionPhotoArrays(localIssue.images, remIssue.images) ?? [];
+        } else {
+          localItem.issues = [...(localItem.issues ?? []), { ...remIssue, images: remPhotos }];
+        }
       }
     }
   }

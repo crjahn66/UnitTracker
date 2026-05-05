@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { EDIT_TIMEOUT_MS, useEditMode } from '../context/EditModeContext';
+
+const STATUS_BAR_HEIGHT = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) : 0;
 
 export default function EditModeBanner() {
   const { isEditMode, lastActivity, enterEditMode } = useEditMode();
@@ -42,7 +44,8 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 7,
+    paddingTop: 7 + STATUS_BAR_HEIGHT,
+    paddingBottom: 7,
     paddingHorizontal: 12,
   },
   editBanner: { backgroundColor: '#1a7f37' },
