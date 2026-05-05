@@ -294,10 +294,22 @@ export function isSuppressingAutoPush(): boolean { return _suppressDepth > 0; }
 // On web: fetches remote photo URLs first, injects any missing into the local store
 // (suppressing the subscribe to avoid a loop), then writes the enriched state.
 export async function pushToCloud(): Promise<void> {
-  const { units: localUnits, generalIssues } = useStore.getState();
+  let { units: localUnits, generalIssues } = useStore.getState();
   let unitsToPush: Record<string, any> = localUnits;
 
   if (Platform.OS === 'web') {
+    // Upload any base64 data: URIs before they reach the DB row.
+    // This is the last line of defence against embedded images bloating sync_state.
+    try {
+      const uploadResult = await uploadLocalPhotos(localUnits);
+      if (uploadResult.updated) {
+        _suppressDepth++;
+        useStore.getState().loadBackup(uploadResult.units as UnitsStore, generalIssues);
+        _suppressDepth--;
+        localUnits = uploadResult.units as UnitsStore;
+      }
+    } catch {}
+
     try {
       const { data } = await supabase.from('sync_state').select('units').eq('id', 1).single();
       if (data?.units && typeof data.units === 'object') {

@@ -18,7 +18,7 @@ function remoteFileName(url: string): string | null {
   return part ? decodeURIComponent(part) : null;
 }
 
-// Returns converted JPEG uri, original uri (non-HEIC), or null (HEIC that failed)
+// Convert HEIC/HEIF → JPEG. Returns uri unchanged for other formats, null if conversion fails.
 async function prepareUri(uri: string): Promise<string | null> {
   const ext = uri.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
   if (ext !== 'heic' && ext !== 'heif') return uri;
@@ -31,6 +31,26 @@ async function prepareUri(uri: string): Promise<string | null> {
     return r.uri;
   } catch {
     return null;
+  }
+}
+
+// Resize to max 1600px and compress to 0.8 quality before uploading.
+// Phone cameras produce 3–10 MB files; this brings them to ~150–400 KB
+// without visible quality loss for issue-tracking purposes.
+const MAX_UPLOAD_DIM = 1600;
+const UPLOAD_QUALITY = 0.8;
+
+async function compressForUpload(uri: string): Promise<string> {
+  if (!ImageManipulator) return uri;
+  try {
+    const r = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: MAX_UPLOAD_DIM } }],
+      { compress: UPLOAD_QUALITY, format: ImageManipulator.SaveFormat.JPEG },
+    );
+    return r.uri;
+  } catch {
+    return uri;
   }
 }
 
@@ -115,17 +135,18 @@ export async function readResizedBase64(uri: string, maxDim = 400, quality = 0.6
 
 // Upload a local file to Supabase using its own filename so we can always map back
 async function uploadFile(localPath: string): Promise<string | null> {
-  const src = await prepareUri(localPath);
-  if (src === null) return null; // HEIC that couldn't be converted
+  const converted = await prepareUri(localPath);
+  if (converted === null) return null; // HEIC that couldn't be converted
 
-  const rawExt = src.split('?')[0].split('/').pop()?.split('.').pop()?.toLowerCase() ?? 'jpg';
+  const compressed = await compressForUpload(converted);
+
+  const rawExt = compressed.split('?')[0].split('/').pop()?.split('.').pop()?.toLowerCase() ?? 'jpg';
   const ext = rawExt === 'jpg' ? 'jpeg' : rawExt === 'heic' || rawExt === 'heif' ? 'jpeg' : rawExt;
   const localName = localPath.split('/').pop() ?? `${Date.now()}.${ext}`;
-  // Use the same base name but with correct extension (handles HEIC→jpg conversion)
   const fileName = localName.replace(/\.(heic|heif)$/i, '.jpg');
   const contentType = `image/${ext}`;
 
-  const base64 = await FileSystem.readAsStringAsync(src, { encoding: 'base64' as any });
+  const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: 'base64' as any });
   const binaryStr = atob(base64);
   const bytes = new Uint8Array(binaryStr.length);
   for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
