@@ -59,7 +59,7 @@ async function checkForRemoteChanges() {
       .single();
     if (!data?.updated_at) return;
     const remoteTime = new Date(data.updated_at).getTime();
-    if (remoteTime > _lastPushedAt + 10000) {
+    if (remoteTime > _lastPushedAt + 90000) {
       _hasPendingChanges = true;
       notifyListeners();
     }

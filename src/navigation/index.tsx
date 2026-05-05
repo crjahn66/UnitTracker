@@ -30,6 +30,10 @@ const HEADER_STYLE = {
   backgroundColor: '#0d1117',
 } as const;
 
+// EditModeBanner already accounts for the status bar height on Android,
+// so tell React Navigation not to add its own status-bar padding to headers.
+const HEADER_STATUS_BAR_HEIGHT = 0;
+
 function UnitStack({ side, title }: { side: Side; title: string }) {
   return (
     <Stack.Navigator
@@ -38,6 +42,7 @@ function UnitStack({ side, title }: { side: Side; title: string }) {
         headerTintColor: '#e6edf3',
         headerTitleStyle: { fontWeight: '600' },
         headerRight: () => <SyncStatusBar />,
+        headerStatusBarHeight: HEADER_STATUS_BAR_HEIGHT,
       }}
     >
       <Stack.Screen
@@ -98,6 +103,7 @@ export default function Navigation() {
             tabBarLabel: 'Dashboard',
             headerStyle: HEADER_STYLE,
             headerTintColor: '#e6edf3',
+            headerStatusBarHeight: HEADER_STATUS_BAR_HEIGHT,
             title: 'Dashboard',
             headerRight: () => <SyncStatusBar />,
           }}
@@ -132,6 +138,7 @@ export default function Navigation() {
             tabBarLabel: 'Reports',
             headerStyle: HEADER_STYLE,
             headerTintColor: '#e6edf3',
+            headerStatusBarHeight: HEADER_STATUS_BAR_HEIGHT,
             title: 'Reports & Export',
             headerRight: () => <SyncStatusBar />,
           }}
