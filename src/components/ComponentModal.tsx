@@ -11,6 +11,7 @@ import { useStore } from '../store/useStore';
 import { COMPONENTS, ComponentKey, ComponentStatus, Issue } from '../types';
 import { saveImage, deleteImage } from '../utils/imageStorage';
 import { pushToCloud } from '../utils/sync';
+import { useEditMode } from '../context/EditModeContext';
 import PhotoViewer from './PhotoViewer';
 
 interface Props {
@@ -196,6 +197,7 @@ function IssueCard({ issue, onResolve, onDelete, onEdit, onAddImage, onRemoveIma
   onViewImage: (uri: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const { isEditMode } = useEditMode();
   const ageDays = !issue.resolved && issue.dateFound
     ? Math.floor((Date.now() - new Date(issue.dateFound).getTime()) / 86400000)
     : null;
@@ -254,28 +256,30 @@ function IssueCard({ issue, onResolve, onDelete, onEdit, onAddImage, onRemoveIma
               onView={onViewImage}
             />
           )}
-          <View style={ic.actions}>
-            {!issue.resolved && (
-              <TouchableOpacity style={[ic.actionBtn, ic.resolveBtn]} onPress={onResolve}>
-                <Ionicons name="checkmark-circle-outline" size={14} color="#3fb950" style={{ marginRight: 4 }} />
-                <Text style={ic.resolveBtnText}>Mark Resolved</Text>
+          {isEditMode && (
+            <View style={ic.actions}>
+              {!issue.resolved && (
+                <TouchableOpacity style={[ic.actionBtn, ic.resolveBtn]} onPress={onResolve}>
+                  <Ionicons name="checkmark-circle-outline" size={14} color="#3fb950" style={{ marginRight: 4 }} />
+                  <Text style={ic.resolveBtnText}>Mark Resolved</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={[ic.actionBtn, ic.editBtn]} onPress={onEdit}>
+                <Ionicons name="pencil-outline" size={14} color="#d29922" style={{ marginRight: 4 }} />
+                <Text style={ic.editBtnText}>Edit</Text>
               </TouchableOpacity>
-            )}
-            <TouchableOpacity style={[ic.actionBtn, ic.editBtn]} onPress={onEdit}>
-              <Ionicons name="pencil-outline" size={14} color="#d29922" style={{ marginRight: 4 }} />
-              <Text style={ic.editBtnText}>Edit</Text>
-            </TouchableOpacity>
-            {!issue.resolved && (
-              <TouchableOpacity style={[ic.actionBtn, ic.photoBtn]} onPress={pickImages}>
-                <Ionicons name="camera-outline" size={14} color="#58a6ff" style={{ marginRight: 4 }} />
-                <Text style={ic.photoBtnText}>Add Photo</Text>
+              {!issue.resolved && (
+                <TouchableOpacity style={[ic.actionBtn, ic.photoBtn]} onPress={pickImages}>
+                  <Ionicons name="camera-outline" size={14} color="#58a6ff" style={{ marginRight: 4 }} />
+                  <Text style={ic.photoBtnText}>Add Photo</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={[ic.actionBtn, ic.deleteBtn]} onPress={onDelete}>
+                <Ionicons name="trash-outline" size={14} color="#f85149" style={{ marginRight: 4 }} />
+                <Text style={ic.deleteBtnText}>Delete</Text>
               </TouchableOpacity>
-            )}
-            <TouchableOpacity style={[ic.actionBtn, ic.deleteBtn]} onPress={onDelete}>
-              <Ionicons name="trash-outline" size={14} color="#f85149" style={{ marginRight: 4 }} />
-              <Text style={ic.deleteBtnText}>Delete</Text>
-            </TouchableOpacity>
-          </View>
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -461,6 +465,7 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
   const addIssue    = useStore((state) => state.addIssue);
   const updateIssue = useStore((state) => state.updateIssue);
   const deleteIssue = useStore((state) => state.deleteIssue);
+  const { isEditMode } = useEditMode();
 
   const [view, setView] = useState<ModalView>('detail');
   const [resolvingId, setResolvingId] = useState<string | null>(null);
@@ -659,21 +664,23 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
     return (
       <View>
         <Text style={m.sectionLabel}>STATUS</Text>
-        <View style={m.statusRow}>
-          {(['good', 'inProgress', 'bad', 'unchecked'] as ComponentStatus[]).map((status) => (
-            <TouchableOpacity
-              key={status}
-              style={[
-                m.statusBtn,
-                compData.status === status && { backgroundColor: statusColor(status) + '33', borderColor: statusColor(status) },
-              ]}
-              onPress={() => handleStatusChange(status)}
-              activeOpacity={0.75}
-            >
-              <Text style={[m.statusBtnText, { color: statusColor(status) }]}>{statusLabel(status)}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {isEditMode && (
+          <View style={m.statusRow}>
+            {(['good', 'inProgress', 'bad', 'unchecked'] as ComponentStatus[]).map((status) => (
+              <TouchableOpacity
+                key={status}
+                style={[
+                  m.statusBtn,
+                  compData.status === status && { backgroundColor: statusColor(status) + '33', borderColor: statusColor(status) },
+                ]}
+                onPress={() => handleStatusChange(status)}
+                activeOpacity={0.75}
+              >
+                <Text style={[m.statusBtnText, { color: statusColor(status) }]}>{statusLabel(status)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {compData.status !== 'unchecked' && (
           <View style={m.statusDateRow}>
@@ -806,10 +813,12 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
           </>
         )}
 
-        <TouchableOpacity style={m.addIssueBtn} onPress={() => setView('addIssue')}>
-          <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 6 }} />
-          <Text style={m.addIssueBtnText}>Log New Issue</Text>
-        </TouchableOpacity>
+        {isEditMode && (
+          <TouchableOpacity style={m.addIssueBtn} onPress={() => setView('addIssue')}>
+            <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 6 }} />
+            <Text style={m.addIssueBtnText}>Log New Issue</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };

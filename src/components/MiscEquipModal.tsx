@@ -10,6 +10,7 @@ import { useStore } from '../store/useStore';
 import { ComponentStatus, MiscIssue } from '../types';
 import { saveImage, deleteImage } from '../utils/imageStorage';
 import { pushToCloud } from '../utils/sync';
+import { useEditMode } from '../context/EditModeContext';
 import PhotoViewer from './PhotoViewer';
 
 interface Props {
@@ -153,6 +154,7 @@ function IssueCard({ issue, onResolve, onDelete, onEdit, onAddImage, onRemoveIma
   onAddImage: (uri: string) => void; onRemoveImage: (uri: string) => void; onViewImage: (uri: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const { isEditMode } = useEditMode();
   const ageDays = !issue.resolved && issue.dateFound
     ? Math.floor((Date.now() - new Date(issue.dateFound).getTime()) / 86400000)
     : null;
@@ -205,28 +207,30 @@ function IssueCard({ issue, onResolve, onDelete, onEdit, onAddImage, onRemoveIma
           {(issue.images?.length ?? 0) > 0 && (
             <ImageStrip images={issue.images ?? []} onAdd={pickImages} onRemove={onRemoveImage} onView={onViewImage} />
           )}
-          <View style={ic.actions}>
-            {!issue.resolved && (
-              <TouchableOpacity style={[ic.actionBtn, ic.resolveBtn]} onPress={onResolve}>
-                <Ionicons name="checkmark-circle-outline" size={14} color="#3fb950" style={{ marginRight: 4 }} />
-                <Text style={ic.resolveBtnText}>Mark Resolved</Text>
+          {isEditMode && (
+            <View style={ic.actions}>
+              {!issue.resolved && (
+                <TouchableOpacity style={[ic.actionBtn, ic.resolveBtn]} onPress={onResolve}>
+                  <Ionicons name="checkmark-circle-outline" size={14} color="#3fb950" style={{ marginRight: 4 }} />
+                  <Text style={ic.resolveBtnText}>Mark Resolved</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={[ic.actionBtn, ic.editBtn]} onPress={onEdit}>
+                <Ionicons name="pencil-outline" size={14} color="#d29922" style={{ marginRight: 4 }} />
+                <Text style={ic.editBtnText}>Edit</Text>
               </TouchableOpacity>
-            )}
-            <TouchableOpacity style={[ic.actionBtn, ic.editBtn]} onPress={onEdit}>
-              <Ionicons name="pencil-outline" size={14} color="#d29922" style={{ marginRight: 4 }} />
-              <Text style={ic.editBtnText}>Edit</Text>
-            </TouchableOpacity>
-            {!issue.resolved && (
-              <TouchableOpacity style={[ic.actionBtn, ic.photoBtn]} onPress={pickImages}>
-                <Ionicons name="camera-outline" size={14} color="#58a6ff" style={{ marginRight: 4 }} />
-                <Text style={ic.photoBtnText}>Add Photo</Text>
+              {!issue.resolved && (
+                <TouchableOpacity style={[ic.actionBtn, ic.photoBtn]} onPress={pickImages}>
+                  <Ionicons name="camera-outline" size={14} color="#58a6ff" style={{ marginRight: 4 }} />
+                  <Text style={ic.photoBtnText}>Add Photo</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={[ic.actionBtn, ic.deleteBtn]} onPress={onDelete}>
+                <Ionicons name="trash-outline" size={14} color="#f85149" style={{ marginRight: 4 }} />
+                <Text style={ic.deleteBtnText}>Delete</Text>
               </TouchableOpacity>
-            )}
-            <TouchableOpacity style={[ic.actionBtn, ic.deleteBtn]} onPress={onDelete}>
-              <Ionicons name="trash-outline" size={14} color="#f85149" style={{ marginRight: 4 }} />
-              <Text style={ic.deleteBtnText}>Delete</Text>
-            </TouchableOpacity>
-          </View>
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -386,6 +390,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
   const updateMiscIssue   = useStore((state) => state.updateMiscIssue);
   const deleteMiscIssue   = useStore((state) => state.deleteMiscIssue);
   const setMiscEquipStatusDate = useStore((state) => state.setMiscEquipStatusDate);
+  const { isEditMode } = useEditMode();
 
   const item = (unit.miscEquipment ?? []).find((i) => i.id === itemId);
   const statusDate = !item ? undefined :
@@ -538,13 +543,15 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
     return (
       <View>
         <Text style={m.sectionLabel}>STATUS</Text>
-        <View style={m.statusRow}>
-          {(['good', 'inProgress', 'bad', 'unchecked'] as ComponentStatus[]).map((status) => (
-            <TouchableOpacity key={status} style={[m.statusBtn, item.status === status && { backgroundColor: statusColor(status) + '33', borderColor: statusColor(status) }]} onPress={() => handleStatusChange(status)} activeOpacity={0.75}>
-              <Text style={[m.statusBtnText, { color: statusColor(status) }]}>{statusLabel(status)}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {isEditMode && (
+          <View style={m.statusRow}>
+            {(['good', 'inProgress', 'bad', 'unchecked'] as ComponentStatus[]).map((status) => (
+              <TouchableOpacity key={status} style={[m.statusBtn, item.status === status && { backgroundColor: statusColor(status) + '33', borderColor: statusColor(status) }]} onPress={() => handleStatusChange(status)} activeOpacity={0.75}>
+                <Text style={[m.statusBtnText, { color: statusColor(status) }]}>{statusLabel(status)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
         {item.status !== 'unchecked' && (
           <View style={m.statusDateRow}>
             {editingStatusDate ? (
@@ -656,14 +663,18 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
             )}
           </>
         )}
-        <TouchableOpacity style={m.addIssueBtn} onPress={() => setView('addIssue')}>
-          <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 6 }} />
-          <Text style={m.addIssueBtnText}>Log New Issue</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={m.deleteItemBtn} onPress={handleDeleteItem}>
-          <Ionicons name="trash-outline" size={15} color="#f85149" style={{ marginRight: 6 }} />
-          <Text style={m.deleteItemBtnText}>Remove Equipment</Text>
-        </TouchableOpacity>
+        {isEditMode && (
+          <TouchableOpacity style={m.addIssueBtn} onPress={() => setView('addIssue')}>
+            <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 6 }} />
+            <Text style={m.addIssueBtnText}>Log New Issue</Text>
+          </TouchableOpacity>
+        )}
+        {isEditMode && (
+          <TouchableOpacity style={m.deleteItemBtn} onPress={handleDeleteItem}>
+            <Ionicons name="trash-outline" size={15} color="#f85149" style={{ marginRight: 6 }} />
+            <Text style={m.deleteItemBtnText}>Remove Equipment</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
@@ -680,11 +691,15 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
                   <TouchableOpacity onPress={handleSaveLabel} style={m.labelEditBtn}><Ionicons name="checkmark" size={20} color="#3fb950" /></TouchableOpacity>
                   <TouchableOpacity onPress={() => setEditingLabel(false)} style={m.labelEditBtn}><Ionicons name="close" size={20} color="#f85149" /></TouchableOpacity>
                 </View>
-              ) : (
+              ) : isEditMode ? (
                 <TouchableOpacity style={m.labelRow} onPress={() => { setLabelValue(item.label); setEditingLabel(true); }} activeOpacity={0.7}>
                   <Text style={[m.compName, !item.label && m.compNamePlaceholder]}>{item.label || 'Tap to name equipment…'}</Text>
                   <Ionicons name="pencil-outline" size={14} color="#8b949e" style={{ marginLeft: 6 }} />
                 </TouchableOpacity>
+              ) : (
+                <View style={m.labelRow}>
+                  <Text style={[m.compName, !item.label && m.compNamePlaceholder]}>{item.label || 'Unnamed Equipment'}</Text>
+                </View>
               )}
               <Text style={[m.statusTag, { color }]}>● {statusLabel(item.status)}{statusDate ? `  ·  ${fmtDate(statusDate)}` : ''}</Text>
             </View>

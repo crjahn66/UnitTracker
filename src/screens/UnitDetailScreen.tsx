@@ -14,6 +14,7 @@ import MiscEquipModal from '../components/MiscEquipModal';
 import PhotoGalleryModal from '../components/PhotoGalleryModal';
 import { getNetworkEntry } from '../data/networkData';
 import { pushToCloud } from '../utils/sync';
+import { useEditMode } from '../context/EditModeContext';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitDetail'>;
 
@@ -32,6 +33,7 @@ export default function UnitDetailScreen({ route }: Props) {
   const [editingStageDate, setEditingStageDate] = useState<StageKey | null>(null);
   const [stageDateValue, setStageDateValue] = useState('');
   const addMiscEquip = useStore((state) => state.addMiscEquip);
+  const { isEditMode } = useEditMode();
 
   const handleStageChange = useCallback(
     (key: StageKey, status: StageStatus) => {
@@ -126,33 +128,39 @@ export default function UnitDetailScreen({ route }: Props) {
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <Text style={s.stageNum}>Stage {idx + 1} of {STAGES.length}</Text>
                       {stageStatus !== 'pending' && !isEditingDate && (
-                        <TouchableOpacity
-                          onPress={() => {
-                            setStageDateValue(unit.stagesDates?.[stage.key] ? format(new Date(unit.stagesDates![stage.key]!), 'MM/dd/yyyy') : format(new Date(), 'MM/dd/yyyy'));
-                            setEditingStageNote(null);
-                            setEditingStageDate(stage.key);
-                          }}
-                          activeOpacity={0.7}
-                          style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 6 }}
-                        >
-                          <Text style={s.stageDateText}>{dateStr ? `· ${dateStr}` : '· Set date'}</Text>
-                          <Ionicons name="pencil-outline" size={10} color="#6e7681" style={{ marginLeft: 3 }} />
-                        </TouchableOpacity>
+                        isEditMode ? (
+                          <TouchableOpacity
+                            onPress={() => {
+                              setStageDateValue(unit.stagesDates?.[stage.key] ? format(new Date(unit.stagesDates![stage.key]!), 'MM/dd/yyyy') : format(new Date(), 'MM/dd/yyyy'));
+                              setEditingStageNote(null);
+                              setEditingStageDate(stage.key);
+                            }}
+                            activeOpacity={0.7}
+                            style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 6 }}
+                          >
+                            <Text style={s.stageDateText}>{dateStr ? `· ${dateStr}` : '· Set date'}</Text>
+                            <Ionicons name="pencil-outline" size={10} color="#6e7681" style={{ marginLeft: 3 }} />
+                          </TouchableOpacity>
+                        ) : dateStr ? (
+                          <Text style={[s.stageDateText, { marginLeft: 6 }]}>· {dateStr}</Text>
+                        ) : null
                       )}
                     </View>
                   </View>
-                  <View style={s.stageBtns}>
-                    {(['complete', 'inProgress', 'stuck'] as StageStatus[]).map((st) => (
-                      <TouchableOpacity
-                        key={st}
-                        style={[s.stageBtn, stageStatus === st && { backgroundColor: stageStatusColor(st) + '33', borderColor: stageStatusColor(st) }]}
-                        onPress={() => handleStageChange(stage.key, stageStatus === st ? 'pending' : st)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[s.stageBtnText, { color: stageStatusColor(st) }]}>{stageStatusLabel(st)}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+                  {isEditMode && (
+                    <View style={s.stageBtns}>
+                      {(['complete', 'inProgress', 'stuck'] as StageStatus[]).map((st) => (
+                        <TouchableOpacity
+                          key={st}
+                          style={[s.stageBtn, stageStatus === st && { backgroundColor: stageStatusColor(st) + '33', borderColor: stageStatusColor(st) }]}
+                          onPress={() => handleStageChange(stage.key, stageStatus === st ? 'pending' : st)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[s.stageBtnText, { color: stageStatusColor(st) }]}>{stageStatusLabel(st)}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
                 </View>
                 {isEditingDate && (
                   <View style={s.stageNoteEditArea}>
@@ -208,7 +216,7 @@ export default function UnitDetailScreen({ route }: Props) {
                       </TouchableOpacity>
                     </View>
                   </View>
-                ) : (
+                ) : isEditMode ? (
                   <TouchableOpacity
                     style={s.stageNoteRow}
                     onPress={() => { setStageNoteValue(stageNote ?? ''); setEditingStageNote(stage.key); setEditingStageDate(null); }}
@@ -219,7 +227,11 @@ export default function UnitDetailScreen({ route }: Props) {
                     </Text>
                     {stageNote ? <Ionicons name="pencil-outline" size={11} color="#6e7681" style={{ marginLeft: 4 }} /> : null}
                   </TouchableOpacity>
-                )}
+                ) : stageNote ? (
+                  <View style={s.stageNoteRow}>
+                    <Text style={s.stageNoteText} numberOfLines={2}>{stageNote}</Text>
+                  </View>
+                ) : null}
               </View>
             );
           })}
@@ -297,10 +309,12 @@ export default function UnitDetailScreen({ route }: Props) {
               </TouchableOpacity>
             );
           })}
-          <TouchableOpacity style={s.addMiscRow} onPress={() => addMiscEquip(unitId)} activeOpacity={0.7}>
-            <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 8 }} />
-            <Text style={s.addMiscText}>Add Equipment</Text>
-          </TouchableOpacity>
+          {isEditMode && (
+            <TouchableOpacity style={s.addMiscRow} onPress={() => addMiscEquip(unitId)} activeOpacity={0.7}>
+              <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 8 }} />
+              <Text style={s.addMiscText}>Add Equipment</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
 

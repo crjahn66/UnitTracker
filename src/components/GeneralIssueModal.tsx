@@ -8,6 +8,7 @@ import { format, parse, isValid } from 'date-fns';
 import { useStore } from '../store/useStore';
 import { pushToCloud } from '../utils/sync';
 import { GeneralIssue } from '../types';
+import { useEditMode } from '../context/EditModeContext';
 
 interface Props {
   onClose: () => void;
@@ -171,6 +172,7 @@ function IssueCard({ issue, onResolve, onDelete, onEdit }: {
   onEdit: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const { isEditMode } = useEditMode();
 
   return (
     <View style={[ic.card, issue.resolved ? ic.cardResolved : ic.cardOpen]}>
@@ -199,22 +201,24 @@ function IssueCard({ issue, onResolve, onDelete, onEdit }: {
               {issue.howFixed   ? <Text style={ic.meta}>How: {issue.howFixed}</Text> : null}
             </>
           )}
-          <View style={ic.actions}>
-            {!issue.resolved && (
-              <TouchableOpacity style={[ic.actionBtn, ic.resolveBtn]} onPress={onResolve}>
-                <Ionicons name="checkmark-circle-outline" size={14} color="#3fb950" style={{ marginRight: 4 }} />
-                <Text style={ic.resolveBtnText}>Mark Resolved</Text>
+          {isEditMode && (
+            <View style={ic.actions}>
+              {!issue.resolved && (
+                <TouchableOpacity style={[ic.actionBtn, ic.resolveBtn]} onPress={onResolve}>
+                  <Ionicons name="checkmark-circle-outline" size={14} color="#3fb950" style={{ marginRight: 4 }} />
+                  <Text style={ic.resolveBtnText}>Mark Resolved</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={[ic.actionBtn, ic.editBtn]} onPress={onEdit}>
+                <Ionicons name="pencil-outline" size={14} color="#d29922" style={{ marginRight: 4 }} />
+                <Text style={ic.editBtnText}>Edit</Text>
               </TouchableOpacity>
-            )}
-            <TouchableOpacity style={[ic.actionBtn, ic.editBtn]} onPress={onEdit}>
-              <Ionicons name="pencil-outline" size={14} color="#d29922" style={{ marginRight: 4 }} />
-              <Text style={ic.editBtnText}>Edit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[ic.actionBtn, ic.deleteBtn]} onPress={onDelete}>
-              <Ionicons name="trash-outline" size={14} color="#f85149" style={{ marginRight: 4 }} />
-              <Text style={ic.deleteBtnText}>Delete</Text>
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity style={[ic.actionBtn, ic.deleteBtn]} onPress={onDelete}>
+                <Ionicons name="trash-outline" size={14} color="#f85149" style={{ marginRight: 4 }} />
+                <Text style={ic.deleteBtnText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -229,6 +233,7 @@ export default function GeneralIssueModal({ onClose }: Props) {
   const updateGeneralIssue = useStore((state) => state.updateGeneralIssue);
   const deleteGeneralIssue = useStore((state) => state.deleteGeneralIssue);
 
+  const { isEditMode } = useEditMode();
   const [view, setView]           = useState<ModalView>('list');
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [editingId, setEditingId]     = useState<string | null>(null);
@@ -333,10 +338,12 @@ export default function GeneralIssueModal({ onClose }: Props) {
                   onDelete={() => handleDelete(issue.id)}
                 />
               ))}
-              <TouchableOpacity style={m.addBtn} onPress={() => setView('addIssue')}>
-                <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 6 }} />
-                <Text style={m.addBtnText}>Log New Issue</Text>
-              </TouchableOpacity>
+              {isEditMode && (
+                <TouchableOpacity style={m.addBtn} onPress={() => setView('addIssue')}>
+                  <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 6 }} />
+                  <Text style={m.addBtnText}>Log New Issue</Text>
+                </TouchableOpacity>
+              )}
             </ScrollView>
           )}
         </View>

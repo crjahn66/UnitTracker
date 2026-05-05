@@ -12,6 +12,7 @@ import { backupData, restoreData } from '../utils/backup';
 import { syncWithCloud, wipeAllPhotos } from '../utils/sync';
 import { supabase } from '../utils/supabase';
 import GeneralIssueModal from '../components/GeneralIssueModal';
+import { useEditMode } from '../context/EditModeContext';
 
 function isUnitCommissioned(unit: Unit): boolean {
   return STAGES.every(s => normalizeStageStatus(unit.stages[s.key]) === 'complete') &&
@@ -165,6 +166,7 @@ export default function ReportsScreen() {
   const generalIssues = useStore((state) => state.generalIssues);
   const loadBackup    = useStore((state) => state.loadBackup);
   const mergeImport   = useStore((state) => state.mergeImport);
+  const { isEditMode } = useEditMode();
   const [exporting, setExporting]           = useState(false);
   const [backingUp, setBackingUp]           = useState(false);
   const [restoring, setRestoring]           = useState(false);
@@ -349,10 +351,12 @@ export default function ReportsScreen() {
           {backingUp ? <ActivityIndicator color="#58a6ff" size="small" /> : <Ionicons name="cloud-upload-outline" size={17} color="#58a6ff" style={{ marginRight: 6 }} />}
           <Text style={s.backupBtnText}>{backingUp ? 'Saving…' : 'Backup Data'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[s.restoreBtn, restoring && s.btnDisabled]} onPress={handleRestore} disabled={restoring} activeOpacity={0.8}>
-          {restoring ? <ActivityIndicator color="#d29922" size="small" /> : <Ionicons name="cloud-download-outline" size={17} color="#d29922" style={{ marginRight: 6 }} />}
-          <Text style={s.restoreBtnText}>{restoring ? 'Loading…' : 'Restore Backup'}</Text>
-        </TouchableOpacity>
+        {isEditMode && (
+          <TouchableOpacity style={[s.restoreBtn, restoring && s.btnDisabled]} onPress={handleRestore} disabled={restoring} activeOpacity={0.8}>
+            {restoring ? <ActivityIndicator color="#d29922" size="small" /> : <Ionicons name="cloud-download-outline" size={17} color="#d29922" style={{ marginRight: 6 }} />}
+            <Text style={s.restoreBtnText}>{restoring ? 'Loading…' : 'Restore Backup'}</Text>
+          </TouchableOpacity>
+        )}
       </View>
       {false && (
         <TouchableOpacity style={[s.importBtn, importing && s.btnDisabled]} onPress={handleImport} disabled={importing} activeOpacity={0.8}>

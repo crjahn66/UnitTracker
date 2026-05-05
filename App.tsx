@@ -1,9 +1,12 @@
 import './src/errorInit';
 import React, { useEffect } from 'react';
+import { View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import Navigation from './src/navigation';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import AuthGate from './src/components/AuthGate';
+import EditModeBanner from './src/components/EditModeBanner';
+import { EditModeProvider, useEditMode } from './src/context/EditModeContext';
 import { useStore } from './src/store/useStore';
 import { pushToCloud } from './src/utils/sync';
 import { startAutoBackup } from './src/utils/backup';
@@ -28,15 +31,27 @@ function useLocalAutoBackup() {
   }, []);
 }
 
+function AppShell() {
+  const { resetTimer } = useEditMode();
+  return (
+    <View style={{ flex: 1 }} onTouchStart={resetTimer}>
+      <EditModeBanner />
+      <Navigation />
+    </View>
+  );
+}
+
 export default function App() {
   useAutoPush();
   useLocalAutoBackup();
   return (
     <ErrorBoundary>
-      <StatusBar style="light" />
-      <AuthGate>
-        <Navigation />
-      </AuthGate>
+      <EditModeProvider>
+        <StatusBar style="light" />
+        <AuthGate>
+          <AppShell />
+        </AuthGate>
+      </EditModeProvider>
     </ErrorBoundary>
   );
 }
