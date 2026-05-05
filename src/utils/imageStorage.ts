@@ -162,7 +162,7 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
   const errors: string[] = [];
   const result = JSON.parse(JSON.stringify(units));
 
-  const upload = async (uri: string): Promise<string> => {
+  const upload = async (uri: string): Promise<string | null> => {
     if (!uri || uri.startsWith('https://')) return uri;
     localFound++;
 
@@ -191,7 +191,12 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
 
     try {
       const info = await FileSystem.getInfoAsync(uri);
-      if (!info.exists) { skippedMissing++; return uri; }
+      if (!info.exists) {
+        // File was deleted (reinstall, storage clear, etc.) — drop the dead reference
+        skippedMissing++;
+        updated = true;
+        return null;
+      }
 
       const url = await uploadFile(uri);
       if (url === null) { skippedHeic++; return uri; }
@@ -208,20 +213,22 @@ export async function uploadLocalPhotos(units: Record<string, any>): Promise<{ u
     }
   };
 
+  const compact = (arr: (string | null)[]): string[] => arr.filter((u): u is string => u !== null);
+
   for (const unit of Object.values(result) as any[]) {
     for (const comp of Object.values(unit.components) as any[]) {
       if (comp.issues) comp.issues = await Promise.all(comp.issues.map(async (iss: any) => ({
-        ...iss, images: iss.images ? await Promise.all(iss.images.map(upload)) : undefined,
+        ...iss, images: iss.images ? compact(await Promise.all(iss.images.map(upload))) : undefined,
       })));
-      if (comp.progressImages) comp.progressImages = await Promise.all(comp.progressImages.map(upload));
-      if (comp.goodImages) comp.goodImages = await Promise.all(comp.goodImages.map(upload));
+      if (comp.progressImages) comp.progressImages = compact(await Promise.all(comp.progressImages.map(upload)));
+      if (comp.goodImages) comp.goodImages = compact(await Promise.all(comp.goodImages.map(upload)));
     }
     for (const item of (unit.miscEquipment ?? []) as any[]) {
       if (item.issues) item.issues = await Promise.all(item.issues.map(async (iss: any) => ({
-        ...iss, images: iss.images ? await Promise.all(iss.images.map(upload)) : undefined,
+        ...iss, images: iss.images ? compact(await Promise.all(iss.images.map(upload))) : undefined,
       })));
-      if (item.progressImages) item.progressImages = await Promise.all(item.progressImages.map(upload));
-      if (item.goodImages) item.goodImages = await Promise.all(item.goodImages.map(upload));
+      if (item.progressImages) item.progressImages = compact(await Promise.all(item.progressImages.map(upload)));
+      if (item.goodImages) item.goodImages = compact(await Promise.all(item.goodImages.map(upload)));
     }
   }
 
