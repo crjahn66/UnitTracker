@@ -147,7 +147,7 @@ function buildComponents(wb: any, sorted: Unit[]) {
   const headers = ['Unit ID', 'Side', 'Unit #', ...COMPONENTS.map((c) => c.label), 'Misc Equipment'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
-  row1.height = 30;
+  row1.height = autoRowHeight(row1, colWidths);
 
   let currentSide = '';
   for (const u of sorted) {
@@ -283,7 +283,7 @@ async function buildIssues(wb: any, sorted: Unit[]) {
 function buildCompleted(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Completed Units');
   const colWidths = [9, 7, 7, 24, 22, 14, 16, 16, 12, 14, 14];
-  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Components Good', 'Total Issues', 'RED Group Tested On', 'Tested By'];
+  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Functional Components', 'Total Issues', 'RED Group Tested On', 'Tested By'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
