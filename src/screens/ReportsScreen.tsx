@@ -465,6 +465,33 @@ export default function ReportsScreen() {
         </Modal>
       )}
 
+      {/* General Issues */}
+      <TouchableOpacity style={s.generalIssuesBtn} onPress={() => setGeneralModalOpen(true)} activeOpacity={0.8}>
+        <View style={s.generalIssuesBtnLeft}>
+          <Ionicons name="warning-outline" size={20} color="#d29922" style={{ marginRight: 10 }} />
+          <View>
+            <Text style={s.generalIssuesBtnTitle}>General Issues</Text>
+            <Text style={s.generalIssuesBtnSub}>
+              {openGeneralCount > 0
+                ? `${openGeneralCount} open · ${generalIssues.length} total`
+                : generalIssues.length > 0
+                  ? `All resolved · ${generalIssues.length} total`
+                  : 'No issues logged'}
+            </Text>
+          </View>
+        </View>
+        <View style={s.generalIssuesBtnRight}>
+          {openGeneralCount > 0 && (
+            <View style={s.openBadge}>
+              <Text style={s.openBadgeText}>{openGeneralCount}</Text>
+            </View>
+          )}
+          <Ionicons name="chevron-forward" size={18} color="#6e7681" />
+        </View>
+      </TouchableOpacity>
+
+      {generalModalOpen && <GeneralIssueModal onClose={() => setGeneralModalOpen(false)} />}
+
       {/* Chiller Availability — hidden from view-only users */}
       {!isViewOnly && (
         <>
@@ -543,33 +570,6 @@ export default function ReportsScreen() {
           )}
         </>
       )}
-
-      {/* General Issues */}
-      <TouchableOpacity style={s.generalIssuesBtn} onPress={() => setGeneralModalOpen(true)} activeOpacity={0.8}>
-        <View style={s.generalIssuesBtnLeft}>
-          <Ionicons name="warning-outline" size={20} color="#d29922" style={{ marginRight: 10 }} />
-          <View>
-            <Text style={s.generalIssuesBtnTitle}>General Issues</Text>
-            <Text style={s.generalIssuesBtnSub}>
-              {openGeneralCount > 0
-                ? `${openGeneralCount} open · ${generalIssues.length} total`
-                : generalIssues.length > 0
-                  ? `All resolved · ${generalIssues.length} total`
-                  : 'No issues logged'}
-            </Text>
-          </View>
-        </View>
-        <View style={s.generalIssuesBtnRight}>
-          {openGeneralCount > 0 && (
-            <View style={s.openBadge}>
-              <Text style={s.openBadgeText}>{openGeneralCount}</Text>
-            </View>
-          )}
-          <Ionicons name="chevron-forward" size={18} color="#6e7681" />
-        </View>
-      </TouchableOpacity>
-
-      {generalModalOpen && <GeneralIssueModal onClose={() => setGeneralModalOpen(false)} />}
 
       {Platform.OS === 'web' && (
         <TouchableOpacity
