@@ -56,6 +56,7 @@ interface StoreState {
   addGeneralIssue: (issue: GeneralIssue) => void;
   updateGeneralIssue: (issueId: string, updates: Partial<GeneralIssue>) => void;
   deleteGeneralIssue: (issueId: string) => void;
+  setChillerAvailable: (unitId: string, available: boolean) => void;
   mergeImport: (importUnits: UnitsStore, importGeneralIssues: GeneralIssue[]) => void;
   mergeAdditive: (importUnits: UnitsStore, importGeneralIssues: GeneralIssue[]) => void;
   loadBackup: (units: UnitsStore, generalIssues?: GeneralIssue[]) => void;
@@ -413,6 +414,14 @@ export const useStore = create<StoreState>()(
           };
         }),
 
+      setChillerAvailable: (unitId, available) =>
+        set((state) => ({
+          units: {
+            ...state.units,
+            [unitId]: { ...state.units[unitId], chillerAvailable: available },
+          },
+        })),
+
       addGeneralIssue: (issue) =>
         set((state) => ({ generalIssues: [...state.generalIssues, issue] })),
 
@@ -595,6 +604,7 @@ export const useStore = create<StoreState>()(
               components: mergedComponents,
               miscEquipment: existingMisc,
               customComponentLabels: Object.keys(mergedLabels).length ? mergedLabels : undefined,
+              ...('chillerAvailable' in imp && { chillerAvailable: imp.chillerAvailable }),
             };
           }
 

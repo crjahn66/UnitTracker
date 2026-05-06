@@ -110,6 +110,7 @@ export interface Unit {
   components: ComponentsData;
   miscEquipment?: MiscEquipItem[];
   customComponentLabels?: Partial<Record<ComponentKey, string>>;
+  chillerAvailable?: boolean;
 }
 
 export type UnitsStore = Record<string, Unit>;

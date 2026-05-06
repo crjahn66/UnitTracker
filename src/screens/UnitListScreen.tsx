@@ -65,6 +65,9 @@ const UnitCard = React.memo(function UnitCard({ unit, onPress }: { unit: Unit; o
     <TouchableOpacity style={[s.card, { borderColor: color }]} onPress={onPress} activeOpacity={0.75}>
       <View style={[s.cardTop, { backgroundColor: color + '28' }]}>
         <Text style={s.unitId}>{unit.id}</Text>
+        {unit.chillerAvailable === true && (
+          <Text style={s.chillerBadge}>❄</Text>
+        )}
         <View style={[s.dot, { backgroundColor: color }]} />
       </View>
       <View style={s.cardBody}>
@@ -248,6 +251,7 @@ const s = StyleSheet.create({
     paddingVertical: 8,
   },
   unitId: { color: '#e6edf3', fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
+  chillerBadge: { color: '#58a6ff', fontSize: 13, marginLeft: 6 },
   dot: { width: 10, height: 10, borderRadius: 5 },
   cardBody: { padding: 10 },
   stageLabel: { color: '#8b949e', fontSize: 12, marginBottom: 4 },

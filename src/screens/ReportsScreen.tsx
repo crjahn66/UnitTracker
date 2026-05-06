@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert,
-  Share, Modal, Platform,
+  Share, Modal, Platform, Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
@@ -163,10 +163,11 @@ function generateDailyReport(units: UnitsStore, generalIssues: GeneralIssue[], s
 }
 
 export default function ReportsScreen() {
-  const units         = useStore((state) => state.units);
-  const generalIssues = useStore((state) => state.generalIssues);
-  const loadBackup    = useStore((state) => state.loadBackup);
-  const mergeImport   = useStore((state) => state.mergeImport);
+  const units               = useStore((state) => state.units);
+  const generalIssues       = useStore((state) => state.generalIssues);
+  const loadBackup          = useStore((state) => state.loadBackup);
+  const mergeImport         = useStore((state) => state.mergeImport);
+  const setChillerAvailable = useStore((state) => state.setChillerAvailable);
   const { isEditMode, pauseTimer, resumeTimer } = useEditMode();
   const { isViewOnly } = useUser();
   const [exporting, setExporting]           = useState(false);
@@ -185,6 +186,13 @@ export default function ReportsScreen() {
   const [syncError, setSyncError]           = useState<string | null>(null);
   const [syncWarning, setSyncWarning]       = useState<string | null>(null);
   const [wiping, setWiping]                 = useState(false);
+
+  const sortedUnits = useMemo(
+    () => Object.values(units).sort((a, b) =>
+      a.side !== b.side ? (a.side === 'North' ? -1 : 1) : a.unitNumber - b.unitNumber
+    ),
+    [units]
+  );
 
   const openGeneralCount = generalIssues.filter((i) => !i.resolved && !i.deleted).length;
 
@@ -455,6 +463,38 @@ export default function ReportsScreen() {
         </Modal>
       )}
 
+      {/* Chiller Availability */}
+      <SectionHeader title="Chiller Availability" />
+      <View style={s.card}>
+        {(['North', 'South'] as const).map((side) => {
+          const sideUnits = sortedUnits.filter((u) => u.side === side);
+          return (
+            <View key={side}>
+              <View style={s.chillerSideHeader}>
+                <Text style={s.chillerSideLabel}>{side}</Text>
+                <Text style={s.chillerSideCount}>
+                  {sideUnits.filter((u) => u.chillerAvailable === true).length} / {sideUnits.length} ready
+                </Text>
+              </View>
+              {sideUnits.map((unit, idx) => (
+                <View key={unit.id} style={[s.chillerRow, idx < sideUnits.length - 1 && s.rowBorder]}>
+                  <Text style={[s.chillerUnitId, unit.chillerAvailable === true && s.chillerUnitIdReady]}>
+                    {unit.chillerAvailable === true ? '❄ ' : ''}{unit.id}
+                  </Text>
+                  <Switch
+                    value={unit.chillerAvailable === true}
+                    onValueChange={(val) => setChillerAvailable(unit.id, val)}
+                    disabled={!isEditMode || isViewOnly}
+                    trackColor={{ false: '#30363d', true: '#1f6feb' }}
+                    thumbColor={unit.chillerAvailable === true ? '#58a6ff' : '#6e7681'}
+                  />
+                </View>
+              ))}
+            </View>
+          );
+        })}
+      </View>
+
       {/* General Issues */}
       <TouchableOpacity style={s.generalIssuesBtn} onPress={() => setGeneralModalOpen(true)} activeOpacity={0.8}>
         <View style={s.generalIssuesBtnLeft}>
@@ -718,6 +758,18 @@ const s = StyleSheet.create({
   issueDate: { color: '#6e7681', fontSize: 11 },
   issueNotes: { color: '#e6edf3', fontSize: 13, marginBottom: 4 },
   issueBy: { color: '#6e7681', fontSize: 11 },
+  chillerSideHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#0d111788',
+  },
+  chillerSideLabel: { color: '#8b949e', fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
+  chillerSideCount: { color: '#6e7681', fontSize: 11 },
+  chillerRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 10, paddingHorizontal: 14,
+  },
+  chillerUnitId: { color: '#8b949e', fontSize: 14, fontWeight: '600' },
+  chillerUnitIdReady: { color: '#58a6ff' },
   logoutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     marginTop: 32, paddingVertical: 10,

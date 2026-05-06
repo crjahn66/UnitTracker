@@ -36,6 +36,7 @@ export default function DashboardScreen() {
     const complete = all.filter((u) => getUnitPct(u) === 100 && getOpenIssueCount(u) === 0).length;
     const inProgress = all.filter((u) => { const p = getUnitPct(u); return p > 0 && !(p === 100 && getOpenIssueCount(u) === 0); }).length;
     const totalIssues = all.reduce((n, u) => n + getOpenIssueCount(u), 0);
+    const chillerReady = all.filter((u) => u.chillerAvailable === true).length;
     const overallPct = all.length > 0 ? Math.round(all.reduce((n, u) => n + getUnitPct(u), 0) / all.length) : 0;
 
     const openIssues: { key: string; unitId: string; unit: Unit; compLabel: string; notes: string; foundBy: string; ageDays: number }[] = [];
@@ -54,7 +55,7 @@ export default function DashboardScreen() {
     }
     openIssues.sort((a, b) => b.ageDays - a.ageDays);
 
-    return { sortedUnits: all, stats: { total: all.length, complete, inProgress, totalIssues }, openIssues, overallPct };
+    return { sortedUnits: all, stats: { total: all.length, complete, inProgress, totalIssues, chillerReady }, openIssues, overallPct };
   }, [units]);
 
   const goToUnit = (unit: Unit) => {
@@ -68,10 +69,11 @@ export default function DashboardScreen() {
     <ScrollView style={s.container} contentContainerStyle={s.content}>
       {/* Summary bar */}
       <View style={s.summaryBar}>
-        <SumStat label="Total"       value={stats.total}       color="#58a6ff" />
-        <SumStat label="Complete"    value={stats.complete}    color="#3fb950" />
-        <SumStat label="In Progress" value={stats.inProgress}  color="#d29922" />
-        <SumStat label="Open Issues" value={stats.totalIssues} color={stats.totalIssues > 0 ? '#f85149' : '#3fb950'} />
+        <SumStat label="Total"       value={stats.total}         color="#58a6ff" />
+        <SumStat label="Complete"    value={stats.complete}      color="#3fb950" />
+        <SumStat label="In Progress" value={stats.inProgress}    color="#d29922" />
+        <SumStat label="Open Issues" value={stats.totalIssues}   color={stats.totalIssues > 0 ? '#f85149' : '#3fb950'} />
+        <SumStat label="❄ Ready"    value={stats.chillerReady}  color="#58a6ff" />
       </View>
 
       {/* Overall completion bar */}
@@ -103,6 +105,9 @@ export default function DashboardScreen() {
               <View style={s.unitInfo}>
                 <View style={s.unitTopRow}>
                   <Text style={s.unitId}>{unit.id}</Text>
+                  {unit.chillerAvailable === true && (
+                    <Text style={s.chillerBadge}>❄</Text>
+                  )}
                   {issues > 0 && (
                     <View style={s.issueBadge}>
                       <Text style={s.issueBadgeText}>{issues}</Text>
@@ -186,6 +191,7 @@ const s = StyleSheet.create({
   unitInfo: { flex: 1, marginRight: 4 },
   unitTopRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   unitId: { color: '#e6edf3', fontSize: 14, fontWeight: '600', marginRight: 6 },
+  chillerBadge: { color: '#58a6ff', fontSize: 12, marginRight: 5 },
   issueBadge: { backgroundColor: '#f85149', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1, marginRight: 6 },
   issueBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   unitPct: { marginLeft: 'auto' as any, fontSize: 12, fontWeight: '700' },

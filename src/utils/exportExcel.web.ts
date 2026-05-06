@@ -410,7 +410,6 @@ function buildGeneralIssues(wb: any, issues: GeneralIssue[]) {
 }
 
 // ─── Sheet 7: Testing Readiness ───────────────────────────────────────────────
-const SOUTH_READY_UNITS = new Set([3, 6, 9, 12, 15]);
 
 function buildReadiness(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Testing Readiness');
@@ -450,11 +449,11 @@ function buildReadiness(wb: any, sorted: Unit[]) {
       currentSide = u.side;
       addSectionHeader(ws, u.side.toUpperCase(), totalCols);
     }
-    const ready = u.side === 'South' && SOUTH_READY_UNITS.has(u.unitNumber);
+    const ready = u.chillerAvailable === true;
     const status = ready ? 'READY' : 'NOT READY';
     const reason = ready
-      ? 'Integra sign-off received — ready for RED Group testing'
-      : 'Integra sign-off not received — not cleared for RED Group testing';
+      ? 'Chiller available — ready for RED Group testing'
+      : 'Chiller not available for testing';
     const clr = ready ? GRN : RED;
     const r = ws.addRow([u.id, u.side, u.unitNumber, status, reason]);
     r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, clr, col === 4, col >= 2));
