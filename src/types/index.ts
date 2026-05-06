@@ -18,14 +18,14 @@ export function normalizeStageStatus(v: unknown): StageStatus {
 }
 
 export const COMPONENTS = [
-  { key: 'supplyIsoValve', label: 'Supply Iso Valve' },
-  { key: 'returnIsoValve', label: 'Return Iso Valve' },
-  { key: 'bypassValve', label: 'Bypass Valve' },
+  { key: 'supplyIsoValve', label: 'Supply Iso Valve / ABZ Actuator' },
+  { key: 'returnIsoValve', label: 'Return Iso Valve / ABZ Actuator' },
+  { key: 'bypassValve', label: 'Bypass Valve / Belimo Actuator' },
   { key: 'transmitters', label: 'Transmitters' },
-  { key: 'primePump', label: 'Prime Pump' },
-  { key: 'secondPump', label: 'Second Pump' },
-  { key: 'flowMeter', label: 'Flow Meter' },
-  { key: 'gfci', label: 'GFCI' },
+  { key: 'primePump', label: 'Primary Pump' },
+  { key: 'secondPump', label: 'Secondary Pump' },
+  { key: 'flowMeter', label: 'Supply Flow Meter' },
+  { key: 'gfci', label: 'Supply Flow Meter GFCI' },
   { key: 'flowSwitch', label: 'Flow Switch' },
   { key: 'chillerInterlocks', label: 'Chiller Interlocks' },
   { key: 'fieldServer', label: 'Field Server' },
