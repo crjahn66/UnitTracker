@@ -19,7 +19,7 @@ function unitStatusColor(unit: Unit): string {
   const comps = Object.values(unit.components);
   const miscItems = (unit.miscEquipment ?? []).filter((m) => !m.deleted);
   const openCompIssues = comps.flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted).length;
-  const hasBad = comps.some((c) => c.status === 'bad') || miscItems.some((m) => m.status === 'bad');
+  const hasBad = comps.some((c) => c.status === 'bad');
   if (hasBad || openCompIssues > 0) return '#f85149';
 
   const stagesComplete = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
