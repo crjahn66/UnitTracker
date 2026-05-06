@@ -253,9 +253,10 @@ export default function ReportsScreen() {
 
   const handleExport = async () => {
     setExporting(true);
+    pauseTimer();
     try { await exportToExcel(units, generalIssues); }
     catch (e) { Alert.alert('Export Failed', String(e)); }
-    finally { setExporting(false); }
+    finally { setExporting(false); resumeTimer(); }
   };
 
   const handleBackup = async () => {
