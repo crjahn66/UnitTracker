@@ -149,8 +149,8 @@ function ResolveForm({ onSave, onCancel }: {
 
 // ─── Issue Card ────────────────────────────────────────────────────────────────
 
-function IssueCard({ issue, onResolve, onDelete, onEdit, onAddImage, onRemoveImage, onViewImage }: {
-  issue: MiscIssue; onResolve: () => void; onDelete: () => void; onEdit: () => void;
+function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddImage, onRemoveImage, onViewImage }: {
+  issue: MiscIssue; onResolve: () => void; onUnresolve: () => void; onDelete: () => void; onEdit: () => void;
   onAddImage: (uri: string) => void; onRemoveImage: (uri: string) => void; onViewImage: (uri: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -213,6 +213,12 @@ function IssueCard({ issue, onResolve, onDelete, onEdit, onAddImage, onRemoveIma
                 <TouchableOpacity style={[ic.actionBtn, ic.resolveBtn]} onPress={onResolve}>
                   <Ionicons name="checkmark-circle-outline" size={14} color="#3fb950" style={{ marginRight: 4 }} />
                   <Text style={ic.resolveBtnText}>Mark Resolved</Text>
+                </TouchableOpacity>
+              )}
+              {issue.resolved && (
+                <TouchableOpacity style={[ic.actionBtn, ic.unresolveBtn]} onPress={onUnresolve}>
+                  <Ionicons name="arrow-undo-outline" size={14} color="#8b949e" style={{ marginRight: 4 }} />
+                  <Text style={ic.unresolveBtnText}>Unresolve</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity style={[ic.actionBtn, ic.editBtn]} onPress={onEdit}>
@@ -506,6 +512,11 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
     setView('detail');
   }, [unitId, itemId, updateMiscIssue]);
 
+  const handleUnresolve = useCallback((issueId: string) => {
+    updateMiscIssue(unitId, itemId, issueId, { resolved: false, dateFixed: undefined, fixedBy: undefined, howFixed: undefined });
+    pushToCloud().catch(() => {});
+  }, [unitId, itemId, updateMiscIssue]);
+
   const handleDeleteItem = useCallback(() => {
     const doDelete = () => { deleteMiscEquip(unitId, itemId); pushToCloud().catch(() => {}); onClose(); };
     if (Platform.OS === 'web') {
@@ -636,6 +647,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
             {openIssuesList.map((issue) => (
               <IssueCard key={issue.id} issue={issue}
                 onResolve={() => { setResolvingId(issue.id); setView('resolveIssue'); }}
+                onUnresolve={() => handleUnresolve(issue.id)}
                 onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}
                 onDelete={() => handleDelete(issue.id)}
                 onAddImage={(uri) => handleAddImage(issue.id, uri)}
@@ -652,6 +664,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
                 {archiveOpen && resolvedIssuesList.map((issue) => (
                   <IssueCard key={issue.id} issue={issue}
                     onResolve={() => { setResolvingId(issue.id); setView('resolveIssue'); }}
+                    onUnresolve={() => handleUnresolve(issue.id)}
                     onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}
                     onDelete={() => handleDelete(issue.id)}
                     onAddImage={(uri) => handleAddImage(issue.id, uri)}
@@ -797,6 +810,7 @@ const ic = StyleSheet.create({
   actions: { flexDirection: 'row', marginTop: 10, flexWrap: 'wrap', gap: 8 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1 },
   resolveBtn: { borderColor: '#3fb950' }, resolveBtnText: { color: '#3fb950', fontSize: 12, fontWeight: '600' },
+  unresolveBtn: { borderColor: '#8b949e' }, unresolveBtnText: { color: '#8b949e', fontSize: 12, fontWeight: '600' },
   editBtn: { borderColor: '#d29922' }, editBtnText: { color: '#d29922', fontSize: 12, fontWeight: '600' },
   photoBtn: { borderColor: '#58a6ff' }, photoBtnText: { color: '#58a6ff', fontSize: 12, fontWeight: '600' },
   deleteBtn: { borderColor: '#f85149' }, deleteBtnText: { color: '#f85149', fontSize: 12, fontWeight: '600' },
