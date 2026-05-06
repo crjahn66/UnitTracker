@@ -17,8 +17,12 @@ function getOpenIssueCount(unit: Unit): number {
   return compIssues.length + miscIssues.length;
 }
 
-function unitColor(pct: number, issues: number): string {
-  if (issues > 0) return '#f85149';
+function getOpenCompIssueCount(unit: Unit): number {
+  return Object.values(unit.components).flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted).length;
+}
+
+function unitColor(pct: number, compIssues: number): string {
+  if (compIssues > 0) return '#f85149';
   if (pct === 100) return '#3fb950';
   if (pct > 0) return '#d29922';
   return '#30363d';
@@ -52,8 +56,8 @@ export default function DashboardScreen() {
       a.side !== b.side ? a.side.localeCompare(b.side) : a.unitNumber - b.unitNumber
     );
 
-    const complete = all.filter((u) => getUnitPct(u) === 100 && getOpenIssueCount(u) === 0).length;
-    const inProgress = all.filter((u) => { const p = getUnitPct(u); return p > 0 && !(p === 100 && getOpenIssueCount(u) === 0); }).length;
+    const complete = all.filter((u) => getUnitPct(u) === 100 && getOpenCompIssueCount(u) === 0).length;
+    const inProgress = all.filter((u) => { const p = getUnitPct(u); return p > 0 && !(p === 100 && getOpenCompIssueCount(u) === 0); }).length;
     const totalIssues = all.reduce((n, u) => n + getOpenIssueCount(u), 0);
     const chillerReady = all.filter((u) => u.chillerAvailable === true).length;
     const overallPct = all.length > 0 ? Math.round(all.reduce((n, u) => n + getUnitPct(u), 0) / all.length) : 0;
@@ -168,8 +172,9 @@ export default function DashboardScreen() {
       {!isFiltering && <View style={s.listCard}>
         {sortedUnits.map((unit, idx) => {
           const pct = getUnitPct(unit);
-          const issues = getOpenIssueCount(unit);
-          const color = unitColor(pct, issues);
+          const compIssues = getOpenCompIssueCount(unit);
+          const allIssues = getOpenIssueCount(unit);
+          const color = unitColor(pct, compIssues);
           return (
             <TouchableOpacity
               key={unit.id}
@@ -191,9 +196,9 @@ export default function DashboardScreen() {
                       <Text style={s.prioBadgeText}>P{unit.chillerPriority}</Text>
                     </View>
                   )}
-                  {issues > 0 && (
+                  {allIssues > 0 && (
                     <View style={s.issueBadge}>
-                      <Text style={s.issueBadgeText}>{issues}</Text>
+                      <Text style={s.issueBadgeText}>{allIssues}</Text>
                     </View>
                   )}
                   <Text style={[s.unitPct, { color }]}>{pct}%</Text>

@@ -11,13 +11,16 @@ import { Unit, STAGES, COMPONENTS, normalizeStageStatus } from '../types';
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitList'>;
 type Filter = 'all' | 'issues' | 'inProgress' | 'complete' | 'chiller';
 
+function hasOpenCompIssues(unit: Unit): boolean {
+  return Object.values(unit.components).flatMap((c) => c.issues).some((i) => !i.resolved && !i.deleted);
+}
+
 function unitStatusColor(unit: Unit): string {
   const comps = Object.values(unit.components);
   const miscItems = (unit.miscEquipment ?? []).filter((m) => !m.deleted);
-  const miscIssues = miscItems.flatMap((m) => m.issues ?? []);
-  const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
+  const openCompIssues = comps.flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted).length;
   const hasBad = comps.some((c) => c.status === 'bad') || miscItems.some((m) => m.status === 'bad');
-  if (hasBad || openIssues > 0) return '#f85149';
+  if (hasBad || openCompIssues > 0) return '#f85149';
 
   const stagesComplete = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
   if (stagesComplete === STAGES.length) return '#3fb950';
@@ -36,7 +39,7 @@ function hasOpenIssues(unit: Unit): boolean {
 }
 
 function isComplete(unit: Unit): boolean {
-  return STAGES.every((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete') && !hasOpenIssues(unit);
+  return STAGES.every((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete') && !hasOpenCompIssues(unit);
 }
 
 function isInProgress(unit: Unit): boolean {

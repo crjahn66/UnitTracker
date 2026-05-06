@@ -94,7 +94,7 @@ function rowClr(unit: Unit): Clr {
 function buildOverview(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Overview');
   const colWidths = [9, 7, 7, 24, 22, 14, 16, 11, 10, 12, 14];
-  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Stages Done', 'Open Issues', 'Status', 'RED Group Tested On'];
+  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Stages Done', 'Open Constraints', 'Status', 'RED Group Tested On'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
@@ -115,7 +115,7 @@ function buildOverview(wb: any, sorted: Unit[]) {
     const stuck = STAGES.filter((s) => normalizeStageStatus(u.stages[s.key]) === 'stuck').length;
     const status = done === STAGES.length && open === 0 ? 'Complete'
                  : stuck > 0 ? `${stuck} Stuck`
-                 : open > 0 ? `${open} Issue${open > 1 ? 's' : ''}`
+                 : open > 0 ? `${open} Constraint${open > 1 ? 's' : ''}`
                  : done > 0 ? 'In Progress' : 'Not Started';
     const stageLabel = (s: typeof STAGES[number]) => {
       const st = normalizeStageStatus(u.stages[s.key]);
@@ -188,9 +188,9 @@ function buildComponents(wb: any, sorted: Unit[]) {
   freezeAndWidth(ws, colWidths);
 }
 
-// ─── Sheet 3: Issues Log (with embedded images) ───────────────────────────────
-async function buildIssues(wb: any, sorted: Unit[]) {
-  const ws = wb.addWorksheet('Issues Log');
+// ─── Sheet 3: Constraints Log (with embedded images) ─────────────────────────
+async function buildConstraints(wb: any, sorted: Unit[]) {
+  const ws = wb.addWorksheet('Constraints Log');
   const colWidths = [9, 7, 7, 18, 12, 12, 14, 18, 40, 10, 12, 14, 40, 60];
   const headers = ['Unit ID', 'Side', 'Unit #', 'Component', 'Date Found', 'Last Updated', 'Found By', 'Responsible Party', 'Notes', 'Status', 'Date Fixed', 'Fixed By', 'How Fixed', 'Photos'];
   const row1 = ws.addRow(headers);
@@ -272,8 +272,8 @@ async function buildIssues(wb: any, sorted: Unit[]) {
   }
 
   if (rows.length === 0) {
-    const r = ws.addRow(['No issues logged']);
-    applyCell(r.getCell(1), 'No issues logged', WHT, false);
+    const r = ws.addRow(['No constraints logged']);
+    applyCell(r.getCell(1), 'No constraints logged', WHT, false);
   }
 
   freezeAndWidth(ws, colWidths);
@@ -283,7 +283,7 @@ async function buildIssues(wb: any, sorted: Unit[]) {
 function buildCompleted(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Completed Units');
   const colWidths = [9, 7, 7, 24, 22, 14, 16, 16, 12, 14, 14];
-  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Functional Components', 'Total Issues', 'RED Group Tested On', 'Tested By'];
+  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Functional Components', 'Total Constraints', 'RED Group Tested On', 'Tested By'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
@@ -339,14 +339,18 @@ function buildCompleted(wb: any, sorted: Unit[]) {
   freezeAndWidth(ws, colWidths);
 }
 
-// ─── Sheet 5: Units with Issues ───────────────────────────────────────────────
-function buildWithIssues(wb: any, sorted: Unit[]) {
-  const ws = wb.addWorksheet('Units with Issues');
-  const colWidths = [9, 7, 7, 18, 12, 12, 14, 20, 40, 10];
-  const headers = ['Unit ID', 'Side', 'Unit #', 'Component', 'Date Found', 'Last Updated', 'Found By', 'Responsible Party', 'Notes', 'Status'];
+// ─── Sheet 5: Units with Constraints ─────────────────────────────────────────
+async function buildWithConstraints(wb: any, sorted: Unit[]) {
+  const ws = wb.addWorksheet('Units with Constraints');
+  const colWidths = [9, 7, 7, 18, 12, 12, 14, 20, 40, 10, 60];
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Component', 'Date Found', 'Last Updated', 'Found By', 'Responsible Party', 'Notes', 'Status', 'Photos'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
+
+  const IMG_COL = 11;
+  const IMG_H   = 80;
+  const IMG_W   = 80;
 
   const rows: { issue: Issue | MiscIssue; unitId: string; side: string; unitNum: number; label: string }[] = [];
   for (const u of sorted) {
@@ -372,20 +376,44 @@ function buildWithIssues(wb: any, sorted: Unit[]) {
   for (const { issue, unitId, side, unitNum, label } of rows) {
     if (side !== currentSide) {
       currentSide = side;
-      addSectionHeader(ws, side.toUpperCase(), headers.length);
+      addSectionHeader(ws, side.toUpperCase(), IMG_COL);
     }
     const r = ws.addRow([
       unitId, side, unitNum, label,
       fmtDate(issue.dateFound), fmtDate(issue.dateUpdated),
       issue.foundBy, (issue as any).responsibleParty ?? '',
       issue.notes, issue.resolved ? 'Resolved' : 'Open',
+      '',
     ]);
-    r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, RED, col === 1, col >= 3));
-    r.height = autoRowHeight(r, colWidths);
+    const excelRow = r.number;
+    r.eachCell((cell: any, col: number) => {
+      if (col === IMG_COL) return;
+      applyCell(cell, cell.value, RED, col === 1, col >= 3);
+    });
+
+    const images = issue.images ?? [];
+    if (images.length > 0) {
+      r.height = IMG_H * 0.75 + 4;
+      const photoCell = r.getCell(IMG_COL);
+      applyCell(photoCell, '', RED, false, true);
+      for (let i = 0; i < images.length; i++) {
+        const base64 = await readResizedBase64(images[i]);
+        if (!base64) continue;
+        const imgId = wb.addImage({ base64, extension: 'jpeg' });
+        const colOffset = i * (IMG_W + 4);
+        ws.addImage(imgId, {
+          tl: { col: IMG_COL - 1 + colOffset / 64, row: excelRow - 1 },
+          ext: { width: IMG_W, height: IMG_H },
+          editAs: 'oneCell',
+        });
+      }
+    } else {
+      r.height = autoRowHeight(r, colWidths);
+    }
   }
   if (rows.length === 0) {
-    const r = ws.addRow(['No open issues']);
-    applyCell(r.getCell(1), 'No open issues', WHT);
+    const r = ws.addRow(['No open constraints']);
+    applyCell(r.getCell(1), 'No open constraints', WHT);
   }
   freezeAndWidth(ws, colWidths);
 }
@@ -480,9 +508,9 @@ export const exportToExcel = async (units: Record<string, Unit>, generalIssues: 
 
   buildOverview(wb, sorted);
   buildComponents(wb, sorted);
-  await buildIssues(wb, sorted);
+  await buildConstraints(wb, sorted);
   buildCompleted(wb, sorted);
-  buildWithIssues(wb, sorted);
+  await buildWithConstraints(wb, sorted);
   buildGeneralIssues(wb, generalIssues);
   buildReadiness(wb, sorted);
 

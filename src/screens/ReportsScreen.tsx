@@ -231,11 +231,9 @@ export default function ReportsScreen() {
     const openIssueCount = issuesByUnit.length;
 
     const fullyComplete = all.filter((u) => {
-      const hasOpen = [
-        ...Object.values(u.components).flatMap((c) => c.issues),
-        ...(u.miscEquipment ?? []).flatMap((m) => m.issues ?? []),
-      ].some((i) => !i.resolved && !i.deleted);
-      return STAGES.every((s) => normalizeStageStatus(u.stages[s.key]) === 'complete') && !hasOpen;
+      const hasOpenComp = Object.values(u.components).flatMap((c) => c.issues)
+        .some((i) => !i.resolved && !i.deleted);
+      return STAGES.every((s) => normalizeStageStatus(u.stages[s.key]) === 'complete') && !hasOpenComp;
     }).length;
     const hasAnyWork = all.filter((u) =>
       STAGES.some((s) => normalizeStageStatus(u.stages[s.key]) !== 'pending')
