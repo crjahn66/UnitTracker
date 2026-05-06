@@ -143,12 +143,12 @@ export default function UnitListScreen({ navigation, route }: Props) {
     />
   ), [navigation]);
 
-  const FILTERS: { key: Filter; label: string; color: string; count: number }[] = [
-    { key: 'all',        label: 'All',        color: '#58a6ff', count: sideUnits.length },
-    { key: 'issues',     label: 'Issues',     color: '#f85149', count: stats.hasIssue },
-    { key: 'inProgress', label: 'In Progress',color: '#d29922', count: stats.inProgress },
-    { key: 'complete',   label: 'Complete',   color: '#3fb950', count: stats.complete },
-    { key: 'chiller',    label: '❄ Ready',   color: '#58a6ff', count: stats.chillerReady },
+  const FILTERS: { key: Filter; label: string; color: string; count: number; flex: number }[] = [
+    { key: 'all',        label: 'All',         color: '#58a6ff', count: sideUnits.length,   flex: 0.65 },
+    { key: 'issues',     label: 'Issues',      color: '#f85149', count: stats.hasIssue,     flex: 1 },
+    { key: 'inProgress', label: 'In Progress', color: '#d29922', count: stats.inProgress,   flex: 1.35 },
+    { key: 'complete',   label: 'Complete',    color: '#3fb950', count: stats.complete,     flex: 1 },
+    { key: 'chiller',    label: '❄ Ready',    color: '#58a6ff', count: stats.chillerReady, flex: 1 },
   ];
 
   return (
@@ -162,12 +162,12 @@ export default function UnitListScreen({ navigation, route }: Props) {
 
       {/* Filter chips */}
       <View style={s.filterRow}>
-        {FILTERS.map(({ key, label, color, count }) => {
+        {FILTERS.map(({ key, label, color, count, flex }) => {
           const active = activeFilter === key;
           return (
             <TouchableOpacity
               key={key}
-              style={[s.filterChip, active && { backgroundColor: color + '22', borderColor: color }]}
+              style={[s.filterChip, { flex }, active && { backgroundColor: color + '22', borderColor: color }]}
               onPress={() => setActiveFilter(key)}
               activeOpacity={0.7}
             >
@@ -226,7 +226,6 @@ const s = StyleSheet.create({
     gap: 6,
   },
   filterChip: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
