@@ -29,6 +29,7 @@ export default function DashboardScreen() {
   const navigation = useNavigation<any>();
 
   const [searchText, setSearchText] = useState('');
+  const [sideFilter, setSideFilter] = useState<'all' | 'North' | 'South'>('all');
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearchChange = useCallback((text: string) => {
@@ -77,15 +78,21 @@ export default function DashboardScreen() {
   }, [units]);
 
   const filteredIssues = useMemo(() => {
-    if (!searchText.trim()) return openIssues;
-    const q = searchText.toLowerCase();
-    return openIssues.filter((item) =>
-      item.unitId.toLowerCase().includes(q) ||
-      item.compLabel.toLowerCase().includes(q) ||
-      item.notes.toLowerCase().includes(q) ||
-      item.foundBy.toLowerCase().includes(q)
-    );
-  }, [openIssues, searchText]);
+    let result = openIssues;
+    if (sideFilter !== 'all') result = result.filter((item) => item.unit.side === sideFilter);
+    if (searchText.trim()) {
+      const q = searchText.toLowerCase();
+      result = result.filter((item) =>
+        item.unitId.toLowerCase().includes(q) ||
+        item.compLabel.toLowerCase().includes(q) ||
+        item.notes.toLowerCase().includes(q) ||
+        item.foundBy.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [openIssues, searchText, sideFilter]);
+
+  const isFiltering = !!searchText || sideFilter !== 'all';
 
   const goToUnit = (unit: Unit) => {
     navigation.navigate(unit.side === 'North' ? 'NorthTab' : 'SouthTab', {
@@ -116,30 +123,49 @@ export default function DashboardScreen() {
         </View>
       </View>
 
-      {/* Issue search bar — only shown when there are open issues */}
+      {/* Issue search + side filter — only shown when there are open issues */}
       {openIssues.length > 0 && (
-        <View style={s.searchWrap}>
-          <Ionicons name="search-outline" size={16} color="#6e7681" style={{ marginRight: 8 }} />
-          <TextInput
-            style={s.searchInput}
-            value={searchText}
-            onChangeText={handleSearchChange}
-            placeholder="Search issues…"
-            placeholderTextColor="#6e7681"
-            autoCorrect={false}
-            autoCapitalize="none"
-          />
-          {!!searchText && (
-            <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="close-circle" size={18} color="#6e7681" />
-            </TouchableOpacity>
-          )}
+        <View style={s.searchBlock}>
+          <View style={s.searchWrap}>
+            <Ionicons name="search-outline" size={16} color="#6e7681" style={{ marginRight: 8 }} />
+            <TextInput
+              style={s.searchInput}
+              value={searchText}
+              onChangeText={handleSearchChange}
+              placeholder="Search issues…"
+              placeholderTextColor="#6e7681"
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+            {!!searchText && (
+              <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close-circle" size={18} color="#6e7681" />
+              </TouchableOpacity>
+            )}
+          </View>
+          <View style={s.sideFilterRow}>
+            {(['all', 'North', 'South'] as const).map((opt) => {
+              const active = sideFilter === opt;
+              return (
+                <TouchableOpacity
+                  key={opt}
+                  style={[s.sideChip, active && s.sideChipActive]}
+                  onPress={() => setSideFilter(opt)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.sideChipText, active && s.sideChipTextActive]}>
+                    {opt === 'all' ? 'All' : opt}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
       )}
 
-      {/* Per-unit list — hidden while searching */}
-      {!searchText && <SectionLabel title="Units" />}
-      {!searchText && <View style={s.listCard}>
+      {/* Per-unit list — hidden while filtering */}
+      {!isFiltering && <SectionLabel title="Units" />}
+      {!isFiltering && <View style={s.listCard}>
         {sortedUnits.map((unit, idx) => {
           const pct = getUnitPct(unit);
           const issues = getOpenIssueCount(unit);
@@ -185,7 +211,7 @@ export default function DashboardScreen() {
       {/* Open issues */}
       {openIssues.length > 0 && (
         <>
-          <SectionLabel title={searchText ? `Issues (${filteredIssues.length} of ${openIssues.length})` : `Open Issues (${openIssues.length})`} />
+          <SectionLabel title={isFiltering ? `Issues (${filteredIssues.length} of ${openIssues.length})` : `Open Issues (${openIssues.length})`} />
           {filteredIssues.map((item) => (
             <TouchableOpacity key={item.key} style={s.issueCard} onPress={() => goToUnit(item.unit)} activeOpacity={0.7}>
               <View style={s.issueHeader}>
@@ -269,12 +295,21 @@ const s = StyleSheet.create({
   ageBadgeText: { color: '#f85149', fontSize: 10, fontWeight: '600' },
   issueNotes: { color: '#e6edf3', fontSize: 13, marginBottom: 2 },
   issueBy: { color: '#6e7681', fontSize: 11 },
+  searchBlock: { marginHorizontal: 14, marginTop: 14, marginBottom: 4 },
   searchWrap: {
     flexDirection: 'row', alignItems: 'center',
-    marginHorizontal: 14, marginTop: 14, marginBottom: 4,
     backgroundColor: '#161b22', borderRadius: 10,
     borderWidth: 1, borderColor: '#30363d',
     paddingHorizontal: 12, paddingVertical: 8,
+    marginBottom: 6,
   },
   searchInput: { flex: 1, color: '#e6edf3', fontSize: 14, paddingVertical: 0 },
+  sideFilterRow: { flexDirection: 'row', gap: 6 },
+  sideChip: {
+    flex: 1, alignItems: 'center', paddingVertical: 6,
+    borderRadius: 8, borderWidth: 1, borderColor: '#30363d',
+  },
+  sideChipActive: { backgroundColor: '#58a6ff22', borderColor: '#58a6ff' },
+  sideChipText: { color: '#6e7681', fontSize: 12, fontWeight: '600' },
+  sideChipTextActive: { color: '#58a6ff' },
 });
