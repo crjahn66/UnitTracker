@@ -451,8 +451,6 @@ function buildReadiness(wb: any, sorted: Unit[]) {
   const banners: { text: string; isTitle: boolean }[] = [
     { text: 'RED GROUP TESTING READINESS', isTitle: true },
     { text: '⚠  Units marked NOT READY have not been signed off by Integra for RED Group to complete testing.', isTitle: false },
-    { text: '⚠  All NORTH SIDE units are currently unavailable — pending Integra sign-off.', isTitle: false },
-    { text: '⚠  SOUTH SIDE: VFD chiller units are not available for testing.', isTitle: false },
     { text: '⚠  DATA HALL 2 units (North & South) are unavailable pending equipment availability.', isTitle: false },
   ];
   for (const { text, isTitle } of banners) {
@@ -492,7 +490,7 @@ function buildReadiness(wb: any, sorted: Unit[]) {
     r.height = autoRowHeight(r, colWidths);
   }
 
-  ws.views = [{ state: 'frozen', ySplit: 6 }];
+  ws.views = [{ state: 'frozen', ySplit: 4 }];
   ws.columns = colWidths.map((width) => ({ width }));
 }
 
