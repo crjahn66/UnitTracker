@@ -847,6 +847,7 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
                     key={issue.id}
                     issue={issue}
                     onResolve={() => { setResolvingId(issue.id); setView('resolveIssue'); }}
+                    onUnresolve={() => handleUnresolve(issue.id)}
                     onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}
                     onDelete={() => handleDelete(issue.id)}
                     onAddImage={(uri) => handleAddImage(issue.id, uri)}
