@@ -56,8 +56,10 @@ export default function DashboardScreen() {
       a.side !== b.side ? a.side.localeCompare(b.side) : a.unitNumber - b.unitNumber
     );
 
-    const complete = all.filter((u) => getUnitPct(u) === 100 && getOpenCompIssueCount(u) === 0).length;
-    const inProgress = all.filter((u) => { const p = getUnitPct(u); return p > 0 && !(p === 100 && getOpenCompIssueCount(u) === 0); }).length;
+    const isUnitComplete = (u: Unit) =>
+      STAGES.every((s) => normalizeStageStatus(u.stages[s.key]) === 'complete') && getOpenCompIssueCount(u) === 0;
+    const complete = all.filter(isUnitComplete).length;
+    const inProgress = all.filter((u) => { const p = getUnitPct(u); return p > 0 && !isUnitComplete(u); }).length;
     const totalIssues = all.reduce((n, u) => n + getOpenIssueCount(u), 0);
     const chillerReady = all.filter((u) => u.chillerAvailable === true).length;
     const overallPct = all.length > 0 ? Math.round(all.reduce((n, u) => n + getUnitPct(u), 0) / all.length) : 0;
