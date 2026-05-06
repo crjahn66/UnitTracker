@@ -81,8 +81,8 @@ const fmtDate = (iso?: string) => {
 
 function rowClr(unit: Unit): Clr {
   const compIssues = Object.values(unit.components).flatMap((c) => c.issues);
-  const miscIssues = (unit.miscEquipment ?? []).flatMap((m) => m.issues);
-  const openCount  = [...compIssues, ...miscIssues].filter((i) => !i.resolved).length;
+  const miscIssues = (unit.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues);
+  const openCount  = [...compIssues, ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
   const doneCount  = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
   if (doneCount === STAGES.length && openCount === 0) return GRN;
   if (openCount > 0)  return RED;
@@ -108,9 +108,9 @@ function buildOverview(wb: any, sorted: Unit[]) {
     const clr = rowClr(u);
     const allIssues = [
       ...Object.values(u.components).flatMap((c) => c.issues),
-      ...(u.miscEquipment ?? []).flatMap((m) => m.issues),
+      ...(u.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues),
     ];
-    const open = allIssues.filter((i) => !i.resolved).length;
+    const open = allIssues.filter((i) => !i.resolved && !i.deleted).length;
     const done = STAGES.filter((s) => normalizeStageStatus(u.stages[s.key]) === 'complete').length;
     const stuck = STAGES.filter((s) => normalizeStageStatus(u.stages[s.key]) === 'stuck').length;
     const status = done === STAGES.length && open === 0 ? 'Complete'
@@ -152,7 +152,7 @@ function buildComponents(wb: any, sorted: Unit[]) {
   let currentSide = '';
   for (const u of sorted) {
     const clr = rowClr(u);
-    const misc = u.miscEquipment ?? [];
+    const misc = (u.miscEquipment ?? []).filter((m) => !m.deleted);
     const miscSummary = misc.length === 0 ? '—' : misc.map((m) => {
       const v = m.status === 'good' ? '✓' : m.status === 'bad' ? '✗' : m.status === 'inProgress' ? '⏳' : '?';
       const note = m.status === 'inProgress' && m.progressNote ? ` (${m.progressNote})`
@@ -211,7 +211,7 @@ async function buildIssues(wb: any, sorted: Unit[]) {
         rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label });
       }
     }
-    for (const item of (u.miscEquipment ?? [])) {
+    for (const item of (u.miscEquipment ?? []).filter((m) => !m.deleted)) {
       for (const issue of (item.issues ?? []).filter((i: any) => !i.deleted)) {
         rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label: item.label || 'Misc Equipment' });
       }
@@ -291,8 +291,8 @@ function buildCompleted(wb: any, sorted: Unit[]) {
   const done = sorted.filter((u) => {
     const open = [
       ...Object.values(u.components).flatMap((c) => c.issues),
-      ...(u.miscEquipment ?? []).flatMap((m) => m.issues),
-    ].filter((i) => !i.resolved).length;
+      ...(u.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues),
+    ].filter((i) => !i.resolved && !i.deleted).length;
     return STAGES.every((s) => normalizeStageStatus(u.stages[s.key]) === 'complete') && open === 0;
   });
 
@@ -356,7 +356,7 @@ function buildWithIssues(wb: any, sorted: Unit[]) {
         rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label });
       }
     }
-    for (const item of (u.miscEquipment ?? [])) {
+    for (const item of (u.miscEquipment ?? []).filter((m) => !m.deleted)) {
       for (const issue of (item.issues ?? []).filter((i: any) => !i.deleted && !i.resolved)) {
         rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label: item.label || 'Misc Equipment' });
       }
