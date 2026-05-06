@@ -106,7 +106,9 @@ export default function DashboardScreen() {
                 <View style={s.unitTopRow}>
                   <Text style={s.unitId}>{unit.id}</Text>
                   {unit.chillerAvailable === true && (
-                    <Text style={s.chillerBadge}>❄</Text>
+                    <View style={s.chillerWrap}>
+                      <Text style={s.chillerBadge}>❄</Text>
+                    </View>
                   )}
                   {issues > 0 && (
                     <View style={s.issueBadge}>
@@ -191,7 +193,8 @@ const s = StyleSheet.create({
   unitInfo: { flex: 1, marginRight: 4 },
   unitTopRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   unitId: { color: '#e6edf3', fontSize: 14, fontWeight: '600', marginRight: 6 },
-  chillerBadge: { color: '#58a6ff', fontSize: 22, lineHeight: 22, marginRight: 5 },
+  chillerWrap: { width: 24, height: 20, alignItems: 'center', justifyContent: 'center', marginRight: 4, overflow: 'hidden' },
+  chillerBadge: { color: '#58a6ff', fontSize: 20, lineHeight: 20 },
   issueBadge: { backgroundColor: '#f85149', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1, marginRight: 6 },
   issueBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   unitPct: { marginLeft: 'auto' as any, fontSize: 12, fontWeight: '700' },
