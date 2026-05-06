@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
@@ -27,6 +27,24 @@ function unitColor(pct: number, issues: number): string {
 export default function DashboardScreen() {
   const units = useStore((s) => s.units);
   const navigation = useNavigation<any>();
+
+  const [searchText, setSearchText] = useState('');
+  const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearchChange = useCallback((text: string) => {
+    setSearchText(text);
+    if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+    if (text) {
+      clearTimerRef.current = setTimeout(() => setSearchText(''), 5 * 60 * 1000);
+    }
+  }, []);
+
+  const clearSearch = useCallback(() => {
+    setSearchText('');
+    if (clearTimerRef.current) { clearTimeout(clearTimerRef.current); clearTimerRef.current = null; }
+  }, []);
+
+  useEffect(() => () => { if (clearTimerRef.current) clearTimeout(clearTimerRef.current); }, []);
 
   const { sortedUnits, stats, openIssues, overallPct } = useMemo(() => {
     const all = Object.values(units).sort((a, b) =>
@@ -58,6 +76,17 @@ export default function DashboardScreen() {
     return { sortedUnits: all, stats: { total: all.length, complete, inProgress, totalIssues, chillerReady }, openIssues, overallPct };
   }, [units]);
 
+  const filteredIssues = useMemo(() => {
+    if (!searchText.trim()) return openIssues;
+    const q = searchText.toLowerCase();
+    return openIssues.filter((item) =>
+      item.unitId.toLowerCase().includes(q) ||
+      item.compLabel.toLowerCase().includes(q) ||
+      item.notes.toLowerCase().includes(q) ||
+      item.foundBy.toLowerCase().includes(q)
+    );
+  }, [openIssues, searchText]);
+
   const goToUnit = (unit: Unit) => {
     navigation.navigate(unit.side === 'North' ? 'NorthTab' : 'SouthTab', {
       screen: 'UnitDetail',
@@ -87,9 +116,30 @@ export default function DashboardScreen() {
         </View>
       </View>
 
-      {/* Per-unit list */}
-      <SectionLabel title="Units" />
-      <View style={s.listCard}>
+      {/* Issue search bar — only shown when there are open issues */}
+      {openIssues.length > 0 && (
+        <View style={s.searchWrap}>
+          <Ionicons name="search-outline" size={16} color="#6e7681" style={{ marginRight: 8 }} />
+          <TextInput
+            style={s.searchInput}
+            value={searchText}
+            onChangeText={handleSearchChange}
+            placeholder="Search issues…"
+            placeholderTextColor="#6e7681"
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
+          {!!searchText && (
+            <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close-circle" size={18} color="#6e7681" />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Per-unit list — hidden while searching */}
+      {!searchText && <SectionLabel title="Units" />}
+      {!searchText && <View style={s.listCard}>
         {sortedUnits.map((unit, idx) => {
           const pct = getUnitPct(unit);
           const issues = getOpenIssueCount(unit);
@@ -130,13 +180,13 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           );
         })}
-      </View>
+      </View>}
 
       {/* Open issues */}
       {openIssues.length > 0 && (
         <>
-          <SectionLabel title={`Open Issues (${openIssues.length})`} />
-          {openIssues.map((item) => (
+          <SectionLabel title={searchText ? `Issues (${filteredIssues.length} of ${openIssues.length})` : `Open Issues (${openIssues.length})`} />
+          {filteredIssues.map((item) => (
             <TouchableOpacity key={item.key} style={s.issueCard} onPress={() => goToUnit(item.unit)} activeOpacity={0.7}>
               <View style={s.issueHeader}>
                 <Text style={s.issueUnitId}>{item.unitId}</Text>
@@ -219,4 +269,12 @@ const s = StyleSheet.create({
   ageBadgeText: { color: '#f85149', fontSize: 10, fontWeight: '600' },
   issueNotes: { color: '#e6edf3', fontSize: 13, marginBottom: 2 },
   issueBy: { color: '#6e7681', fontSize: 11 },
+  searchWrap: {
+    flexDirection: 'row', alignItems: 'center',
+    marginHorizontal: 14, marginTop: 14, marginBottom: 4,
+    backgroundColor: '#161b22', borderRadius: 10,
+    borderWidth: 1, borderColor: '#30363d',
+    paddingHorizontal: 12, paddingVertical: 8,
+  },
+  searchInput: { flex: 1, color: '#e6edf3', fontSize: 14, paddingVertical: 0 },
 });
