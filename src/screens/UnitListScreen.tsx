@@ -9,7 +9,7 @@ import { useStore } from '../store/useStore';
 import { Unit, STAGES, COMPONENTS, normalizeStageStatus } from '../types';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitList'>;
-type Filter = 'all' | 'issues' | 'inProgress' | 'complete';
+type Filter = 'all' | 'issues' | 'inProgress' | 'complete' | 'chiller';
 
 function unitStatusColor(unit: Unit): string {
   const comps = Object.values(unit.components);
@@ -124,13 +124,15 @@ export default function UnitListScreen({ navigation, route }: Props) {
       const miscIssues = (u.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues ?? []);
       return sum + [...compIssues, ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
     }, 0);
-    return { complete, hasIssue, inProgress, openIssues };
+    const chillerReady = sideUnits.filter((u) => u.chillerAvailable === true).length;
+    return { complete, hasIssue, inProgress, openIssues, chillerReady };
   }, [sideUnits]);
 
   const filteredUnits = useMemo(() => {
     if (activeFilter === 'issues') return sideUnits.filter(hasOpenIssues);
     if (activeFilter === 'inProgress') return sideUnits.filter(isInProgress);
     if (activeFilter === 'complete') return sideUnits.filter(isComplete);
+    if (activeFilter === 'chiller') return sideUnits.filter((u) => u.chillerAvailable === true);
     return sideUnits;
   }, [sideUnits, activeFilter]);
 
@@ -146,6 +148,7 @@ export default function UnitListScreen({ navigation, route }: Props) {
     { key: 'issues',     label: 'Issues',     color: '#f85149', count: stats.hasIssue },
     { key: 'inProgress', label: 'In Progress',color: '#d29922', count: stats.inProgress },
     { key: 'complete',   label: 'Complete',   color: '#3fb950', count: stats.complete },
+    { key: 'chiller',    label: '❄ Ready',   color: '#58a6ff', count: stats.chillerReady },
   ];
 
   return (
