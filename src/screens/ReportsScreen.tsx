@@ -168,6 +168,7 @@ export default function ReportsScreen() {
   const loadBackup          = useStore((state) => state.loadBackup);
   const mergeImport         = useStore((state) => state.mergeImport);
   const setChillerAvailable = useStore((state) => state.setChillerAvailable);
+  const setChillerPriority  = useStore((state) => state.setChillerPriority);
   const { isEditMode, pauseTimer, resumeTimer } = useEditMode();
   const { isViewOnly } = useUser();
   const [exporting, setExporting]           = useState(false);
@@ -186,6 +187,7 @@ export default function ReportsScreen() {
   const [syncError, setSyncError]           = useState<string | null>(null);
   const [syncWarning, setSyncWarning]       = useState<string | null>(null);
   const [wiping, setWiping]                 = useState(false);
+  const [priorityPickerUnitId, setPriorityPickerUnitId] = useState<string | null>(null);
 
   const sortedUnits = useMemo(
     () => Object.values(units).sort((a, b) =>
@@ -463,37 +465,84 @@ export default function ReportsScreen() {
         </Modal>
       )}
 
-      {/* Chiller Availability */}
-      <SectionHeader title="Chiller Availability" />
-      <View style={s.card}>
-        {(['North', 'South'] as const).map((side) => {
-          const sideUnits = sortedUnits.filter((u) => u.side === side);
-          return (
-            <View key={side}>
-              <View style={s.chillerSideHeader}>
-                <Text style={s.chillerSideLabel}>{side}</Text>
-                <Text style={s.chillerSideCount}>
-                  {sideUnits.filter((u) => u.chillerAvailable === true).length} / {sideUnits.length} ready
-                </Text>
-              </View>
-              {sideUnits.map((unit, idx) => (
-                <View key={unit.id} style={[s.chillerRow, idx < sideUnits.length - 1 && s.rowBorder]}>
-                  <Text style={[s.chillerUnitId, unit.chillerAvailable === true && s.chillerUnitIdReady]}>
-                    {unit.chillerAvailable === true ? '❄ ' : ''}{unit.id}
-                  </Text>
-                  <Switch
-                    value={unit.chillerAvailable === true}
-                    onValueChange={(val) => setChillerAvailable(unit.id, val)}
-                    disabled={!isEditMode || isViewOnly}
-                    trackColor={{ false: '#30363d', true: '#1f6feb' }}
-                    thumbColor={unit.chillerAvailable === true ? '#58a6ff' : '#6e7681'}
-                  />
+      {/* Chiller Availability — hidden from view-only users */}
+      {!isViewOnly && (
+        <>
+          <SectionHeader title="Chiller Availability" />
+          <View style={s.card}>
+            {(['North', 'South'] as const).map((side) => {
+              const sideUnits = sortedUnits.filter((u) => u.side === side);
+              return (
+                <View key={side}>
+                  <View style={s.chillerSideHeader}>
+                    <Text style={s.chillerSideLabel}>{side}</Text>
+                    <Text style={s.chillerSideCount}>
+                      {sideUnits.filter((u) => u.chillerAvailable === true).length} / {sideUnits.length} ready
+                    </Text>
+                  </View>
+                  {sideUnits.map((unit, idx) => {
+                    const commissioned = isUnitCommissioned(unit);
+                    return (
+                      <View key={unit.id} style={[s.chillerRow, idx < sideUnits.length - 1 && s.rowBorder]}>
+                        <Text style={[s.chillerUnitId, unit.chillerAvailable === true && s.chillerUnitIdReady]}>
+                          {unit.chillerAvailable === true ? '❄ ' : ''}{unit.id}
+                        </Text>
+                        {unit.chillerAvailable === true && (
+                          <TouchableOpacity
+                            style={[s.prioBadge, (commissioned || !isEditMode) && s.prioBadgeDisabled]}
+                            onPress={() => { if (!commissioned && isEditMode) setPriorityPickerUnitId(unit.id); }}
+                            disabled={commissioned || !isEditMode}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={s.prioBadgeText}>
+                              {unit.chillerPriority != null ? `P${unit.chillerPriority}` : 'P—'}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                        <Switch
+                          value={unit.chillerAvailable === true}
+                          onValueChange={(val) => setChillerAvailable(unit.id, val)}
+                          disabled={!isEditMode}
+                          trackColor={{ false: '#30363d', true: '#1f6feb' }}
+                          thumbColor={unit.chillerAvailable === true ? '#58a6ff' : '#6e7681'}
+                        />
+                      </View>
+                    );
+                  })}
                 </View>
-              ))}
-            </View>
-          );
-        })}
-      </View>
+              );
+            })}
+          </View>
+
+          {/* Priority picker modal */}
+          {priorityPickerUnitId !== null && (
+            <Modal visible transparent animationType="fade" onRequestClose={() => setPriorityPickerUnitId(null)}>
+              <TouchableOpacity style={s.prioOverlay} activeOpacity={1} onPress={() => setPriorityPickerUnitId(null)}>
+                <View style={s.prioSheet}>
+                  <Text style={s.prioTitle}>Set Priority — {priorityPickerUnitId}</Text>
+                  {([null, 1, 2, 3, 4, 5, 6] as (number | null)[]).map((val) => {
+                    const current = units[priorityPickerUnitId]?.chillerPriority ?? null;
+                    const isSelected = current === val;
+                    return (
+                      <TouchableOpacity
+                        key={String(val)}
+                        style={[s.prioOption, isSelected && s.prioOptionActive]}
+                        onPress={() => { setChillerPriority(priorityPickerUnitId, val); setPriorityPickerUnitId(null); }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[s.prioOptionText, isSelected && s.prioOptionTextActive]}>
+                          {val === null ? 'No Priority' : `Priority ${val}`}
+                        </Text>
+                        {isSelected && <Ionicons name="checkmark" size={16} color="#58a6ff" />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </TouchableOpacity>
+            </Modal>
+          )}
+        </>
+      )}
 
       {/* General Issues */}
       <TouchableOpacity style={s.generalIssuesBtn} onPress={() => setGeneralModalOpen(true)} activeOpacity={0.8}>
@@ -770,6 +819,30 @@ const s = StyleSheet.create({
   },
   chillerUnitId: { color: '#8b949e', fontSize: 14, fontWeight: '600' },
   chillerUnitIdReady: { color: '#58a6ff' },
+  prioBadge: {
+    marginRight: 8, paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 6, borderWidth: 1, borderColor: '#58a6ff66', backgroundColor: '#58a6ff11',
+  },
+  prioBadgeDisabled: { opacity: 0.35 },
+  prioBadgeText: { color: '#58a6ff', fontSize: 12, fontWeight: '700' },
+  prioOverlay: { flex: 1, backgroundColor: '#00000099', justifyContent: 'center', alignItems: 'center', padding: 40 },
+  prioSheet: {
+    width: '100%', backgroundColor: '#161b22', borderRadius: 14,
+    borderWidth: 1, borderColor: '#30363d', overflow: 'hidden',
+  },
+  prioTitle: {
+    color: '#8b949e', fontSize: 11, fontWeight: '700', letterSpacing: 1,
+    textTransform: 'uppercase', padding: 14, paddingBottom: 10,
+    borderBottomWidth: 1, borderBottomColor: '#21262d',
+  },
+  prioOption: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 14, paddingHorizontal: 14,
+    borderBottomWidth: 1, borderBottomColor: '#21262d',
+  },
+  prioOptionActive: { backgroundColor: '#58a6ff11' },
+  prioOptionText: { color: '#e6edf3', fontSize: 15 },
+  prioOptionTextActive: { color: '#58a6ff', fontWeight: '600' },
   logoutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     marginTop: 32, paddingVertical: 10,

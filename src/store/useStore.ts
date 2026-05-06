@@ -57,6 +57,7 @@ interface StoreState {
   updateGeneralIssue: (issueId: string, updates: Partial<GeneralIssue>) => void;
   deleteGeneralIssue: (issueId: string) => void;
   setChillerAvailable: (unitId: string, available: boolean) => void;
+  setChillerPriority: (unitId: string, priority: number | null) => void;
   mergeImport: (importUnits: UnitsStore, importGeneralIssues: GeneralIssue[]) => void;
   mergeAdditive: (importUnits: UnitsStore, importGeneralIssues: GeneralIssue[]) => void;
   loadBackup: (units: UnitsStore, generalIssues?: GeneralIssue[]) => void;
@@ -418,7 +419,19 @@ export const useStore = create<StoreState>()(
         set((state) => ({
           units: {
             ...state.units,
-            [unitId]: { ...state.units[unitId], chillerAvailable: available },
+            [unitId]: {
+              ...state.units[unitId],
+              chillerAvailable: available,
+              ...(available === false && { chillerPriority: null }),
+            },
+          },
+        })),
+
+      setChillerPriority: (unitId, priority) =>
+        set((state) => ({
+          units: {
+            ...state.units,
+            [unitId]: { ...state.units[unitId], chillerPriority: priority },
           },
         })),
 
@@ -605,6 +618,7 @@ export const useStore = create<StoreState>()(
               miscEquipment: existingMisc,
               customComponentLabels: Object.keys(mergedLabels).length ? mergedLabels : undefined,
               ...('chillerAvailable' in imp && { chillerAvailable: imp.chillerAvailable }),
+              ...('chillerPriority' in imp && { chillerPriority: imp.chillerPriority }),
             };
           }
 
