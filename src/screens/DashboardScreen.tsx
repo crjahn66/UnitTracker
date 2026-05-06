@@ -191,7 +191,7 @@ const s = StyleSheet.create({
   unitInfo: { flex: 1, marginRight: 4 },
   unitTopRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   unitId: { color: '#e6edf3', fontSize: 14, fontWeight: '600', marginRight: 6 },
-  chillerBadge: { color: '#58a6ff', fontSize: 12, marginRight: 5 },
+  chillerBadge: { color: '#58a6ff', fontSize: 30, marginRight: 5 },
   issueBadge: { backgroundColor: '#f85149', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1, marginRight: 6 },
   issueBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   unitPct: { marginLeft: 'auto' as any, fontSize: 12, fontWeight: '700' },
