@@ -12,6 +12,7 @@ import { saveImage, deleteImage } from '../utils/imageStorage';
 import { pushToCloud } from '../utils/sync';
 import { useEditMode } from '../context/EditModeContext';
 import PhotoViewer from './PhotoViewer';
+import NameSelectField from './NameSelectField';
 
 interface Props {
   unitId: string;
@@ -107,7 +108,7 @@ function AddIssueForm({ onSave, onCancel }: {
     <View>
       <Text style={f.formTitle}>Log New Issue</Text>
       <FormField label="Date Found" value={form.dateFound} onChangeText={(v) => set('dateFound', v)} placeholder="MM/DD/YYYY" />
-      <FormField label="Found By" value={form.foundBy} onChangeText={(v) => set('foundBy', v)} placeholder="Name / Tech ID" />
+      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} />
       <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Name / Team" />
       <FormField label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} placeholder="Describe the issue…" multiline />
       <Text style={f.label}>Photos</Text>
@@ -137,7 +138,7 @@ function ResolveForm({ onSave, onCancel }: {
     <View>
       <Text style={f.formTitle}>Mark as Resolved</Text>
       <FormField label="Date Fixed" value={form.dateFixed} onChangeText={(v) => set('dateFixed', v)} placeholder="MM/DD/YYYY" />
-      <FormField label="Fixed By" value={form.fixedBy} onChangeText={(v) => set('fixedBy', v)} placeholder="Name / Tech ID" />
+      <NameSelectField label="Fixed By" value={form.fixedBy} onChange={(v) => set('fixedBy', v)} />
       <FormField label="How Fixed" value={form.howFixed} onChangeText={(v) => set('howFixed', v)} placeholder="Describe the resolution…" multiline />
       <View style={f.buttonRow}>
         <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={onCancel}><Text style={f.btnOutlineText}>Cancel</Text></TouchableOpacity>
@@ -278,13 +279,13 @@ function EditIssueForm({ issue, onSave, onCancel }: {
       <Text style={f.formTitle}>Edit Issue</Text>
       <FormField label="Date Found"        value={form.dateFound}        onChangeText={(v) => set('dateFound', v)}        placeholder="MM/DD/YYYY" />
       <FormField label="Last Updated"      value={form.dateUpdated}      onChangeText={(v) => set('dateUpdated', v)}      placeholder="MM/DD/YYYY" />
-      <FormField label="Found By"          value={form.foundBy}          onChangeText={(v) => set('foundBy', v)}          placeholder="Name / Tech ID" />
+      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} />
       <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Name / Team" />
       <FormField label="Notes"             value={form.notes}            onChangeText={(v) => set('notes', v)}            placeholder="Describe the issue…" multiline />
       {issue.resolved && (
         <>
           <FormField label="Date Fixed" value={form.dateFixed} onChangeText={(v) => set('dateFixed', v)} placeholder="MM/DD/YYYY" />
-          <FormField label="Fixed By"   value={form.fixedBy}   onChangeText={(v) => set('fixedBy', v)}   placeholder="Name / Tech ID" />
+          <NameSelectField label="Fixed By" value={form.fixedBy} onChange={(v) => set('fixedBy', v)} />
           <FormField label="How Fixed"  value={form.howFixed}  onChangeText={(v) => set('howFixed', v)}  placeholder="Describe the resolution…" multiline />
         </>
       )}

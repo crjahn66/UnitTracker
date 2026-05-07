@@ -1,0 +1,16 @@
+export const ROSTER: readonly string[] = [
+  'Andrew Salazar',
+  'Chris Jahn',
+  'Devin Morris',
+  'Jake Elrod',
+  'Jordan Deville',
+  'Mike Erdey',
+  'Mitchell Barras',
+  'Pedro Cangas',
+  'Randy Olds',
+  'Sam Garcia',
+  'Sam Law',
+  'Sam Pittitt',
+  'Scott Lord',
+  'Sudhendu Azad',
+];
