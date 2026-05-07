@@ -101,9 +101,12 @@ export default function UnitDetailScreen({ route }: Props) {
           <>
             <SectionHeader title="Network" icon="wifi-outline" />
             <View style={s.card}>
-              <NetRow label="Gateway IP" value={networkEntry.gatewayIp} first />
-              <NetRow label="PLC IP"     value={networkEntry.plcIp} />
-              <NetRow label="Chiller IP" value={networkEntry.chillerIp} last />
+              <NetRow label="Gateway IP"        value={networkEntry.gatewayIp} first />
+              <NetRow label="PLC IP"            value={networkEntry.plcIp} />
+              <NetRow label="Chiller IP"        value={networkEntry.chillerIp} />
+              <NetRow label="Field Server IP"   value={networkEntry.fieldServerIp} />
+              <NetRow label="BMS Path"          value={networkEntry.bmsPath} />
+              <NetRow label="BMS Source"        value={networkEntry.bmsSourceElement} last />
             </View>
           </>
         )}
