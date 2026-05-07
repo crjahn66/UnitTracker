@@ -172,7 +172,7 @@ function ResolveForm({ onSave, onCancel }: {
     <View>
       <Text style={f.formTitle}>Mark as Resolved</Text>
       <FormField label="Date Fixed" value={form.dateFixed} onChangeText={(v) => set('dateFixed', v)} placeholder="MM/DD/YYYY" />
-      <NameSelectField label="Fixed By" value={form.fixedBy} onChange={(v) => set('fixedBy', v)} />
+      <FormField label="Fixed By" value={form.fixedBy} onChangeText={(v) => set('fixedBy', v)} placeholder="Name / Tech ID" />
       <FormField label="How Fixed" value={form.howFixed} onChangeText={(v) => set('howFixed', v)} placeholder="Describe the resolution…" multiline />
       <View style={f.buttonRow}>
         <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={onCancel}>
@@ -389,7 +389,7 @@ function EditIssueForm({ issue, onSave, onCancel }: {
       {issue.resolved && (
         <>
           <FormField label="Date Fixed" value={form.dateFixed} onChangeText={(v) => set('dateFixed', v)} placeholder="MM/DD/YYYY" />
-          <NameSelectField label="Fixed By" value={form.fixedBy} onChange={(v) => set('fixedBy', v)} />
+          <FormField label="Fixed By" value={form.fixedBy} onChangeText={(v) => set('fixedBy', v)} placeholder="Name / Tech ID" />
           <FormField label="How Fixed"  value={form.howFixed}  onChangeText={(v) => set('howFixed', v)}  placeholder="Describe the resolution…" multiline />
         </>
       )}
