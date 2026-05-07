@@ -3,8 +3,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Application from 'expo-application';
 import * as IntentLauncher from 'expo-intent-launcher';
 
+// GitHub Releases "latest" URL — 302-redirects to the newest release's asset.
+// Repo must be public for anonymous download to work.
 const VERSION_JSON_URL =
-  'https://kizqpjitayvlezcjvdeo.supabase.co/storage/v1/object/public/app-releases/version.json';
+  'https://github.com/crjahn66/UnitTracker/releases/latest/download/version.json';
 
 export interface RemoteVersion {
   version: string;        // semver "1.0.1"

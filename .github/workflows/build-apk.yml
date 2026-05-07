@@ -4,6 +4,9 @@ on:
   push:
     branches: [master, main]
 
+permissions:
+  contents: write   # needed to create GitHub Releases
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -78,40 +81,31 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-      - name: Publish APK to Supabase Storage
+      - name: Publish APK to GitHub Releases
         if: success()
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          BUCKET: app-releases
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NOTES: ${{ github.event.head_commit.message }}
           RUN_NUMBER: ${{ github.run_number }}
+          REPO: ${{ github.repository }}
         run: |
           set -e
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-            echo "::warning::SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set; skipping publish."
-            exit 0
-          fi
           export VERSION=$(node -p "require('./app.json').expo.version")
           export VERSION_CODE="$RUN_NUMBER"
-          APK_NAME="UnitTracker-${VERSION}-${VERSION_CODE}.apk"
+          TAG="v${VERSION}-build${VERSION_CODE}"
           APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
-          export PUBLIC_URL="${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${APK_NAME}"
 
-          echo "Uploading $APK_NAME ..."
-          curl -fSs -X POST \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "x-upsert: true" \
-            -H "Content-Type: application/vnd.android.package-archive" \
-            -H "cache-control: max-age=3600" \
-            --data-binary "@${APK_PATH}" \
-            "${SUPABASE_URL}/storage/v1/object/${BUCKET}/${APK_NAME}"
-          echo
+          # Predictable "latest" download URLs (302 redirect to current release):
+          #   https://github.com/<repo>/releases/latest/download/UnitTracker.apk
+          #   https://github.com/<repo>/releases/latest/download/version.json
+          export PUBLIC_URL="https://github.com/${REPO}/releases/latest/download/UnitTracker.apk"
 
-          # Truncate notes to 1000 chars
+          # Truncate commit message to 1000 chars for notes
           export NOTES=$(printf '%s' "$NOTES" | head -c 1000)
 
-          VERSION_JSON=$(node -e '
+          # Build version.json
+          node -e '
+            const fs = require("fs");
             const v = {
               version: process.env.VERSION,
               versionCode: Number(process.env.VERSION_CODE),
@@ -120,17 +114,23 @@ jobs:
               publishedAt: new Date().toISOString(),
               commit: process.env.GITHUB_SHA
             };
-            process.stdout.write(JSON.stringify(v, null, 2));
-          ')
-          echo "$VERSION_JSON"
+            fs.writeFileSync("version.json", JSON.stringify(v, null, 2));
+            console.log(JSON.stringify(v, null, 2));
+          '
 
-          echo "Uploading version.json ..."
-          printf '%s' "$VERSION_JSON" | curl -fSs -X POST \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "x-upsert: true" \
-            -H "Content-Type: application/json" \
-            -H "cache-control: no-cache" \
-            --data-binary @- \
-            "${SUPABASE_URL}/storage/v1/object/${BUCKET}/version.json"
-          echo
-          echo "Published v${VERSION} (code ${VERSION_CODE}) -> ${PUBLIC_URL}"
+          # Stage assets with the fixed names we want users to download
+          mkdir -p release-assets
+          cp "$APK_PATH" "release-assets/UnitTracker.apk"
+          cp version.json release-assets/version.json
+
+          echo "Creating release $TAG ..."
+          gh release create "$TAG" \
+            --repo "$REPO" \
+            --title "v${VERSION} (build ${VERSION_CODE})" \
+            --notes "$NOTES" \
+            release-assets/UnitTracker.apk \
+            release-assets/version.json
+
+          echo "Published v${VERSION} (build ${VERSION_CODE})"
+          echo "APK:          $PUBLIC_URL"
+          echo "version.json: https://github.com/${REPO}/releases/latest/download/version.json"
