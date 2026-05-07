@@ -67,6 +67,8 @@ export type ProgressCallback = (downloadedBytes: number, totalBytes: number) => 
 /**
  * Downloads APK to cache and triggers Android installer.
  * Caller's progress callback is invoked during download.
+ * Auto-retries the download up to 2 extra times on network failure
+ * (handles the redirect-flake from GitHub Releases on first attempt).
  */
 export async function downloadAndInstallApk(
   remote: RemoteVersion,
@@ -82,26 +84,54 @@ export async function downloadAndInstallApk(
   const safeName = `UnitTracker-${remote.version}.apk`;
   const localPath = cacheDir + safeName;
 
-  // Remove any previous download (avoid stale partials)
-  try {
-    const info = await FileSystem.getInfoAsync(localPath);
-    if (info.exists) await FileSystem.deleteAsync(localPath, { idempotent: true });
-  } catch {}
+  const MAX_ATTEMPTS = 3;
+  let lastErr: any = null;
+  let downloadedUri: string | null = null;
 
-  const downloadResumable = FileSystem.createDownloadResumable(
-    remote.url,
-    localPath,
-    {},
-    (p) => {
-      if (onProgress) onProgress(p.totalBytesWritten, p.totalBytesExpectedToWrite);
-    },
-  );
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    // Always start clean (avoid stale partials confusing the installer)
+    try {
+      const info = await FileSystem.getInfoAsync(localPath);
+      if (info.exists) await FileSystem.deleteAsync(localPath, { idempotent: true });
+    } catch {}
 
-  const result = await downloadResumable.downloadAsync();
-  if (!result?.uri) throw new Error('APK download failed');
+    if (onProgress) onProgress(0, 0);
+
+    try {
+      const downloadResumable = FileSystem.createDownloadResumable(
+        remote.url,
+        localPath,
+        {},
+        (p) => {
+          if (onProgress) onProgress(p.totalBytesWritten, p.totalBytesExpectedToWrite);
+        },
+      );
+      const result = await downloadResumable.downloadAsync();
+      if (!result?.uri) throw new Error('APK download returned no URI');
+
+      // Sanity check the downloaded file
+      const info = await FileSystem.getInfoAsync(result.uri, { size: true } as any);
+      if (!info.exists || (info as any).size === 0) {
+        throw new Error('Downloaded APK is empty');
+      }
+
+      downloadedUri = result.uri;
+      break;
+    } catch (e: any) {
+      lastErr = e;
+      if (attempt < MAX_ATTEMPTS) {
+        // Brief backoff before retrying
+        await new Promise((r) => setTimeout(r, 1500 * attempt));
+      }
+    }
+  }
+
+  if (!downloadedUri) {
+    throw new Error(`APK download failed after ${MAX_ATTEMPTS} attempts: ${lastErr?.message ?? lastErr}`);
+  }
 
   // Get content:// URI via Expo's bundled FileProvider so the installer can read it
-  const contentUri = await FileSystem.getContentUriAsync(result.uri);
+  const contentUri = await FileSystem.getContentUriAsync(downloadedUri);
 
   // FLAG_GRANT_READ_URI_PERMISSION = 1
   await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
