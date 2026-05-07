@@ -16,7 +16,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#121212"
       },
-      "package": "com.redgroup.unittracker"
+      "package": "com.redgroup.unittracker",
+      "permissions": ["REQUEST_INSTALL_PACKAGES"]
     },
     "plugins": [],
     "web": {

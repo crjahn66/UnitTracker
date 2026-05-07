@@ -7,9 +7,11 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 import AuthGate from './src/components/AuthGate';
 import EditModeBanner from './src/components/EditModeBanner';
 import IssueTicker from './src/components/IssueTicker';
+import UpdateBanner from './src/components/UpdateBanner';
 import { EditModeProvider, useEditMode } from './src/context/EditModeContext';
 import { UserProvider } from './src/context/UserContext';
 import { useSessionTimeout } from './src/hooks/useSessionTimeout';
+import { useAutoUpdateCheck } from './src/hooks/useUpdateCheck';
 import { useStore } from './src/store/useStore';
 import { pushToCloud, isSuppressingAutoPush } from './src/utils/sync';
 import { startAutoBackup } from './src/utils/backup';
@@ -40,12 +42,14 @@ function useLocalAutoBackup() {
 
 function AppShell() {
   useAutoPush();
+  useAutoUpdateCheck();
   const { resetTimer } = useEditMode();
   const { resetSessionTimer } = useSessionTimeout();
   const handleTouch = () => { resetTimer(); resetSessionTimer(); };
   return (
     <View style={{ flex: 1 }} onTouchStart={handleTouch}>
       <EditModeBanner />
+      <UpdateBanner />
       <IssueTicker />
       <Navigation />
     </View>

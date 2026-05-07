@@ -77,3 +77,60 @@ jobs:
           name: app-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
+
+      - name: Publish APK to Supabase Storage
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BUCKET: app-releases
+          NOTES: ${{ github.event.head_commit.message }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -e
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::warning::SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set; skipping publish."
+            exit 0
+          fi
+          export VERSION=$(node -p "require('./app.json').expo.version")
+          export VERSION_CODE="$RUN_NUMBER"
+          APK_NAME="UnitTracker-${VERSION}-${VERSION_CODE}.apk"
+          APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
+          export PUBLIC_URL="${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${APK_NAME}"
+
+          echo "Uploading $APK_NAME ..."
+          curl -fSs -X POST \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "x-upsert: true" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            -H "cache-control: max-age=3600" \
+            --data-binary "@${APK_PATH}" \
+            "${SUPABASE_URL}/storage/v1/object/${BUCKET}/${APK_NAME}"
+          echo
+
+          # Truncate notes to 1000 chars
+          export NOTES=$(printf '%s' "$NOTES" | head -c 1000)
+
+          VERSION_JSON=$(node -e '
+            const v = {
+              version: process.env.VERSION,
+              versionCode: Number(process.env.VERSION_CODE),
+              url: process.env.PUBLIC_URL,
+              notes: process.env.NOTES || "",
+              publishedAt: new Date().toISOString(),
+              commit: process.env.GITHUB_SHA
+            };
+            process.stdout.write(JSON.stringify(v, null, 2));
+          ')
+          echo "$VERSION_JSON"
+
+          echo "Uploading version.json ..."
+          printf '%s' "$VERSION_JSON" | curl -fSs -X POST \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "x-upsert: true" \
+            -H "Content-Type: application/json" \
+            -H "cache-control: no-cache" \
+            --data-binary @- \
+            "${SUPABASE_URL}/storage/v1/object/${BUCKET}/version.json"
+          echo
+          echo "Published v${VERSION} (code ${VERSION_CODE}) -> ${PUBLIC_URL}"

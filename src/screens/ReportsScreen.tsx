@@ -14,6 +14,7 @@ import { supabase } from '../utils/supabase';
 import GeneralIssueModal from '../components/GeneralIssueModal';
 import { useEditMode } from '../context/EditModeContext';
 import { useUser } from '../context/UserContext';
+import { runUpdateCheck } from '../hooks/useUpdateCheck';
 
 function isUnitCommissioned(unit: Unit): boolean {
   return STAGES.every(s => normalizeStageStatus(unit.stages[s.key]) === 'complete') &&
@@ -188,6 +189,7 @@ export default function ReportsScreen() {
   const [syncWarning, setSyncWarning]       = useState<string | null>(null);
   const [wiping, setWiping]                 = useState(false);
   const [priorityPickerUnitId, setPriorityPickerUnitId] = useState<string | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
 
   const sortedUnits = useMemo(
     () => Object.values(units).sort((a, b) =>
@@ -286,6 +288,25 @@ export default function ReportsScreen() {
     } catch (e) {
       Alert.alert('Restore Failed', String(e));
       setRestoring(false);
+    }
+  };
+
+  const handleCheckUpdate = async () => {
+    if (Platform.OS !== 'android') {
+      Alert.alert('Not Supported', 'In-app updates are only available on the Android APK.');
+      return;
+    }
+    setCheckingUpdate(true);
+    try {
+      const info = await runUpdateCheck(true);
+      if (!info) {
+        Alert.alert('Up to Date', 'You\'re running the latest version.');
+      }
+      // If update available, banner appears at top with install flow
+    } catch (e: any) {
+      Alert.alert('Update Check Failed', e?.message ?? String(e));
+    } finally {
+      setCheckingUpdate(false);
     }
   };
 
@@ -411,6 +432,21 @@ export default function ReportsScreen() {
       )}
       {syncError !== null && (
         <Text style={s.syncError}>{syncError}</Text>
+      )}
+
+      {/* Check for app updates (Android only) */}
+      {Platform.OS === 'android' && (
+        <TouchableOpacity
+          style={[s.updateBtn, checkingUpdate && s.btnDisabled]}
+          onPress={handleCheckUpdate}
+          disabled={checkingUpdate}
+          activeOpacity={0.8}
+        >
+          {checkingUpdate
+            ? <ActivityIndicator color="#58a6ff" size="small" style={{ marginRight: 8 }} />
+            : <Ionicons name="cloud-download-outline" size={18} color="#58a6ff" style={{ marginRight: 8 }} />}
+          <Text style={s.updateBtnText}>{checkingUpdate ? 'Checking…' : 'Check for App Updates'}</Text>
+        </TouchableOpacity>
       )}
 
       {/* Wipe photos (recovery) */}
@@ -712,6 +748,12 @@ const s = StyleSheet.create({
   syncWarning: { color: '#e3b341', fontSize: 12, textAlign: 'center', marginBottom: 8 },
   wipeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 4, marginBottom: 20, padding: 8 },
   wipeBtnText: { color: '#6e7681', fontSize: 12 },
+  updateBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderRadius: 10, paddingVertical: 12, marginBottom: 16,
+    borderWidth: 1, borderColor: '#1f6feb',
+  },
+  updateBtnText: { color: '#58a6ff', fontSize: 14, fontWeight: '600' },
   drOverlay: { flex: 1, backgroundColor: '#00000099', justifyContent: 'center', padding: 20 },
   drSheet: { backgroundColor: '#161b22', borderRadius: 14, borderWidth: 1, borderColor: '#30363d', overflow: 'hidden', maxHeight: '85%' },
   drHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#21262d' },
