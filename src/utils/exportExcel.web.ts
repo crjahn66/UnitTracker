@@ -149,13 +149,10 @@ function buildComponents(wb: any, sorted: Unit[]) {
   for (const u of sorted) {
     const clr = rowClr(u);
     const misc = (u.miscEquipment ?? []).filter((m) => !m.deleted);
-    const miscSummary = misc.length === 0 ? '—' : misc.map((m) => {
-      const v = m.status === 'good' ? '✓' : m.status === 'bad' ? '✗' : m.status === 'inProgress' ? '⏳' : '?';
-      const note = m.status === 'inProgress' && m.progressNote ? ` (${m.progressNote})`
-                 : m.status === 'good' && m.goodNote ? ` (${m.goodNote})` : '';
-      return `${v} ${m.label || 'Unnamed'}${note}`;
-    }).join(', ');
-    const miscClr = misc.some((m) => m.status === 'bad') ? RED : misc.some((m) => m.status === 'inProgress') ? AMB : misc.some((m) => m.status === 'good') ? GRN : GRY;
+    const miscSummary = misc.some((m) => m.status === 'bad') ? '✗ Bad'
+                     : misc.some((m) => m.status === 'inProgress') ? '⏳ In Progress'
+                     : '✓ Good';
+    const miscClr = misc.some((m) => m.status === 'bad') ? RED : misc.some((m) => m.status === 'inProgress') ? AMB : GRN;
 
     if (u.side !== currentSide) {
       currentSide = u.side;
@@ -412,7 +409,7 @@ async function buildWithConstraints(wb: any, sorted: Unit[]) {
 
 // ─── Sheet 6: General Issues ──────────────────────────────────────────────────
 function buildGeneralIssues(wb: any, issues: GeneralIssue[]) {
-  const ws = wb.addWorksheet('General Issues');
+  const ws = wb.addWorksheet('General Constraints');
   const colWidths = [12, 12, 14, 18, 40, 10, 12, 14, 40];
   const headers = ['Date Found', 'Last Updated', 'Found By', 'Responsible Party', 'Notes', 'Status', 'Date Fixed', 'Fixed By', 'How Fixed'];
   const row1 = ws.addRow(headers);
@@ -497,12 +494,12 @@ export const exportToExcel = async (units: Record<string, Unit>, generalIssues: 
   );
 
   buildOverview(wb, sorted);
-  buildComponents(wb, sorted);
-  await buildConstraints(wb, sorted);
   buildCompleted(wb, sorted);
-  await buildWithConstraints(wb, sorted);
-  buildGeneralIssues(wb, generalIssues);
+  buildComponents(wb, sorted);
   buildReadiness(wb, sorted);
+  await buildWithConstraints(wb, sorted);
+  await buildConstraints(wb, sorted);
+  buildGeneralIssues(wb, generalIssues);
 
   const filename = `UnitTracker_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`;
   const buffer: ArrayBuffer = await wb.xlsx.writeBuffer();

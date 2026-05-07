@@ -80,12 +80,14 @@ function ImageStrip({ images, onAdd, onRemove, onView = () => {} }: {
 
 // ─── Add Issue Form ────────────────────────────────────────────────────────────
 
-function AddIssueForm({ onSave, onCancel }: {
-  onSave: (d: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; images: string[] }) => void;
+function AddIssueForm({ onSave, onCancel, currentStatus }: {
+  onSave: (d: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; images: string[]; status: ComponentStatus }) => void;
   onCancel: () => void;
+  currentStatus: ComponentStatus;
 }) {
   const [form, setForm] = useState(EMPTY_ISSUE);
   const [images, setImages] = useState<string[]>([]);
+  const [status, setStatus] = useState<ComponentStatus>(currentStatus === 'unchecked' ? 'bad' : currentStatus);
   const set = (key: 'dateFound' | 'foundBy' | 'responsibleParty' | 'notes', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
@@ -95,18 +97,31 @@ function AddIssueForm({ onSave, onCancel }: {
       multiple: true,
       copyToCacheDirectory: true,
     });
-    if (!result.canceled)setImages((prev) => [...prev, ...result.assets.map((a) => a.uri)]);
+    if (!result.canceled) setImages((prev) => [...prev, ...result.assets.map((a) => a.uri)]);
   };
 
   const handleSave = () => {
     if (!form.foundBy.trim()) { showAlert('Required', 'Please enter who found the issue.'); return; }
     if (!form.notes.trim()) { showAlert('Required', 'Please enter issue notes.'); return; }
-    onSave({ ...form, images });
+    onSave({ ...form, images, status });
   };
 
   return (
     <View>
       <Text style={f.formTitle}>Log New Issue</Text>
+      <Text style={f.label}>Equipment Status</Text>
+      <View style={f.statusRow}>
+        {(['good', 'inProgress', 'bad'] as ComponentStatus[]).map((s) => (
+          <TouchableOpacity
+            key={s}
+            style={[f.statusBtn, status === s && { backgroundColor: statusColor(s) + '33', borderColor: statusColor(s) }]}
+            onPress={() => setStatus(s)}
+            activeOpacity={0.75}
+          >
+            <Text style={[f.statusBtnText, { color: statusColor(s) }]}>{statusLabel(s)}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
       <FormField label="Date Found" value={form.dateFound} onChangeText={(v) => set('dateFound', v)} placeholder="MM/DD/YYYY" />
       <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} />
       <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Name / Team" />
@@ -417,14 +432,16 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
 
   const handleSaveLabel = useCallback(() => {
     const trimmed = labelValue.trim();
+    if (!trimmed) { showAlert('Name Required', 'Equipment must have a name before it can be saved.'); return; }
     updateMiscEquip(unitId, itemId, { label: trimmed });
     setEditingLabel(false);
     const misc = unit.miscEquipment ?? [];
     const hasBlank = misc.some((i) => i.id !== itemId && !i.label.trim());
-    if (trimmed && !hasBlank) addMiscEquip(unitId);
+    if (!hasBlank) addMiscEquip(unitId);
   }, [labelValue, unitId, itemId, updateMiscEquip, addMiscEquip, unit.miscEquipment]);
 
   const handleStatusChange = useCallback((status: ComponentStatus) => {
+    if (!item?.label?.trim()) { showAlert('Name Required', 'Please name this equipment before changing its status.'); return; }
     updateMiscEquip(unitId, itemId, { status });
     if (status === 'inProgress') { updateMiscEquip(unitId, itemId, { goodNote: '' }); setView('progressNote'); return; }
     if (status === 'bad') { updateMiscEquip(unitId, itemId, { progressNote: '', goodNote: '' }); setView('addIssue'); return; }
@@ -432,7 +449,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
     updateMiscEquip(unitId, itemId, { progressNote: '', goodNote: '' }); pushToCloud().catch(() => {});
   }, [unitId, itemId, updateMiscEquip, onClose]);
 
-  const handleAddIssue = useCallback((data: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; images: string[] }) => {
+  const handleAddIssue = useCallback((data: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; images: string[]; status: ComponentStatus }) => {
     const id = genId();
     const now = new Date().toISOString();
     const issue: MiscIssue = {
@@ -442,6 +459,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
       foundBy: data.foundBy, responsibleParty: data.responsibleParty || undefined, notes: data.notes, resolved: false,
       images: data.images.length > 0 ? data.images : undefined,
     };
+    updateMiscEquip(unitId, itemId, { status: data.status });
     addMiscIssue(unitId, itemId, issue);
     setView('detail');
     // Upload photos in the background — form is already closed
@@ -539,7 +557,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
   const color = statusColor(item.status);
 
   const renderContent = () => {
-    if (view === 'addIssue') return <AddIssueForm onSave={handleAddIssue} onCancel={() => setView('detail')} />;
+    if (view === 'addIssue') return <AddIssueForm onSave={handleAddIssue} onCancel={() => setView('detail')} currentStatus={item.status} />;
     if (view === 'editIssue' && editingIssueId) {
       const issue = item?.issues.find((i) => i.id === editingIssueId);
       if (issue) return <EditIssueForm issue={issue} onSave={(u) => handleEditIssue(editingIssueId, u)} onCancel={() => { setEditingIssueId(null); setView('detail'); }} />;
@@ -678,7 +696,10 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
           </>
         )}
         {isEditMode && (
-          <TouchableOpacity style={m.addIssueBtn} onPress={() => setView('addIssue')}>
+          <TouchableOpacity style={m.addIssueBtn} onPress={() => {
+            if (!item.label?.trim()) { showAlert('Name Required', 'Please name this equipment before logging an issue.'); return; }
+            setView('addIssue');
+          }}>
             <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 6 }} />
             <Text style={m.addIssueBtnText}>Log New Issue</Text>
           </TouchableOpacity>
@@ -836,6 +857,9 @@ const f = StyleSheet.create({
   label: { color: '#8b949e', fontSize: 12, marginBottom: 6, fontWeight: '600' },
   input: { backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#30363d', borderRadius: 8, padding: 10, color: '#e6edf3', fontSize: 14 },
   inputMulti: { minHeight: 90 },
+  statusRow: { flexDirection: 'row', marginBottom: 14 },
+  statusBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#30363d', alignItems: 'center', marginRight: 8 },
+  statusBtnText: { fontSize: 13, fontWeight: '700' },
   buttonRow: { flexDirection: 'row', marginTop: 6 },
   btn: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   btnOutline: { borderWidth: 1, borderColor: '#30363d', marginRight: 10 },
