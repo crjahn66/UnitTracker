@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useUser } from './UserContext';
 
-export const EDIT_TIMEOUT_MS = 60_000;
+export const EDIT_TIMEOUT_MS = 180_000;
 
 interface EditModeCtx {
   isEditMode: boolean;
