@@ -100,13 +100,18 @@ export default function UnitDetailScreen({ route }: Props) {
         {networkEntry && (
           <>
             <SectionHeader title="Network" icon="wifi-outline" />
+            <View style={s.pskBanner}>
+              <Text style={s.pskText}>
+                {unit.unitNumber % 3 === 0 ? 'PSK_TYPE = 1  |  Non-VFD' : 'PSK_TYPE = 2  |  VFD'}
+              </Text>
+            </View>
             <View style={s.card}>
-              <NetRow label="Gateway IP"        value={networkEntry.gatewayIp} first />
-              <NetRow label="PLC IP"            value={networkEntry.plcIp} />
-              <NetRow label="Chiller IP"        value={networkEntry.chillerIp} />
-              <NetRow label="Field Server IP"   value={networkEntry.fieldServerIp} />
-              <NetRow label="BMS Path"          value={networkEntry.bmsPath} />
-              <NetRow label="BMS Source"        value={networkEntry.bmsSourceElement} last />
+              <NetRow label="Gateway IP"                  value={networkEntry.gatewayIp} first />
+              <NetRow label="PLC IP"                      value={networkEntry.plcIp} />
+              <NetRow label="Chiller IP (Modbus AOI)"     value={networkEntry.chillerIp} />
+              <NetRow label="Field Server IP"             value={networkEntry.fieldServerIp} />
+              <NetRow label="BMS Path (MSG AOI)"          value={networkEntry.bmsPath} />
+              <NetRow label="BMS Source (MSG AOI)"        value={networkEntry.bmsSourceElement} last />
             </View>
           </>
         )}
@@ -488,6 +493,8 @@ const s = StyleSheet.create({
   compRight: { flexDirection: 'row', alignItems: 'center' },
   compStatusText: { fontSize: 12, fontWeight: '600', marginRight: 4 },
   chevron: { marginLeft: 2 },
+  pskBanner: { marginBottom: 6, paddingHorizontal: 4 },
+  pskText: { color: '#58a6ff', fontSize: 12, fontWeight: '600', letterSpacing: 0.3 },
   netRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 14 },
   netRowBorder: { borderBottomWidth: 1, borderBottomColor: '#21262d' },
   netLabel: { color: '#8b949e', fontSize: 13, fontWeight: '500' },
