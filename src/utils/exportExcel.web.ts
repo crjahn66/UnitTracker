@@ -284,13 +284,9 @@ function buildCompleted(wb: any, sorted: Unit[]) {
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
 
-  const done = sorted.filter((u) => {
-    const open = [
-      ...Object.values(u.components).flatMap((c) => c.issues),
-      ...(u.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues),
-    ].filter((i) => !i.resolved && !i.deleted).length;
-    return STAGES.every((s) => normalizeStageStatus(u.stages[s.key]) === 'complete') && open === 0;
-  });
+  const done = sorted.filter((u) =>
+    STAGES.every((s) => normalizeStageStatus(u.stages[s.key]) === 'complete')
+  );
 
   let currentSide = '';
   for (const u of done) {
