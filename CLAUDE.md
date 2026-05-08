@@ -12,6 +12,7 @@ Every push to `master` triggers a GitHub Action that builds the APK and publishe
 **The APK update checker compares semver — it will only notify users of a new version if `version` in `app.json` is bumped.**
 
 Rule: any push that contains user-facing changes should include a version bump in `app.json`.
+**CRITICAL: Edit app.json FIRST, then `git add` it. Staging an already-committed file without editing it is a no-op — the CI will publish the old version and users won't be notified.**
 
 ```
 "version": "1.0.3"  →  "1.0.4"
