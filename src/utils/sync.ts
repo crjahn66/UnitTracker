@@ -18,7 +18,7 @@ let _lastSyncedAt: number | null = (() => {
 })();
 let _isOnline: boolean = true;
 let _hasPendingChanges: boolean = false;
-let _lastPushedAt: number = 0;
+let _lastPushedAt: number = Date.now();
 // Tracks the updated_at timestamp of the last state we pushed to the DB.
 // webAutoPoll compares against this — not _lastPushedAt — so ANY newer remote
 // push (APK or another browser) is detected regardless of timing.
