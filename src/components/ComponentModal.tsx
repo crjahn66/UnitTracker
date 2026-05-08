@@ -155,9 +155,10 @@ function AddIssueForm({ onSave, onCancel }: AddIssueFormProps) {
 
 // ─── Resolve Issue Form ────────────────────────────────────────────────────────
 
-function ResolveForm({ onSave, onCancel }: {
+function ResolveForm({ onSave, onCancel, subtitle }: {
   onSave: (data: { dateFixed: string; fixedBy: string; howFixed: string }) => void;
   onCancel: () => void;
+  subtitle?: string;
 }) {
   const [form, setForm] = useState(EMPTY_RESOLVE);
   const set = (key: 'dateFixed' | 'fixedBy' | 'howFixed', val: string) =>
@@ -172,6 +173,7 @@ function ResolveForm({ onSave, onCancel }: {
   return (
     <View>
       <Text style={f.formTitle}>Mark as Resolved</Text>
+      {subtitle ? <Text style={f.formSubtitle}>{subtitle}</Text> : null}
       <FormField label="Date Fixed" value={form.dateFixed} onChangeText={(v) => set('dateFixed', v)} placeholder="MM/DD/YYYY" />
       <FormField label="Fixed By" value={form.fixedBy} onChangeText={(v) => set('fixedBy', v)} placeholder="Name / Tech ID" />
       <FormField label="How Fixed" value={form.howFixed} onChangeText={(v) => set('howFixed', v)} placeholder="Describe the resolution…" multiline />
@@ -487,6 +489,9 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
 
   const [view, setView] = useState<ModalView>('detail');
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [resolveQueue, setResolveQueue] = useState<string[]>([]);
+  const [resolveQueueTotal, setResolveQueueTotal] = useState(0);
+  const [pendingGoodStatus, setPendingGoodStatus] = useState(false);
   const [editingIssueId, setEditingIssueId] = useState<string | null>(null);
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -518,6 +523,31 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
       if (status === 'good') {
         setComponentProgressNote(unitId, componentKey, '');
         setComponentGoodNote(unitId, componentKey, '');
+        const openIssues = compData.issues.filter((i) => !i.resolved && !i.deleted);
+        if (openIssues.length > 0) {
+          const startQueue = () => {
+            setPendingGoodStatus(true);
+            setResolveQueueTotal(openIssues.length);
+            setResolvingId(openIssues[0].id);
+            setResolveQueue(openIssues.slice(1).map((i) => i.id));
+            setView('resolveIssue');
+          };
+          const skip = () => { pushToCloud().catch(() => {}); onClose(); };
+          if (Platform.OS === 'web') {
+            if ((window as any).confirm(`This component has ${openIssues.length} open issue${openIssues.length !== 1 ? 's' : ''}. Mark ${openIssues.length !== 1 ? 'them' : 'it'} as resolved?`)) startQueue();
+            else skip();
+          } else {
+            Alert.alert(
+              'Open Issues',
+              `This component has ${openIssues.length} open issue${openIssues.length !== 1 ? 's' : ''}. Mark ${openIssues.length !== 1 ? 'them' : 'it'} as resolved?`,
+              [
+                { text: 'Skip', style: 'cancel', onPress: skip },
+                { text: 'Resolve', onPress: startQueue },
+              ]
+            );
+          }
+          return;
+        }
         pushToCloud().catch(() => {});
         onClose();
         return;
@@ -526,7 +556,7 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
       setComponentGoodNote(unitId, componentKey, '');
       pushToCloud().catch(() => {});
     },
-    [unitId, componentKey, updateComponentStatus, setComponentProgressNote, setComponentGoodNote, onClose]
+    [unitId, componentKey, updateComponentStatus, setComponentProgressNote, setComponentGoodNote, onClose, compData]
   );
 
   const handleAddIssue = useCallback(
@@ -572,10 +602,21 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
         fixedBy: data.fixedBy,
         howFixed: data.howFixed,
       });
-      setResolvingId(null);
-      setView('detail');
+      if (resolveQueue.length > 0) {
+        setResolvingId(resolveQueue[0]);
+        setResolveQueue((q) => q.slice(1));
+      } else {
+        setResolvingId(null);
+        if (pendingGoodStatus) {
+          setPendingGoodStatus(false);
+          pushToCloud().catch(() => {});
+          onClose();
+        } else {
+          setView('detail');
+        }
+      }
     },
-    [unitId, componentKey, updateIssue]
+    [unitId, componentKey, updateIssue, resolveQueue, pendingGoodStatus, onClose]
   );
 
   const handleUnresolve = useCallback(
@@ -663,10 +704,25 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
       if (issue) return <EditIssueForm issue={issue} onSave={(u) => handleEditIssue(editingIssueId, u)} onCancel={() => { setEditingIssueId(null); setView('detail'); }} />;
     }
     if (view === 'resolveIssue' && resolvingId) {
+      const subtitle = pendingGoodStatus && resolveQueueTotal > 1
+        ? `Issue ${resolveQueueTotal - resolveQueue.length} of ${resolveQueueTotal}`
+        : undefined;
+      const cancelQueue = () => {
+        if (resolveQueue.length > 0) {
+          setResolvingId(resolveQueue[0]);
+          setResolveQueue((q) => q.slice(1));
+        } else {
+          setPendingGoodStatus(false);
+          setResolvingId(null);
+          pushToCloud().catch(() => {});
+          onClose();
+        }
+      };
       return (
         <ResolveForm
           onSave={(data) => handleResolve(resolvingId, data)}
-          onCancel={() => { setResolvingId(null); setView('detail'); }}
+          onCancel={pendingGoodStatus ? cancelQueue : () => { setResolvingId(null); setView('detail'); }}
+          subtitle={subtitle}
         />
       );
     }
@@ -1017,7 +1073,8 @@ const img = StyleSheet.create({
 });
 
 const f = StyleSheet.create({
-  formTitle: { color: '#e6edf3', fontSize: 16, fontWeight: '700', marginBottom: 16 },
+  formTitle: { color: '#e6edf3', fontSize: 16, fontWeight: '700', marginBottom: 4 },
+  formSubtitle: { color: '#8b949e', fontSize: 12, marginBottom: 16 },
   field: { marginBottom: 14 },
   label: { color: '#8b949e', fontSize: 12, marginBottom: 6, fontWeight: '600' },
   input: { backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#30363d', borderRadius: 8, padding: 10, color: '#e6edf3', fontSize: 14 },

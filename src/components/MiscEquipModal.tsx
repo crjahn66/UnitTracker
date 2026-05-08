@@ -412,7 +412,6 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
   const unit              = useStore((state) => state.units[unitId]);
   const updateMiscEquip   = useStore((state) => state.updateMiscEquip);
   const deleteMiscEquip   = useStore((state) => state.deleteMiscEquip);
-  const addMiscEquip      = useStore((state) => state.addMiscEquip);
   const addMiscIssue      = useStore((state) => state.addMiscIssue);
   const updateMiscIssue   = useStore((state) => state.updateMiscIssue);
   const deleteMiscIssue   = useStore((state) => state.deleteMiscIssue);
@@ -440,10 +439,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
     if (!trimmed) { showAlert('Name Required', 'Equipment must have a name before it can be saved.'); return; }
     updateMiscEquip(unitId, itemId, { label: trimmed });
     setEditingLabel(false);
-    const misc = unit.miscEquipment ?? [];
-    const hasBlank = misc.some((i) => i.id !== itemId && !i.label.trim());
-    if (!hasBlank) addMiscEquip(unitId);
-  }, [labelValue, unitId, itemId, updateMiscEquip, addMiscEquip, unit.miscEquipment]);
+  }, [labelValue, unitId, itemId, updateMiscEquip]);
 
   const handleStatusChange = useCallback((status: ComponentStatus) => {
     if (!item?.label?.trim()) { showAlert('Name Required', 'Please name this equipment before changing its status.'); return; }

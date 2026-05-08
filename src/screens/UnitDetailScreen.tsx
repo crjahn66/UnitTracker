@@ -34,6 +34,8 @@ export default function UnitDetailScreen({ route }: Props) {
   const [stageDateValue, setStageDateValue] = useState('');
   const addMiscEquip = useStore((state) => state.addMiscEquip);
   const { isEditMode } = useEditMode();
+  const [addingMisc, setAddingMisc] = useState(false);
+  const [newMiscName, setNewMiscName] = useState('');
 
   const handleStageChange = useCallback(
     (key: StageKey, status: StageStatus) => {
@@ -318,10 +320,47 @@ export default function UnitDetailScreen({ route }: Props) {
             );
           })}
           {isEditMode && (
-            <TouchableOpacity style={s.addMiscRow} onPress={() => addMiscEquip(unitId)} activeOpacity={0.7}>
-              <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 8 }} />
-              <Text style={s.addMiscText}>Add Equipment</Text>
-            </TouchableOpacity>
+            addingMisc ? (
+              <View style={s.addMiscInputRow}>
+                <TextInput
+                  style={s.addMiscInput}
+                  value={newMiscName}
+                  onChangeText={setNewMiscName}
+                  placeholder="Equipment name…"
+                  placeholderTextColor="#6e7681"
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={() => {
+                    const name = newMiscName.trim();
+                    if (!name) return;
+                    const id = `misc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+                    addMiscEquip(unitId, name, id);
+                    setSelectedMiscItem(id);
+                    setNewMiscName('');
+                    setAddingMisc(false);
+                  }}
+                />
+                <TouchableOpacity style={s.addMiscConfirm} onPress={() => {
+                  const name = newMiscName.trim();
+                  if (!name) return;
+                  const id = `misc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+                  addMiscEquip(unitId, name, id);
+                  setSelectedMiscItem(id);
+                  setNewMiscName('');
+                  setAddingMisc(false);
+                }}>
+                  <Ionicons name="checkmark" size={20} color="#3fb950" />
+                </TouchableOpacity>
+                <TouchableOpacity style={s.addMiscCancel} onPress={() => { setNewMiscName(''); setAddingMisc(false); }}>
+                  <Ionicons name="close" size={20} color="#f85149" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={s.addMiscRow} onPress={() => setAddingMisc(true)} activeOpacity={0.7}>
+                <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 8 }} />
+                <Text style={s.addMiscText}>Add Equipment</Text>
+              </TouchableOpacity>
+            )
           )}
         </View>
       </ScrollView>
@@ -490,6 +529,10 @@ const s = StyleSheet.create({
   issueMeta: { fontSize: 11, marginTop: 2 },
   addMiscRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 13, paddingHorizontal: 14 },
   addMiscText: { color: '#58a6ff', fontSize: 14, fontWeight: '600' },
+  addMiscInputRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 14 },
+  addMiscInput: { flex: 1, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#58a6ff', borderRadius: 8, color: '#e6edf3', fontSize: 14, paddingHorizontal: 10, paddingVertical: 8 },
+  addMiscConfirm: { padding: 8, marginLeft: 6 },
+  addMiscCancel: { padding: 8, marginLeft: 2 },
   compRight: { flexDirection: 'row', alignItems: 'center' },
   compStatusText: { fontSize: 12, fontWeight: '600', marginRight: 4 },
   chevron: { marginLeft: 2 },

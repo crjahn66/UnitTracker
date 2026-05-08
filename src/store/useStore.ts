@@ -44,7 +44,7 @@ interface StoreState {
   deleteIssue: (unitId: string, componentKey: ComponentKey, issueId: string) => void;
   resetUnit: (unitId: string) => void;
   setCustomComponentLabel: (unitId: string, componentKey: ComponentKey, label: string) => void;
-  addMiscEquip: (unitId: string) => void;
+  addMiscEquip: (unitId: string, label: string, id?: string) => void;
   updateMiscEquip: (unitId: string, itemId: string, updates: { label?: string; status?: ComponentStatus; progressNote?: string; goodNote?: string; progressImages?: string[]; goodImages?: string[] }) => void;
   deleteMiscEquip: (unitId: string, itemId: string) => void;
   addMiscIssue: (unitId: string, itemId: string, issue: MiscIssue) => void;
@@ -262,12 +262,12 @@ export const useStore = create<StoreState>()(
           };
         }),
 
-      addMiscEquip: (unitId) =>
+      addMiscEquip: (unitId, label, id) =>
         set((state) => {
           const u = state.units[unitId];
           const newItem: MiscEquipItem = {
-            id: `misc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            label: '',
+            id: id ?? `misc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            label,
             status: 'unchecked',
             issues: [],
           };
