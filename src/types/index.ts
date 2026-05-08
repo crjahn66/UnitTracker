@@ -44,6 +44,7 @@ export interface Issue {
   foundBy: string;
   responsibleParty?: string;
   notes: string;
+  suggestedResolution?: string;
   resolved: boolean;
   dateFixed?: string;
   fixedBy?: string;
@@ -75,6 +76,7 @@ export interface MiscIssue {
   foundBy: string;
   responsibleParty?: string;
   notes: string;
+  suggestedResolution?: string;
   resolved: boolean;
   dateFixed?: string;
   fixedBy?: string;
@@ -122,6 +124,7 @@ export interface GeneralIssue {
   foundBy: string;
   responsibleParty?: string;
   notes: string;
+  suggestedResolution?: string;
   resolved: boolean;
   dateFixed?: string;
   fixedBy?: string;

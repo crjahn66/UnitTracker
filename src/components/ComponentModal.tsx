@@ -104,14 +104,14 @@ function ImageStrip({ images, onAdd, onRemove, onView = () => {} }: {
 // ─── Add Issue Form ────────────────────────────────────────────────────────────
 
 interface AddIssueFormProps {
-  onSave: (data: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; images: string[] }) => void;
+  onSave: (data: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; suggestedResolution: string; images: string[] }) => void;
   onCancel: () => void;
 }
 
 function AddIssueForm({ onSave, onCancel }: AddIssueFormProps) {
-  const [form, setForm] = useState(EMPTY_ISSUE);
+  const [form, setForm] = useState({ ...EMPTY_ISSUE(), suggestedResolution: '' });
   const [images, setImages] = useState<string[]>([]);
-  const set = (key: 'dateFound' | 'foundBy' | 'responsibleParty' | 'notes', val: string) =>
+  const set = (key: 'dateFound' | 'foundBy' | 'responsibleParty' | 'notes' | 'suggestedResolution', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
   const pickImages = async () => {
@@ -138,6 +138,7 @@ function AddIssueForm({ onSave, onCancel }: AddIssueFormProps) {
       <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} />
       <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Name / Team" />
       <FormField label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} placeholder="Describe the issue…" multiline />
+      <FormField label="Suggested Resolution" value={form.suggestedResolution} onChangeText={(v) => set('suggestedResolution', v)} placeholder="Proposed fix or next steps…" multiline />
       <Text style={f.label}>Photos</Text>
       <ImageStrip images={images} onAdd={pickImages} onRemove={removeImage} />
       <View style={f.buttonRow}>
@@ -242,6 +243,7 @@ function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddImage
       {expanded && (
         <View style={ic.body}>
           <DetailRow label="Notes" value={issue.notes} />
+          <DetailRow label="Suggested Resolution" value={issue.suggestedResolution} />
           {issue.dateUpdated && <DetailRow label="Last Updated" value={fmtDate(issue.dateUpdated)} />}
           {issue.resolved && (
             <>
@@ -357,6 +359,7 @@ function EditIssueForm({ issue, onSave, onCancel }: {
   const [form, setForm] = useState({
     dateFound: fmt(issue.dateFound), dateUpdated: fmt(issue.dateUpdated), foundBy: issue.foundBy,
     responsibleParty: issue.responsibleParty ?? '', notes: issue.notes,
+    suggestedResolution: issue.suggestedResolution ?? '',
     dateFixed: fmt(issue.dateFixed), fixedBy: issue.fixedBy ?? '', howFixed: issue.howFixed ?? '',
   });
   const set = (key: keyof typeof form, val: string) => setForm((p) => ({ ...p, [key]: val }));
@@ -369,6 +372,7 @@ function EditIssueForm({ issue, onSave, onCancel }: {
       dateFound: parseDate(form.dateFound, issue.dateFound),
       dateUpdated: parseDate(form.dateUpdated, issue.dateUpdated ?? new Date().toISOString()),
       foundBy: form.foundBy, responsibleParty: form.responsibleParty || undefined, notes: form.notes,
+      suggestedResolution: form.suggestedResolution || undefined,
     };
     if (issue.resolved) {
       updates.dateFixed = parseDate(form.dateFixed, issue.dateFixed ?? new Date().toISOString());
@@ -386,6 +390,7 @@ function EditIssueForm({ issue, onSave, onCancel }: {
       <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} />
       <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Name / Team" />
       <FormField label="Notes"             value={form.notes}            onChangeText={(v) => set('notes', v)}            placeholder="Describe the issue…" multiline />
+      <FormField label="Suggested Resolution" value={form.suggestedResolution} onChangeText={(v) => set('suggestedResolution', v)} placeholder="Proposed fix or next steps…" multiline />
       {issue.resolved && (
         <>
           <FormField label="Date Fixed" value={form.dateFixed} onChangeText={(v) => set('dateFixed', v)} placeholder="MM/DD/YYYY" />
@@ -512,6 +517,7 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
       }
       if (status === 'good') {
         setComponentProgressNote(unitId, componentKey, '');
+        setComponentGoodNote(unitId, componentKey, '');
         pushToCloud().catch(() => {});
         onClose();
         return;
@@ -524,7 +530,7 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
   );
 
   const handleAddIssue = useCallback(
-    (data: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; images: string[] }) => {
+    (data: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; suggestedResolution: string; images: string[] }) => {
       const id = genId();
       const now = new Date().toISOString();
       const issue: Issue = {
@@ -535,6 +541,7 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
         foundBy: data.foundBy,
         responsibleParty: data.responsibleParty || undefined,
         notes: data.notes,
+        suggestedResolution: data.suggestedResolution || undefined,
         resolved: false,
         images: data.images.length > 0 ? data.images : undefined,
       };

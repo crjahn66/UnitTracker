@@ -81,14 +81,14 @@ function ImageStrip({ images, onAdd, onRemove, onView = () => {} }: {
 // ─── Add Issue Form ────────────────────────────────────────────────────────────
 
 function AddIssueForm({ onSave, onCancel, currentStatus }: {
-  onSave: (d: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; images: string[]; status: ComponentStatus }) => void;
+  onSave: (d: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; suggestedResolution: string; images: string[]; status: ComponentStatus }) => void;
   onCancel: () => void;
   currentStatus: ComponentStatus;
 }) {
-  const [form, setForm] = useState(EMPTY_ISSUE);
+  const [form, setForm] = useState({ ...EMPTY_ISSUE(), suggestedResolution: '' });
   const [images, setImages] = useState<string[]>([]);
   const [status, setStatus] = useState<ComponentStatus>(currentStatus === 'unchecked' ? 'bad' : currentStatus);
-  const set = (key: 'dateFound' | 'foundBy' | 'responsibleParty' | 'notes', val: string) =>
+  const set = (key: 'dateFound' | 'foundBy' | 'responsibleParty' | 'notes' | 'suggestedResolution', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
   const pickImages = async () => {
@@ -126,6 +126,7 @@ function AddIssueForm({ onSave, onCancel, currentStatus }: {
       <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} />
       <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Name / Team" />
       <FormField label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} placeholder="Describe the issue…" multiline />
+      <FormField label="Suggested Resolution" value={form.suggestedResolution} onChangeText={(v) => set('suggestedResolution', v)} placeholder="Proposed fix or next steps…" multiline />
       <Text style={f.label}>Photos</Text>
       <ImageStrip images={images} onAdd={pickImages} onRemove={(u) => setImages((p) => p.filter((i) => i !== u))} />
       <View style={f.buttonRow}>
@@ -212,6 +213,7 @@ function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddImage
       {expanded && (
         <View style={ic.body}>
           {!!issue.notes && <View style={ic.detailRow}><Text style={ic.detailLabel}>Notes:</Text><Text style={ic.detailValue}>{issue.notes}</Text></View>}
+          {!!issue.suggestedResolution && <View style={ic.detailRow}><Text style={ic.detailLabel}>Suggested:</Text><Text style={ic.detailValue}>{issue.suggestedResolution}</Text></View>}
           {!!issue.dateUpdated && <View style={ic.detailRow}><Text style={ic.detailLabel}>Last Updated:</Text><Text style={ic.detailValue}>{fmtDate(issue.dateUpdated)}</Text></View>}
           {issue.resolved && (
             <>
@@ -268,6 +270,7 @@ function EditIssueForm({ issue, onSave, onCancel }: {
   const [form, setForm] = useState({
     dateFound: fmt(issue.dateFound), dateUpdated: fmt(issue.dateUpdated), foundBy: issue.foundBy,
     responsibleParty: issue.responsibleParty ?? '', notes: issue.notes,
+    suggestedResolution: issue.suggestedResolution ?? '',
     dateFixed: fmt(issue.dateFixed), fixedBy: issue.fixedBy ?? '', howFixed: issue.howFixed ?? '',
   });
   const set = (key: keyof typeof form, val: string) => setForm((p) => ({ ...p, [key]: val }));
@@ -280,6 +283,7 @@ function EditIssueForm({ issue, onSave, onCancel }: {
       dateFound: parseDate(form.dateFound, issue.dateFound),
       dateUpdated: parseDate(form.dateUpdated, issue.dateUpdated ?? new Date().toISOString()),
       foundBy: form.foundBy, responsibleParty: form.responsibleParty || undefined, notes: form.notes,
+      suggestedResolution: form.suggestedResolution || undefined,
     };
     if (issue.resolved) {
       updates.dateFixed = parseDate(form.dateFixed, issue.dateFixed ?? new Date().toISOString());
@@ -297,6 +301,7 @@ function EditIssueForm({ issue, onSave, onCancel }: {
       <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} />
       <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Name / Team" />
       <FormField label="Notes"             value={form.notes}            onChangeText={(v) => set('notes', v)}            placeholder="Describe the issue…" multiline />
+      <FormField label="Suggested Resolution" value={form.suggestedResolution} onChangeText={(v) => set('suggestedResolution', v)} placeholder="Proposed fix or next steps…" multiline />
       {issue.resolved && (
         <>
           <FormField label="Date Fixed" value={form.dateFixed} onChangeText={(v) => set('dateFixed', v)} placeholder="MM/DD/YYYY" />
@@ -445,18 +450,20 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
     updateMiscEquip(unitId, itemId, { status });
     if (status === 'inProgress') { updateMiscEquip(unitId, itemId, { goodNote: '' }); setView('progressNote'); return; }
     if (status === 'bad') { updateMiscEquip(unitId, itemId, { progressNote: '', goodNote: '' }); setView('addIssue'); return; }
-    if (status === 'good') { updateMiscEquip(unitId, itemId, { progressNote: '' }); pushToCloud().catch(() => {}); onClose(); return; }
+    if (status === 'good') { updateMiscEquip(unitId, itemId, { progressNote: '', goodNote: '' }); pushToCloud().catch(() => {}); onClose(); return; }
     updateMiscEquip(unitId, itemId, { progressNote: '', goodNote: '' }); pushToCloud().catch(() => {});
   }, [unitId, itemId, updateMiscEquip, onClose]);
 
-  const handleAddIssue = useCallback((data: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; images: string[]; status: ComponentStatus }) => {
+  const handleAddIssue = useCallback((data: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; suggestedResolution: string; images: string[]; status: ComponentStatus }) => {
     const id = genId();
     const now = new Date().toISOString();
     const issue: MiscIssue = {
       id,
       dateFound: (() => { const p = parse(data.dateFound, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : now; })(),
       dateUpdated: now,
-      foundBy: data.foundBy, responsibleParty: data.responsibleParty || undefined, notes: data.notes, resolved: false,
+      foundBy: data.foundBy, responsibleParty: data.responsibleParty || undefined, notes: data.notes,
+      suggestedResolution: data.suggestedResolution || undefined,
+      resolved: false,
       images: data.images.length > 0 ? data.images : undefined,
     };
     updateMiscEquip(unitId, itemId, { status: data.status });

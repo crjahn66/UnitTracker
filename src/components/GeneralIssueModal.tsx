@@ -43,11 +43,11 @@ function parseDate(str: string): string {
 // ─── Add Issue Form ────────────────────────────────────────────────────────────
 
 function AddIssueForm({ onSave, onCancel }: {
-  onSave: (d: { dateFound: string; foundBy: string; responsibleParty: string; notes: string }) => void;
+  onSave: (d: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; suggestedResolution: string }) => void;
   onCancel: () => void;
 }) {
-  const [form, setForm] = useState(EMPTY_ISSUE);
-  const set = (key: 'dateFound' | 'foundBy' | 'responsibleParty' | 'notes', val: string) =>
+  const [form, setForm] = useState({ ...EMPTY_ISSUE(), suggestedResolution: '' });
+  const set = (key: 'dateFound' | 'foundBy' | 'responsibleParty' | 'notes' | 'suggestedResolution', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
   const handleSave = () => {
@@ -63,6 +63,7 @@ function AddIssueForm({ onSave, onCancel }: {
       <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} />
       <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Person / company responsible" />
       <FormField label="Notes"             value={form.notes}            onChangeText={(v) => set('notes', v)}            placeholder="Describe the issue…" multiline />
+      <FormField label="Suggested Resolution" value={form.suggestedResolution} onChangeText={(v) => set('suggestedResolution', v)} placeholder="Proposed fix or next steps…" multiline />
       <View style={f.buttonRow}>
         <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={onCancel}>
           <Text style={f.btnOutlineText}>Cancel</Text>
@@ -86,6 +87,7 @@ function EditIssueForm({ issue, onSave, onCancel }: {
   const [form, setForm] = useState({
     dateFound: fmt(issue.dateFound), dateUpdated: fmt(issue.dateUpdated), foundBy: issue.foundBy,
     responsibleParty: issue.responsibleParty ?? '', notes: issue.notes,
+    suggestedResolution: issue.suggestedResolution ?? '',
     dateFixed: fmt(issue.dateFixed), fixedBy: issue.fixedBy ?? '', howFixed: issue.howFixed ?? '',
   });
   const set = (key: keyof typeof form, val: string) => setForm((p) => ({ ...p, [key]: val }));
@@ -98,6 +100,7 @@ function EditIssueForm({ issue, onSave, onCancel }: {
       dateFound:    pd(form.dateFound, issue.dateFound),
       dateUpdated:  pd(form.dateUpdated, issue.dateUpdated ?? new Date().toISOString()),
       foundBy: form.foundBy, responsibleParty: form.responsibleParty || undefined, notes: form.notes,
+      suggestedResolution: form.suggestedResolution || undefined,
     };
     if (issue.resolved) {
       updates.dateFixed  = pd(form.dateFixed, issue.dateFixed ?? new Date().toISOString());
@@ -115,6 +118,7 @@ function EditIssueForm({ issue, onSave, onCancel }: {
       <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} />
       <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Person / company responsible" />
       <FormField label="Notes"             value={form.notes}            onChangeText={(v) => set('notes', v)}            placeholder="Describe the issue…" multiline />
+      <FormField label="Suggested Resolution" value={form.suggestedResolution} onChangeText={(v) => set('suggestedResolution', v)} placeholder="Proposed fix or next steps…" multiline />
       {issue.resolved && (
         <>
           <FormField label="Date Fixed" value={form.dateFixed} onChangeText={(v) => set('dateFixed', v)} placeholder="MM/DD/YYYY" />
@@ -194,6 +198,7 @@ function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit }: {
       {expanded && (
         <View style={ic.body}>
           <Text style={ic.notes}>{issue.notes}</Text>
+          {issue.suggestedResolution ? <Text style={ic.meta}>Suggested Resolution: {issue.suggestedResolution}</Text> : null}
           {issue.responsibleParty ? <Text style={ic.meta}>Responsible: {issue.responsibleParty}</Text> : null}
           {issue.dateUpdated ? <Text style={ic.meta}>Last Updated: {fmtDate(issue.dateUpdated)}</Text> : null}
           {issue.resolved && (
@@ -246,7 +251,7 @@ export default function GeneralIssueModal({ onClose }: Props) {
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [editingId, setEditingId]     = useState<string | null>(null);
 
-  const handleAdd = useCallback((data: { dateFound: string; foundBy: string; responsibleParty: string; notes: string }) => {
+  const handleAdd = useCallback((data: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; suggestedResolution: string }) => {
     addGeneralIssue({
       id: genId(),
       dateFound: parseDate(data.dateFound),
@@ -254,6 +259,7 @@ export default function GeneralIssueModal({ onClose }: Props) {
       foundBy: data.foundBy,
       responsibleParty: data.responsibleParty || undefined,
       notes: data.notes,
+      suggestedResolution: data.suggestedResolution || undefined,
       resolved: false,
     });
     pushToCloud().catch(() => {});

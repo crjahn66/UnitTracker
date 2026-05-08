@@ -184,13 +184,13 @@ function buildComponents(wb: any, sorted: Unit[]) {
 // ─── Sheet 3: Constraints Log (with embedded images) ─────────────────────────
 async function buildConstraints(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Constraints Log');
-  const colWidths = [9, 7, 7, 18, 12, 12, 14, 18, 40, 10, 12, 14, 40, 60];
-  const headers = ['Unit ID', 'Side', 'Unit #', 'Component', 'Date Found', 'Last Updated', 'Found By', 'Responsible Party', 'Notes', 'Status', 'Date Fixed', 'Fixed By', 'How Fixed', 'Photos'];
+  const colWidths = [9, 7, 7, 18, 12, 12, 14, 18, 40, 30, 10, 12, 14, 40, 60];
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Component', 'Date Found', 'Last Updated', 'Found By', 'Responsible Party', 'Notes', 'Suggested Resolution', 'Status', 'Date Fixed', 'Fixed By', 'How Fixed', 'Photos'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
 
-  const IMG_COL = 14; // 1-indexed column for photos
+  const IMG_COL = 15; // 1-indexed column for photos
   const IMG_H   = 80; // pixel height for thumbnail rows
   const IMG_W   = 80; // pixel width per thumbnail
 
@@ -229,6 +229,7 @@ async function buildConstraints(wb: any, sorted: Unit[]) {
     const r = ws.addRow([
       unitId, side, unitNum, label,
       fmtDate(issue.dateFound), fmtDate(issue.dateUpdated), issue.foundBy, (issue as any).responsibleParty ?? '', issue.notes,
+      (issue as any).suggestedResolution ?? '',
       issue.resolved ? 'Resolved' : 'Open',
       fmtDate(issue.dateFixed), issue.fixedBy ?? '', issue.howFixed ?? '',
       '',
@@ -275,8 +276,8 @@ async function buildConstraints(wb: any, sorted: Unit[]) {
 // ─── Sheet 4: Completed Units ─────────────────────────────────────────────────
 function buildCompleted(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Completed Units');
-  const colWidths = [9, 7, 7, 24, 22, 14, 16, 16, 12, 14, 14];
-  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Functional Components', 'Total Constraints', 'RED Group Tested On', 'Tested By'];
+  const colWidths = [9, 7, 7, 24, 22, 14, 16, 16, 12, 10, 14, 14];
+  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Functional Components', 'Total Constraints', 'Active Constraints', 'RED Group Tested On', 'Tested By'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
@@ -297,6 +298,7 @@ function buildCompleted(wb: any, sorted: Unit[]) {
       ...STAGES.map(() => '✓ Done'),
       comps.filter((c) => c.status === 'good').length,
       comps.flatMap((c) => c.issues).length,
+      comps.flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted).length,
       u.stagesDates?.commissioning ? fmtDate(u.stagesDates.commissioning) : '',
       'Red Group',
     ]);
@@ -331,13 +333,13 @@ function buildCompleted(wb: any, sorted: Unit[]) {
 // ─── Sheet 5: Units with Constraints ─────────────────────────────────────────
 async function buildWithConstraints(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Units with Constraints');
-  const colWidths = [9, 7, 7, 18, 12, 12, 14, 20, 40, 10, 60];
-  const headers = ['Unit ID', 'Side', 'Unit #', 'Component', 'Date Found', 'Last Updated', 'Found By', 'Responsible Party', 'Notes', 'Status', 'Photos'];
+  const colWidths = [9, 7, 7, 18, 12, 12, 14, 20, 40, 30, 10, 60];
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Component', 'Date Found', 'Last Updated', 'Found By', 'Responsible Party', 'Notes', 'Suggested Resolution', 'Status', 'Photos'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 30;
 
-  const IMG_COL = 11;
+  const IMG_COL = 12;
   const IMG_H   = 80;
   const IMG_W   = 80;
 
@@ -371,7 +373,8 @@ async function buildWithConstraints(wb: any, sorted: Unit[]) {
       unitId, side, unitNum, label,
       fmtDate(issue.dateFound), fmtDate(issue.dateUpdated),
       issue.foundBy, (issue as any).responsibleParty ?? '',
-      issue.notes, issue.resolved ? 'Resolved' : 'Open',
+      issue.notes, (issue as any).suggestedResolution ?? '',
+      issue.resolved ? 'Resolved' : 'Open',
       '',
     ]);
     const excelRow = r.number;
