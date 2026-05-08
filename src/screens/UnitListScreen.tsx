@@ -73,11 +73,6 @@ const UnitCard = React.memo(function UnitCard({ unit, onPress }: { unit: Unit; o
             <Text style={s.chillerBadge}>❄</Text>
           </View>
         )}
-        {unit.chillerAvailable === true && unit.chillerPriority != null && (
-          <View style={s.prioBadge}>
-            <Text style={s.prioBadgeText}>P{unit.chillerPriority}</Text>
-          </View>
-        )}
         <View style={[s.dot, { backgroundColor: color }]} />
       </View>
       <View style={s.cardBody}>
@@ -265,8 +260,6 @@ const s = StyleSheet.create({
   unitId: { color: '#e6edf3', fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
   chillerWrap: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 4, overflow: 'hidden' },
   chillerBadge: { color: '#58a6ff', fontSize: 22, lineHeight: 22 },
-  prioBadge: { backgroundColor: '#58a6ff22', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginLeft: 4, borderWidth: 1, borderColor: '#58a6ff66' },
-  prioBadgeText: { color: '#58a6ff', fontSize: 10, fontWeight: '700' },
   dot: { width: 10, height: 10, borderRadius: 5 },
   cardBody: { padding: 10 },
   stageLabel: { color: '#8b949e', fontSize: 12, marginBottom: 4 },

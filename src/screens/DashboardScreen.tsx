@@ -193,11 +193,6 @@ export default function DashboardScreen() {
                       <Text style={s.chillerBadge}>❄</Text>
                     </View>
                   )}
-                  {unit.chillerAvailable === true && unit.chillerPriority != null && (
-                    <View style={s.prioBadge}>
-                      <Text style={s.prioBadgeText}>P{unit.chillerPriority}</Text>
-                    </View>
-                  )}
                   {allIssues > 0 && (
                     <View style={s.issueBadge}>
                       <Text style={s.issueBadgeText}>{allIssues}</Text>
@@ -283,8 +278,6 @@ const s = StyleSheet.create({
   unitId: { color: '#e6edf3', fontSize: 14, fontWeight: '600', marginRight: 6 },
   chillerWrap: { width: 24, height: 20, alignItems: 'center', justifyContent: 'center', marginRight: 4, overflow: 'hidden' },
   chillerBadge: { color: '#58a6ff', fontSize: 20, lineHeight: 20 },
-  prioBadge: { backgroundColor: '#58a6ff22', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginRight: 6, borderWidth: 1, borderColor: '#58a6ff66' },
-  prioBadgeText: { color: '#58a6ff', fontSize: 10, fontWeight: '700' },
   issueBadge: { backgroundColor: '#f85149', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1, marginRight: 6 },
   issueBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   unitPct: { marginLeft: 'auto' as any, fontSize: 12, fontWeight: '700' },
