@@ -5,13 +5,50 @@ import { useUpdateCheck } from '../hooks/useUpdateCheck';
 import { downloadAndInstallApk, formatBytes } from '../utils/appUpdater';
 
 export default function UpdateBanner() {
-  const { updateInfo, dismiss } = useUpdateCheck();
+  const { updateInfo, dismiss, webUpdateAvailable, dismissWeb } = useUpdateCheck();
   const [modalOpen, setModalOpen] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [downloaded, setDownloaded] = useState(0);
   const [total, setTotal] = useState(0);
 
-  if (Platform.OS !== 'android' || !updateInfo) return null;
+  // ── Web update banner ─────────────────────────────────────────────────────
+  if (Platform.OS === 'web') {
+    if (!webUpdateAvailable) return null;
+    return (
+      <>
+        <TouchableOpacity style={s.banner} onPress={() => setModalOpen(true)} activeOpacity={0.85}>
+          <Ionicons name="cloud-download" size={14} color="#fff" style={{ marginRight: 6 }} />
+          <Text style={s.bannerText}>Update available</Text>
+          <Text style={s.bannerCta}>  ·  Tap to reload</Text>
+        </TouchableOpacity>
+        <Modal visible={modalOpen} transparent animationType="fade" onRequestClose={() => setModalOpen(false)}>
+          <View style={s.overlay}>
+            <View style={s.sheet}>
+              <View style={s.header}>
+                <Text style={s.title}>Update Available</Text>
+                <TouchableOpacity onPress={() => setModalOpen(false)} style={{ padding: 4 }}>
+                  <Ionicons name="close" size={22} color="#8b949e" />
+                </TouchableOpacity>
+              </View>
+              <Text style={s.versionLine}>A new version of UnitTracker has been deployed.</Text>
+              <View style={s.btnRow}>
+                <TouchableOpacity style={[s.btn, s.btnGhost]} onPress={() => { dismissWeb(); setModalOpen(false); }} activeOpacity={0.8}>
+                  <Text style={s.btnGhostText}>Later</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.btn, s.btnPrimary]} onPress={() => (window as any).location.reload()} activeOpacity={0.8}>
+                  <Ionicons name="refresh" size={16} color="#0d1117" style={{ marginRight: 6 }} />
+                  <Text style={s.btnPrimaryText}>Reload Now</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </>
+    );
+  }
+
+  // ── APK update banner ─────────────────────────────────────────────────────
+  if (!updateInfo) return null;
 
   const { remote, installedVersion, forced } = updateInfo;
 
