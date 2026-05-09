@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { AppState, Platform } from 'react-native';
 import { create } from 'zustand';
-import { checkForUpdate, UpdateInfo } from '../utils/appUpdater';
+import { checkForUpdate, cleanupDownloadedApks, UpdateInfo } from '../utils/appUpdater';
 
 const POLL_INTERVAL_MS = 30 * 60 * 1000; // 30 min
 const INITIAL_DELAY_MS = 4000;
@@ -87,6 +87,7 @@ export function useAutoUpdateCheck() {
     mounted.current = true;
 
     if (Platform.OS === 'android') {
+      cleanupDownloadedApks().catch(() => {});
       const t = setTimeout(() => runUpdateCheck(true).catch(() => {}), INITIAL_DELAY_MS);
       const interval = setInterval(() => runUpdateCheck(true).catch(() => {}), POLL_INTERVAL_MS);
       const sub = AppState.addEventListener('change', (state) => {

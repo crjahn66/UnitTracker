@@ -141,6 +141,22 @@ export async function downloadAndInstallApk(
   });
 }
 
+/** Deletes any leftover UnitTracker-*.apk files from the cache directory.
+ *  Called on startup so APKs downloaded for the previous install are cleaned up. */
+export async function cleanupDownloadedApks(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    const cacheDir = FileSystem.cacheDirectory ?? '';
+    if (!cacheDir) return;
+    const files = await FileSystem.readDirectoryAsync(cacheDir);
+    for (const file of files) {
+      if (file.startsWith('UnitTracker-') && file.endsWith('.apk')) {
+        await FileSystem.deleteAsync(cacheDir + file, { idempotent: true });
+      }
+    }
+  } catch {}
+}
+
 /** Format bytes as KB/MB string for display. */
 export function formatBytes(bytes: number): string {
   if (!bytes || bytes < 0) return '0 B';
