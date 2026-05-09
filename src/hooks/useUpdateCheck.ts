@@ -6,7 +6,7 @@ import { checkForUpdate, cleanupDownloadedApks, UpdateInfo } from '../utils/appU
 const POLL_INTERVAL_MS = 30 * 60 * 1000; // 30 min
 const INITIAL_DELAY_MS = 4000;
 const MANUAL_THROTTLE_MS = 5 * 1000;
-const WEB_POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 min
+const WEB_POLL_INTERVAL_MS = 60 * 1000; // 1 min
 
 interface UpdateState {
   updateInfo: UpdateInfo | null;
