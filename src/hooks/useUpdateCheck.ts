@@ -116,7 +116,9 @@ export function useAutoUpdateCheck() {
       };
       const t = setTimeout(check, INITIAL_DELAY_MS);
       const interval = setInterval(check, WEB_POLL_INTERVAL_MS);
-      return () => { clearTimeout(t); clearInterval(interval); };
+      const onVisible = () => { if (document.visibilityState === 'visible') check(); };
+      document.addEventListener('visibilitychange', onVisible);
+      return () => { clearTimeout(t); clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
     }
   }, []);
 }
