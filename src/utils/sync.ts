@@ -201,6 +201,9 @@ async function _syncBody(): Promise<SyncResult> {
   const payloadSize = JSON.stringify(finalUnits).length + JSON.stringify(finalGeneralIssues).length;
   if (payloadSize > 500_000) console.warn(`[sync] payload is ${(payloadSize / 1024).toFixed(0)} KB — check for embedded base64 images`);
   const now = new Date().toISOString();
+  // Set optimistically before the push so any Realtime echo arriving during
+  // the round-trip is correctly identified as our own write and ignored.
+  _lastKnownRemoteAt = new Date(now).getTime();
   try {
     const pushResult = await withAbortTimeout(
       (signal) => supabase.from('sync_state').update({ units: finalUnits, general_issues: finalGeneralIssues, updated_at: now }).eq('id', 1).abortSignal(signal),
@@ -208,7 +211,6 @@ async function _syncBody(): Promise<SyncResult> {
       'Push to cloud'
     );
     if (pushResult.error) return { success: false, error: pushResult.error.message ?? 'Failed to push to cloud' };
-    _lastKnownRemoteAt = new Date(now).getTime();
   } catch (err: any) {
     return { success: false, error: err.message ?? 'Failed to push to cloud' };
   }
@@ -349,14 +351,54 @@ export async function pushToCloud(): Promise<void> {
   // Read the final merged state and push it
   const { units: finalUnits, generalIssues: finalGeneralIssues } = useStore.getState();
   const now = new Date().toISOString();
+  _lastKnownRemoteAt = new Date(now).getTime(); // optimistic — prevents Realtime echo self-triggering
   const { error } = await supabase
     .from('sync_state')
     .update({ units: finalUnits, general_issues: finalGeneralIssues, updated_at: now })
     .eq('id', 1);
-  if (error) { markFailure(); } else {
-    _lastKnownRemoteAt = new Date(now).getTime();
-    markSuccess();
-  }
+  if (error) { markFailure(); } else { markSuccess(); }
+}
+
+/**
+ * Subscribe to Supabase Realtime for instant change detection on sync_state.
+ * On web: triggers a full sync immediately when a remote change arrives.
+ * On native: sets _hasPendingChanges so the user sees the sync indicator.
+ * Falls back gracefully if Realtime is unavailable — polling still runs.
+ * Returns a cleanup function to unsubscribe.
+ *
+ * Requires Supabase Realtime to be enabled for the sync_state table:
+ *   ALTER TABLE sync_state REPLICA IDENTITY FULL;
+ */
+export function subscribeRealtimeSync(): () => void {
+  const SELF_PUSH_GRACE_MS = 10_000;
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const handleChange = (payload: any) => {
+    const remoteAt = payload?.new?.updated_at;
+    if (!remoteAt) return;
+    const remoteTime = new Date(remoteAt).getTime();
+    if (remoteTime <= _lastKnownRemoteAt + SELF_PUSH_GRACE_MS) return;
+
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      if (Platform.OS === 'web') {
+        syncWithCloud().catch(() => {});
+      } else {
+        _hasPendingChanges = true;
+        notifyListeners();
+      }
+    }, 2000);
+  };
+
+  const channel = supabase
+    .channel('sync_state_realtime')
+    .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'sync_state', filter: 'id=eq.1' }, handleChange)
+    .subscribe((status) => console.log('[realtime] sync_state channel:', status));
+
+  return () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    supabase.removeChannel(channel);
+  };
 }
 
 // Delete all photos from the bucket, clear refs from the store, and push the

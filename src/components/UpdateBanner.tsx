@@ -5,7 +5,7 @@ import { useUpdateCheck } from '../hooks/useUpdateCheck';
 import { downloadAndInstallApk, formatBytes } from '../utils/appUpdater';
 
 export default function UpdateBanner() {
-  const { updateInfo, dismiss, webUpdateAvailable, dismissWeb } = useUpdateCheck();
+  const { updateInfo, dismiss, webUpdateAvailable, webUpdateVersion, webUpdateNotes, dismissWeb } = useUpdateCheck();
   const [modalOpen, setModalOpen] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [downloaded, setDownloaded] = useState(0);
@@ -18,7 +18,7 @@ export default function UpdateBanner() {
       <>
         <TouchableOpacity style={s.banner} onPress={() => setModalOpen(true)} activeOpacity={0.85}>
           <Ionicons name="cloud-download" size={14} color="#fff" style={{ marginRight: 6 }} />
-          <Text style={s.bannerText}>Update available</Text>
+          <Text style={s.bannerText}>Update available{webUpdateVersion ? `: v${webUpdateVersion}` : ''}</Text>
           <Text style={s.bannerCta}>  ·  Tap to reload</Text>
         </TouchableOpacity>
         <Modal visible={modalOpen} transparent animationType="fade" onRequestClose={() => setModalOpen(false)}>
@@ -30,7 +30,19 @@ export default function UpdateBanner() {
                   <Ionicons name="close" size={22} color="#8b949e" />
                 </TouchableOpacity>
               </View>
-              <Text style={s.versionLine}>A new version of UnitTracker has been deployed.</Text>
+              {webUpdateVersion && (
+                <Text style={s.versionLine}>
+                  <Text style={s.versionLabel}>New version: </Text>v{webUpdateVersion}
+                </Text>
+              )}
+              {!!webUpdateNotes && (
+                <ScrollView style={s.notesScroll} contentContainerStyle={{ paddingVertical: 4 }}>
+                  <Text style={s.notesText}>{webUpdateNotes}</Text>
+                </ScrollView>
+              )}
+              {!webUpdateNotes && (
+                <Text style={[s.versionLine, { marginBottom: 12 }]}>A new version of UnitTracker has been deployed.</Text>
+              )}
               <View style={s.btnRow}>
                 <TouchableOpacity style={[s.btn, s.btnGhost]} onPress={() => { dismissWeb(); setModalOpen(false); }} activeOpacity={0.8}>
                   <Text style={s.btnGhostText}>Later</Text>

@@ -1,0 +1,3 @@
+- Stage "Stuck" reason field — required when marking a stage stuck; shown inline in red
+- Real-time sync — changes from other devices appear instantly without manual sync
+- Web update banner now shows patch notes

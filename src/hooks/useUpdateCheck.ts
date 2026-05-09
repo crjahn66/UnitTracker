@@ -14,11 +14,14 @@ interface UpdateState {
   error: string | null;
   lastCheckAt: number;
   webUpdateAvailable: boolean;
+  webUpdateVersion: string | null;
+  webUpdateNotes: string | null;
   setUpdateInfo: (info: UpdateInfo | null) => void;
   setChecking: (checking: boolean) => void;
   setError: (error: string | null) => void;
   setLastCheckAt: (at: number) => void;
   setWebUpdateAvailable: (v: boolean) => void;
+  setWebUpdateMeta: (version: string | null, notes: string | null) => void;
 }
 
 const useUpdateStore = create<UpdateState>((set) => ({
@@ -27,11 +30,14 @@ const useUpdateStore = create<UpdateState>((set) => ({
   error: null,
   lastCheckAt: 0,
   webUpdateAvailable: false,
+  webUpdateVersion: null,
+  webUpdateNotes: null,
   setUpdateInfo: (updateInfo) => set({ updateInfo }),
   setChecking: (checking) => set({ checking }),
   setError: (error) => set({ error }),
   setLastCheckAt: (lastCheckAt) => set({ lastCheckAt }),
   setWebUpdateAvailable: (webUpdateAvailable) => set({ webUpdateAvailable }),
+  setWebUpdateMeta: (webUpdateVersion, webUpdateNotes) => set({ webUpdateVersion, webUpdateNotes }),
 }));
 
 /** Run update check honoring throttle. */
@@ -62,7 +68,9 @@ export function dismissUpdate() {
 }
 
 export function dismissWebUpdate() {
-  useUpdateStore.getState().setWebUpdateAvailable(false);
+  const s = useUpdateStore.getState();
+  s.setWebUpdateAvailable(false);
+  s.setWebUpdateMeta(null, null);
 }
 
 /** Subscribe to update state. Used by UpdateBanner and Reports button. */
@@ -71,12 +79,14 @@ export function useUpdateCheck() {
   const checking = useUpdateStore((s) => s.checking);
   const error = useUpdateStore((s) => s.error);
   const webUpdateAvailable = useUpdateStore((s) => s.webUpdateAvailable);
+  const webUpdateVersion = useUpdateStore((s) => s.webUpdateVersion);
+  const webUpdateNotes = useUpdateStore((s) => s.webUpdateNotes);
 
   const recheck = useCallback((force = true) => runUpdateCheck(force).catch(() => {}), []);
   const dismiss = useCallback(() => dismissUpdate(), []);
   const dismissWeb = useCallback(() => dismissWebUpdate(), []);
 
-  return { updateInfo, checking, error, recheck, dismiss, webUpdateAvailable, dismissWeb };
+  return { updateInfo, checking, error, recheck, dismiss, webUpdateAvailable, webUpdateVersion, webUpdateNotes, dismissWeb };
 }
 
 /** Mount once (in App root) to enable auto polling on both platforms. */
@@ -106,11 +116,13 @@ export function useAutoUpdateCheck() {
         try {
           const res = await fetch('/_v.json?_=' + Date.now(), { cache: 'no-store' });
           if (!res.ok) return;
-          const { b } = await res.json();
+          const { b, v, n } = await res.json();
           if (buildTs === null) {
             buildTs = b;
           } else if (b !== buildTs) {
-            useUpdateStore.getState().setWebUpdateAvailable(true);
+            const s = useUpdateStore.getState();
+            s.setWebUpdateMeta(v ?? null, n ?? null);
+            s.setWebUpdateAvailable(true);
           }
         } catch {}
       };

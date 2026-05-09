@@ -13,7 +13,7 @@ import { UserProvider } from './src/context/UserContext';
 import { useSessionTimeout } from './src/hooks/useSessionTimeout';
 import { useAutoUpdateCheck } from './src/hooks/useUpdateCheck';
 import { useStore } from './src/store/useStore';
-import { pushToCloud, isSuppressingAutoPush } from './src/utils/sync';
+import { pushToCloud, isSuppressingAutoPush, subscribeRealtimeSync } from './src/utils/sync';
 import { startAutoBackup } from './src/utils/backup';
 
 // Auto-push store state to sync_state 2s after any change on both platforms.
@@ -32,6 +32,10 @@ function useAutoPush() {
   }, [isEditMode]);
 }
 
+function useRealtimeSync() {
+  useEffect(() => subscribeRealtimeSync(), []);
+}
+
 // Local backup to /storage/emulated/0/Download/Dicvon/bak every 15 min (native only).
 function useLocalAutoBackup() {
   useEffect(() => {
@@ -43,6 +47,7 @@ function useLocalAutoBackup() {
 function AppShell() {
   useAutoPush();
   useAutoUpdateCheck();
+  useRealtimeSync();
   const { resetTimer } = useEditMode();
   const { resetSessionTimer } = useSessionTimeout();
   const handleTouch = () => { resetTimer(); resetSessionTimer(); };

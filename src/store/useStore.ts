@@ -50,6 +50,7 @@ interface StoreState {
   addMiscIssue: (unitId: string, itemId: string, issue: MiscIssue) => void;
   updateMiscIssue: (unitId: string, itemId: string, issueId: string, updates: Partial<MiscIssue>) => void;
   deleteMiscIssue: (unitId: string, itemId: string, issueId: string) => void;
+  setStageStuckReason: (unitId: string, stage: StageKey, reason: string) => void;
   setStageDate: (unitId: string, stage: StageKey, date: string) => void;
   setComponentStatusDate: (unitId: string, component: ComponentKey, date: string) => void;
   setMiscEquipStatusDate: (unitId: string, itemId: string, date: string) => void;
@@ -372,6 +373,14 @@ export const useStore = create<StoreState>()(
           };
         }),
 
+      setStageStuckReason: (unitId, stage, reason) =>
+        set((state) => {
+          const u = state.units[unitId];
+          const reasons = { ...(u.stagesStuckReasons ?? {}) };
+          if (reason.trim()) { reasons[stage] = reason.trim(); } else { delete reasons[stage]; }
+          return { units: { ...state.units, [unitId]: { ...u, stagesStuckReasons: Object.keys(reasons).length ? reasons : undefined } } };
+        }),
+
       setStageDate: (unitId, stage, date) =>
         set((state) => {
           const u = state.units[unitId];
@@ -599,11 +608,21 @@ export const useStore = create<StoreState>()(
             // Merge stage dates — remote wins
             const mergedStagesDates: Partial<Record<StageKey, string>> = { ...(existing.stagesDates ?? {}), ...(imp.stagesDates ?? {}) };
 
+            // Merge stuck reasons — remote wins, keep local if remote absent
+            const mergedStagesStuckReasons: Partial<Record<StageKey, string>> = { ...(existing.stagesStuckReasons ?? {}) };
+            for (const key of Object.keys(existing.stages) as StageKey[]) {
+              if (key in (imp.stagesStuckReasons ?? {})) {
+                if (imp.stagesStuckReasons![key]) { mergedStagesStuckReasons[key] = imp.stagesStuckReasons![key]!; }
+                else { delete mergedStagesStuckReasons[key]; }
+              }
+            }
+
             merged[uid] = {
               ...existing,
               stages: mergedStages,
               stagesDates: Object.keys(mergedStagesDates).length ? mergedStagesDates : undefined,
               stagesNotes: Object.keys(mergedStagesNotes).length ? mergedStagesNotes : undefined,
+              stagesStuckReasons: Object.keys(mergedStagesStuckReasons).length ? mergedStagesStuckReasons : undefined,
               components: mergedComponents,
               miscEquipment: existingMisc,
               customComponentLabels: Object.keys(mergedLabels).length ? mergedLabels : undefined,

@@ -24,6 +24,7 @@ export default function UnitDetailScreen({ route }: Props) {
   const updateStage  = useStore((state) => state.updateStage);
   const setStageNote = useStore((state) => state.setStageNote);
   const setStageDate = useStore((state) => state.setStageDate);
+  const setStageStuckReason = useStore((state) => state.setStageStuckReason);
 
   const [selectedComponent, setSelectedComponent] = useState<ComponentKey | null>(null);
   const [selectedMiscItem, setSelectedMiscItem] = useState<string | null>(null);
@@ -32,6 +33,8 @@ export default function UnitDetailScreen({ route }: Props) {
   const [stageNoteValue, setStageNoteValue] = useState('');
   const [editingStageDate, setEditingStageDate] = useState<StageKey | null>(null);
   const [stageDateValue, setStageDateValue] = useState('');
+  const [editingStuckReason, setEditingStuckReason] = useState<StageKey | null>(null);
+  const [stuckReasonValue, setStuckReasonValue] = useState('');
   const addMiscEquip = useStore((state) => state.addMiscEquip);
   const { isEditMode } = useEditMode();
   const [addingMisc, setAddingMisc] = useState(false);
@@ -55,8 +58,17 @@ export default function UnitDetailScreen({ route }: Props) {
   const handleStageChange = useCallback(
     (key: StageKey, status: StageStatus) => {
       updateStage(unitId, key, status);
+      if (status === 'stuck') {
+        setStuckReasonValue(unit?.stagesStuckReasons?.[key] ?? '');
+        setEditingStuckReason(key);
+        setEditingStageNote(null);
+        setEditingStageDate(null);
+      } else {
+        if (editingStuckReason === key) setEditingStuckReason(null);
+        setStageStuckReason(unitId, key, '');
+      }
     },
-    [unitId, updateStage]
+    [unitId, updateStage, setStageStuckReason, unit, editingStuckReason]
   );
 
   if (!unit) {
@@ -142,8 +154,10 @@ export default function UnitDetailScreen({ route }: Props) {
               ? (() => { try { return format(new Date(unit.stagesDates![stage.key]!), 'MMM d'); } catch { return null; } })()
               : null;
             const stageNote = unit.stagesNotes?.[stage.key];
+            const stuckReason = unit.stagesStuckReasons?.[stage.key];
             const isEditingNote = editingStageNote === stage.key;
             const isEditingDate = editingStageDate === stage.key;
+            const isEditingStuck = editingStuckReason === stage.key;
             return (
               <View key={stage.key} style={[s.stageRow, idx < STAGES.length - 1 && s.stageRowBorder]}>
                 <View style={s.stageRowMain}>
@@ -257,6 +271,48 @@ export default function UnitDetailScreen({ route }: Props) {
                     <Text style={s.stageNoteText} numberOfLines={2}>{stageNote}</Text>
                   </View>
                 ) : null}
+                {stageStatus === 'stuck' && (
+                  isEditingStuck ? (
+                    <View style={s.stageNoteEditArea}>
+                      <TextInput
+                        style={s.stageNoteInput}
+                        value={stuckReasonValue}
+                        onChangeText={setStuckReasonValue}
+                        placeholder="Why is this stage stuck?…"
+                        placeholderTextColor="#6e7681"
+                        multiline
+                        autoFocus
+                      />
+                      <View style={s.stageNoteActions}>
+                        <TouchableOpacity
+                          style={s.stageNoteSaveBtn}
+                          onPress={() => {
+                            setStageStuckReason(unitId, stage.key, stuckReasonValue);
+                            pushToCloud().catch(() => {});
+                            setEditingStuckReason(null);
+                          }}
+                        >
+                          <Text style={s.stageNoteSaveText}>Save</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setEditingStuckReason(null)}>
+                          <Text style={s.stageNoteCancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[s.stageNoteRow, s.stuckReasonRow]}
+                      onPress={isEditMode ? () => { setStuckReasonValue(stuckReason ?? ''); setEditingStuckReason(stage.key); setEditingStageNote(null); setEditingStageDate(null); } : undefined}
+                      activeOpacity={isEditMode ? 0.7 : 1}
+                    >
+                      <Ionicons name="warning-outline" size={12} color="#f85149" style={{ marginRight: 4 }} />
+                      <Text style={s.stuckReasonText} numberOfLines={2}>
+                        {stuckReason || (isEditMode ? 'Tap to add reason…' : 'No reason given')}
+                      </Text>
+                      {isEditMode && <Ionicons name="pencil-outline" size={11} color="#f85149" style={{ marginLeft: 4 }} />}
+                    </TouchableOpacity>
+                  )
+                )}
               </View>
             );
           })}
@@ -520,6 +576,8 @@ const s = StyleSheet.create({
   stageNoteRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, paddingLeft: 34 },
   stageNoteText: { color: '#8b949e', fontSize: 12, flex: 1 },
   stageNotePlaceholder: { color: '#484f58', fontSize: 12 },
+  stuckReasonRow: { marginTop: 4 },
+  stuckReasonText: { color: '#f85149', fontSize: 12, flex: 1, opacity: 0.85 },
   stageNoteEditArea: { marginTop: 8, paddingLeft: 34 },
   stageNoteInput: {
     backgroundColor: '#0d1117', borderRadius: 6, borderWidth: 1, borderColor: '#30363d',
