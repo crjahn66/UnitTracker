@@ -1,1 +1,1 @@
-- Fix feedback form submission on web
+- Fix feedback form API call
