@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, KeyboardAvoidingView, Platform, Keyboard,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Keyboard,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { format, parse, isValid } from 'date-fns';
@@ -37,17 +37,20 @@ export default function UnitDetailScreen({ route }: Props) {
   const [addingMisc, setAddingMisc] = useState(false);
   const [newMiscName, setNewMiscName] = useState('');
   const scrollRef = useRef<ScrollView>(null);
+  const [keyboardPad, setKeyboardPad] = useState(0);
+  const addingMiscRef = useRef(false);
+  addingMiscRef.current = addingMisc;
 
   useEffect(() => {
-    if (!addingMisc) return;
-    // Scroll immediately so the input is in view as the keyboard rises
-    scrollRef.current?.scrollToEnd({ animated: false });
-    // Then scroll again once keyboard is fully shown
-    const sub = Keyboard.addListener('keyboardDidShow', () => {
-      scrollRef.current?.scrollToEnd({ animated: true });
+    const show = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardPad(e.endCoordinates.height);
+      if (addingMiscRef.current) {
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+      }
     });
-    return () => sub.remove();
-  }, [addingMisc]);
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardPad(0));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   const handleStageChange = useCallback(
     (key: StageKey, status: StageStatus) => {
@@ -100,8 +103,7 @@ export default function UnitDetailScreen({ route }: Props) {
         <HeaderStat label="Open Issues" value={openIssues} color={openIssues > 0 ? '#f85149' : '#3fb950'} />
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView ref={scrollRef} contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} contentContainerStyle={[s.scroll, keyboardPad > 0 && { paddingBottom: keyboardPad }]} keyboardShouldPersistTaps="handled">
         {/* Photo gallery shortcut */}
         {photoCount > 0 && (
           <TouchableOpacity style={s.galleryBtn} onPress={() => setGalleryOpen(true)} activeOpacity={0.7}>
@@ -334,7 +336,7 @@ export default function UnitDetailScreen({ route }: Props) {
           })}
           {isEditMode && (
             addingMisc ? (
-              <View style={s.addMiscInputRow}>
+              <View style={s.addMiscInputRow} onLayout={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50)}>
                 <TextInput
                   style={s.addMiscInput}
                   value={newMiscName}
@@ -377,7 +379,6 @@ export default function UnitDetailScreen({ route }: Props) {
           )}
         </View>
       </ScrollView>
-      </KeyboardAvoidingView>
 
       {galleryOpen && <PhotoGalleryModal unit={unit} onClose={() => setGalleryOpen(false)} />}
       {selectedComponent && (
