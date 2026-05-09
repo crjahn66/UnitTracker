@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, KeyboardAvoidingView, Platform,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { format, parse, isValid } from 'date-fns';
@@ -39,9 +39,14 @@ export default function UnitDetailScreen({ route }: Props) {
   const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    if (addingMisc) {
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
-    }
+    if (!addingMisc) return;
+    // Scroll immediately so the input is in view as the keyboard rises
+    scrollRef.current?.scrollToEnd({ animated: false });
+    // Then scroll again once keyboard is fully shown
+    const sub = Keyboard.addListener('keyboardDidShow', () => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    });
+    return () => sub.remove();
   }, [addingMisc]);
 
   const handleStageChange = useCallback(
@@ -95,7 +100,7 @@ export default function UnitDetailScreen({ route }: Props) {
         <HeaderStat label="Open Issues" value={openIssues} color={openIssues > 0 ? '#f85149' : '#3fb950'} />
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView ref={scrollRef} contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         {/* Photo gallery shortcut */}
         {photoCount > 0 && (
