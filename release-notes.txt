@@ -1,2 +1,1 @@
-- Feedback form — send bug reports and feature requests from the Reports screen
-- Stage label updates: "PLC Comm Checks / Equipment" → "PLC Comm Checks", "Loop Checks" → "Loop / Equipment Checks"
+- Fix feedback form submission on web

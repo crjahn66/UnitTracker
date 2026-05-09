@@ -40,6 +40,7 @@ export default function FeedbackModal({ userEmail, onClose }: Props) {
           service_id: EMAILJS_SERVICE_ID,
           template_id: EMAILJS_TEMPLATE_ID,
           user_id: EMAILJS_PUBLIC_KEY,
+          publicKey: EMAILJS_PUBLIC_KEY,
           template_params: {
             type,
             from_name: name.trim() || 'Unknown',
