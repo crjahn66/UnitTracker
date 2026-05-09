@@ -1,6 +1,6 @@
 {
   "installCommand": "npm install --legacy-peer-deps",
-  "buildCommand": "npx expo export --platform web && node scripts/inject-error-handler.js && node -e \"const fs=require('fs');const v=require('./app.json').expo.version;const n=fs.existsSync('./release-notes.txt')?fs.readFileSync('./release-notes.txt','utf8').trim():'';fs.writeFileSync('dist/_v.json',JSON.stringify({b:Date.now(),v,n}))\"",
+  "buildCommand": "npx expo export --platform web && node scripts/inject-error-handler.js && node scripts/inject-version.js",
   "outputDirectory": "dist",
   "framework": null
 }
