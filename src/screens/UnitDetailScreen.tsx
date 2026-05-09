@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { format, parse, isValid } from 'date-fns';
@@ -36,6 +36,13 @@ export default function UnitDetailScreen({ route }: Props) {
   const { isEditMode } = useEditMode();
   const [addingMisc, setAddingMisc] = useState(false);
   const [newMiscName, setNewMiscName] = useState('');
+  const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (addingMisc) {
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
+    }
+  }, [addingMisc]);
 
   const handleStageChange = useCallback(
     (key: StageKey, status: StageStatus) => {
@@ -88,7 +95,8 @@ export default function UnitDetailScreen({ route }: Props) {
         <HeaderStat label="Open Issues" value={openIssues} color={openIssues > 0 ? '#f85149' : '#3fb950'} />
       </View>
 
-      <ScrollView contentContainerStyle={s.scroll}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView ref={scrollRef} contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         {/* Photo gallery shortcut */}
         {photoCount > 0 && (
           <TouchableOpacity style={s.galleryBtn} onPress={() => setGalleryOpen(true)} activeOpacity={0.7}>
@@ -364,6 +372,7 @@ export default function UnitDetailScreen({ route }: Props) {
           )}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {galleryOpen && <PhotoGalleryModal unit={unit} onClose={() => setGalleryOpen(false)} />}
       {selectedComponent && (
