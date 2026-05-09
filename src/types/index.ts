@@ -2,8 +2,8 @@ export type Side = 'North' | 'South';
 
 export const STAGES = [
   { key: 'wiresLabelsOhming', label: 'Wires / Labels / Ohming' },
-  { key: 'plcCommChecks', label: 'PLC Comm Checks / Equipment' },
-  { key: 'loopChecks', label: 'Loop Checks' },
+  { key: 'plcCommChecks', label: 'PLC Comm Checks' },
+  { key: 'loopChecks', label: 'Loop / Equipment Checks' },
   { key: 'commissioning', label: 'RED Group Tested' },
 ] as const;
 

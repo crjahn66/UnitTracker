@@ -1,3 +1,2 @@
-- Stage "Stuck" reason field — required when marking a stage stuck; shown inline in red
-- Real-time sync — changes from other devices appear instantly without manual sync
-- Web update banner now shows patch notes
+- Feedback form — send bug reports and feature requests from the Reports screen
+- Stage label updates: "PLC Comm Checks / Equipment" → "PLC Comm Checks", "Loop Checks" → "Loop / Equipment Checks"

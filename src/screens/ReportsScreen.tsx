@@ -12,6 +12,7 @@ import { backupData, restoreData } from '../utils/backup';
 import { syncWithCloud, wipeAllPhotos } from '../utils/sync';
 import { supabase } from '../utils/supabase';
 import GeneralIssueModal from '../components/GeneralIssueModal';
+import FeedbackModal from '../components/FeedbackModal';
 import { useEditMode } from '../context/EditModeContext';
 import { useUser } from '../context/UserContext';
 import { runUpdateCheck } from '../hooks/useUpdateCheck';
@@ -170,12 +171,13 @@ export default function ReportsScreen() {
   const mergeImport         = useStore((state) => state.mergeImport);
   const setChillerAvailable = useStore((state) => state.setChillerAvailable);
   const { isEditMode, pauseTimer, resumeTimer } = useEditMode();
-  const { isViewOnly } = useUser();
+  const { isViewOnly, email } = useUser();
   const [exporting, setExporting]           = useState(false);
   const [backingUp, setBackingUp]           = useState(false);
   const [restoring, setRestoring]           = useState(false);
   const [importing, setImporting]           = useState(false);
   const [generalModalOpen, setGeneralModalOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [dailyReportOpen, setDailyReportOpen] = useState(false);
   const [reportSide, setReportSide]           = useState<ReportSide>('All');
   const reportText = useMemo(
@@ -498,6 +500,12 @@ export default function ReportsScreen() {
         </Modal>
       )}
 
+      {/* Feedback */}
+      <TouchableOpacity style={s.feedbackBtn} onPress={() => setFeedbackOpen(true)} activeOpacity={0.8}>
+        <Ionicons name="chatbubble-ellipses-outline" size={18} color="#58a6ff" style={{ marginRight: 8 }} />
+        <Text style={s.feedbackBtnText}>Send Feedback / Report Issue</Text>
+      </TouchableOpacity>
+
       {/* General Issues */}
       <TouchableOpacity style={s.generalIssuesBtn} onPress={() => setGeneralModalOpen(true)} activeOpacity={0.8}>
         <View style={s.generalIssuesBtnLeft}>
@@ -524,6 +532,7 @@ export default function ReportsScreen() {
       </TouchableOpacity>
 
       {generalModalOpen && <GeneralIssueModal onClose={() => setGeneralModalOpen(false)} />}
+      {feedbackOpen && <FeedbackModal userEmail={email} onClose={() => setFeedbackOpen(false)} />}
 
       {/* Chiller Availability — hidden from view-only users */}
       {!isViewOnly && (
@@ -733,6 +742,19 @@ const s = StyleSheet.create({
   drBody: { color: '#e6edf3', fontSize: 13, lineHeight: 22, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
   drShareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#58a6ff', margin: 16, marginTop: 8, borderRadius: 10, paddingVertical: 13 },
   drShareBtnText: { color: '#0d1117', fontSize: 15, fontWeight: '700' },
+  feedbackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#161b22',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#58a6ff44',
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+  },
+  feedbackBtnText: { color: '#58a6ff', fontSize: 14, fontWeight: '600' },
   generalIssuesBtn: {
     flexDirection: 'row',
     alignItems: 'center',
