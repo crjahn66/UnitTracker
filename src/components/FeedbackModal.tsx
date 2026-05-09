@@ -4,6 +4,7 @@ import {
   StyleSheet, ScrollView, ActivityIndicator, Platform, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import emailjs from '@emailjs/browser';
 
 const EMAILJS_SERVICE_ID  = 'service_nj6jht6';
 const EMAILJS_TEMPLATE_ID = 'template_hd31ssm';
@@ -33,22 +34,17 @@ export default function FeedbackModal({ userEmail, onClose }: Props) {
     if (!summary.trim()) { showAlert('Required', 'Please enter a summary.'); return; }
     setSending(true);
     try {
-      const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          service_id: EMAILJS_SERVICE_ID,
-          template_id: EMAILJS_TEMPLATE_ID,
-          publicKey: EMAILJS_PUBLIC_KEY,
-          template_params: {
-            type,
-            from_name: name.trim() || 'Unknown',
-            summary: summary.trim(),
-            message: details.trim() || '(no details provided)',
-          },
-        }),
-      });
-      if (!res.ok) throw new Error(`EmailJS error: ${res.status}`);
+      await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        {
+          type,
+          from_name: name.trim() || 'Unknown',
+          summary: summary.trim(),
+          message: details.trim() || '(no details provided)',
+        },
+        EMAILJS_PUBLIC_KEY,
+      );
       setSent(true);
     } catch (e: any) {
       showAlert('Failed to Send', e?.message ?? 'Please check your connection and try again.');

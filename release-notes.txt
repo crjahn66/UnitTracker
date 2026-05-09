@@ -1,1 +1,1 @@
-- Fix feedback form API call
+- Fix feedback form using official EmailJS SDK
