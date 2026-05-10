@@ -13,6 +13,7 @@ import { pushToCloud } from '../utils/sync';
 import { useEditMode } from '../context/EditModeContext';
 import PhotoViewer from './PhotoViewer';
 import NameSelectField from './NameSelectField';
+import { showToast } from '../utils/toast';
 
 interface Props {
   unitId: string;
@@ -90,6 +91,7 @@ function AddIssueForm({ onSave, onCancel, currentStatus }: {
   const [status, setStatus] = useState<ComponentStatus>(currentStatus === 'unchecked' ? 'bad' : currentStatus);
   const set = (key: 'dateFound' | 'foundBy' | 'responsibleParty' | 'notes' | 'suggestedResolution', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
+  const notesRef = React.useRef<TextInput>(null);
 
   const pickImages = async () => {
     const result = await DocumentPicker.getDocumentAsync({
@@ -123,9 +125,9 @@ function AddIssueForm({ onSave, onCancel, currentStatus }: {
         ))}
       </View>
       <FormField label="Date Found" value={form.dateFound} onChangeText={(v) => set('dateFound', v)} placeholder="MM/DD/YYYY" />
-      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} />
+      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => { set('foundBy', v); if (v) setTimeout(() => notesRef.current?.focus(), 50); }} rememberLastUsed />
       <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Name / Team" />
-      <FormField label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} placeholder="Describe the issue…" multiline />
+      <FormField label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} placeholder="Describe the issue…" multiline inputRef={notesRef} />
       <FormField label="Suggested Resolution" value={form.suggestedResolution} onChangeText={(v) => set('suggestedResolution', v)} placeholder="Proposed fix or next steps…" multiline />
       <Text style={f.label}>Photos</Text>
       <ImageStrip images={images} onAdd={pickImages} onRemove={(u) => setImages((p) => p.filter((i) => i !== u))} />
@@ -298,7 +300,7 @@ function EditIssueForm({ issue, onSave, onCancel }: {
       <Text style={f.formTitle}>Edit Issue</Text>
       <FormField label="Date Found"        value={form.dateFound}        onChangeText={(v) => set('dateFound', v)}        placeholder="MM/DD/YYYY" />
       <FormField label="Last Updated"      value={form.dateUpdated}      onChangeText={(v) => set('dateUpdated', v)}      placeholder="MM/DD/YYYY" />
-      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} />
+      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} rememberLastUsed />
       <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Name / Team" />
       <FormField label="Notes"             value={form.notes}            onChangeText={(v) => set('notes', v)}            placeholder="Describe the issue…" multiline />
       <FormField label="Suggested Resolution" value={form.suggestedResolution} onChangeText={(v) => set('suggestedResolution', v)} placeholder="Proposed fix or next steps…" multiline />
@@ -490,11 +492,20 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
   }, [unitId, itemId, updateMiscIssue]);
 
   const handleDelete = useCallback((issueId: string) => {
-    const doDelete = async () => {
+    const doDelete = () => {
       const issue = item?.issues.find((i) => i.id === issueId);
-      for (const uri of (issue?.images ?? [])) deleteImage(uri);
+      const photoUris = [...(issue?.images ?? [])];
       deleteMiscIssue(unitId, itemId, issueId);
       pushToCloud().catch(() => {});
+      showToast({
+        message: 'Issue deleted',
+        actionLabel: 'Undo',
+        onAction: () => {
+          updateMiscIssue(unitId, itemId, issueId, { deleted: false, deletedAt: undefined });
+          pushToCloud().catch(() => {});
+        },
+        onDismissNoAction: () => { for (const uri of photoUris) deleteImage(uri); },
+      });
     };
     if (Platform.OS === 'web') {
       if ((window as any).confirm('Delete this issue log?')) doDelete();
@@ -504,7 +515,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
         { text: 'Delete', style: 'destructive', onPress: doDelete },
       ]);
     }
-  }, [unitId, itemId, deleteMiscIssue, item]);
+  }, [unitId, itemId, deleteMiscIssue, updateMiscIssue, item]);
 
   const handleAddImage = useCallback(async (issueId: string, uri: string) => {
     const saved = await saveImage(issueId, uri);
@@ -540,7 +551,20 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
   }, [unitId, itemId, updateMiscIssue]);
 
   const handleDeleteItem = useCallback(() => {
-    const doDelete = () => { deleteMiscEquip(unitId, itemId); pushToCloud().catch(() => {}); onClose(); };
+    const doDelete = () => {
+      const label = item?.label || 'Equipment';
+      deleteMiscEquip(unitId, itemId);
+      pushToCloud().catch(() => {});
+      onClose();
+      showToast({
+        message: `"${label}" removed`,
+        actionLabel: 'Undo',
+        onAction: () => {
+          updateMiscEquip(unitId, itemId, { deleted: false, deletedAt: undefined });
+          pushToCloud().catch(() => {});
+        },
+      });
+    };
     if (Platform.OS === 'web') {
       if ((window as any).confirm('Remove this misc equipment entry and all its issues?')) doDelete();
     } else {
@@ -549,7 +573,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
         { text: 'Delete', style: 'destructive', onPress: doDelete },
       ]);
     }
-  }, [unitId, itemId, deleteMiscEquip, onClose]);
+  }, [unitId, itemId, deleteMiscEquip, updateMiscEquip, onClose, item]);
 
   if (!item) return null;
 
@@ -753,13 +777,14 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
 
 // ─── FormField ─────────────────────────────────────────────────────────────────
 
-function FormField({ label, value, onChangeText, placeholder, multiline }: {
+function FormField({ label, value, onChangeText, placeholder, multiline, inputRef }: {
   label: string; value: string; onChangeText: (v: string) => void; placeholder?: string; multiline?: boolean;
+  inputRef?: React.RefObject<TextInput | null>;
 }) {
   return (
     <View style={f.field}>
       <Text style={f.label}>{label}</Text>
-      <TextInput style={[f.input, multiline && f.inputMulti]} value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#6e7681" multiline={multiline} numberOfLines={multiline ? 4 : 1} textAlignVertical={multiline ? 'top' : 'center'} />
+      <TextInput ref={inputRef} style={[f.input, multiline && f.inputMulti]} value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#6e7681" multiline={multiline} numberOfLines={multiline ? 4 : 1} textAlignVertical={multiline ? 'top' : 'center'} />
     </View>
   );
 }

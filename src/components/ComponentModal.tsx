@@ -14,6 +14,7 @@ import { pushToCloud } from '../utils/sync';
 import { useEditMode } from '../context/EditModeContext';
 import PhotoViewer from './PhotoViewer';
 import NameSelectField from './NameSelectField';
+import { showToast } from '../utils/toast';
 
 interface Props {
   unitId: string;
@@ -113,6 +114,7 @@ function AddIssueForm({ onSave, onCancel }: AddIssueFormProps) {
   const [images, setImages] = useState<string[]>([]);
   const set = (key: 'dateFound' | 'foundBy' | 'responsibleParty' | 'notes' | 'suggestedResolution', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
+  const notesRef = React.useRef<TextInput>(null);
 
   const pickImages = async () => {
     const result = await DocumentPicker.getDocumentAsync({
@@ -135,9 +137,9 @@ function AddIssueForm({ onSave, onCancel }: AddIssueFormProps) {
     <View>
       <Text style={f.formTitle}>Log New Issue</Text>
       <FormField label="Date Found" value={form.dateFound} onChangeText={(v) => set('dateFound', v)} placeholder="MM/DD/YYYY" />
-      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} />
+      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => { set('foundBy', v); if (v) setTimeout(() => notesRef.current?.focus(), 50); }} rememberLastUsed />
       <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Name / Team" />
-      <FormField label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} placeholder="Describe the issue…" multiline />
+      <FormField label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} placeholder="Describe the issue…" multiline inputRef={notesRef} />
       <FormField label="Suggested Resolution" value={form.suggestedResolution} onChangeText={(v) => set('suggestedResolution', v)} placeholder="Proposed fix or next steps…" multiline />
       <Text style={f.label}>Photos</Text>
       <ImageStrip images={images} onAdd={pickImages} onRemove={removeImage} />
@@ -389,7 +391,7 @@ function EditIssueForm({ issue, onSave, onCancel }: {
       <Text style={f.formTitle}>Edit Issue</Text>
       <FormField label="Date Found"        value={form.dateFound}        onChangeText={(v) => set('dateFound', v)}        placeholder="MM/DD/YYYY" />
       <FormField label="Last Updated"      value={form.dateUpdated}      onChangeText={(v) => set('dateUpdated', v)}      placeholder="MM/DD/YYYY" />
-      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} />
+      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} rememberLastUsed />
       <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Name / Team" />
       <FormField label="Notes"             value={form.notes}            onChangeText={(v) => set('notes', v)}            placeholder="Describe the issue…" multiline />
       <FormField label="Suggested Resolution" value={form.suggestedResolution} onChangeText={(v) => set('suggestedResolution', v)} placeholder="Proposed fix or next steps…" multiline />
@@ -629,11 +631,26 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
 
   const handleDelete = useCallback(
     (issueId: string) => {
-      const doDelete = async () => {
+      const doDelete = () => {
+        // Snapshot the photo URIs BEFORE soft-delete so we can clean them up
+        // when the undo window closes (or skip cleanup if the user undoes).
         const issue = compData.issues.find((i) => i.id === issueId);
-        for (const uri of (issue?.images ?? [])) deleteImage(uri);
+        const photoUris = [...(issue?.images ?? [])];
         deleteIssue(unitId, componentKey, issueId);
         pushToCloud().catch(() => {});
+        showToast({
+          message: 'Issue deleted',
+          actionLabel: 'Undo',
+          onAction: () => {
+            updateIssue(unitId, componentKey, issueId, { deleted: false, deletedAt: undefined });
+            pushToCloud().catch(() => {});
+          },
+          onDismissNoAction: () => {
+            // Commit point: the user did NOT tap Undo within the toast window,
+            // so it's now safe to free the on-disk photos.
+            for (const uri of photoUris) deleteImage(uri);
+          },
+        });
       };
       if (Platform.OS === 'web') {
         if ((window as any).confirm('Delete this issue log?')) doDelete();
@@ -644,7 +661,7 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
         ]);
       }
     },
-    [unitId, componentKey, deleteIssue, compData.issues]
+    [unitId, componentKey, deleteIssue, updateIssue, compData.issues]
   );
 
   const handleAddImage = useCallback(
@@ -959,13 +976,15 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
 
 // ─── FormField ─────────────────────────────────────────────────────────────────
 
-function FormField({ label, value, onChangeText, placeholder, multiline }: {
+function FormField({ label, value, onChangeText, placeholder, multiline, inputRef }: {
   label: string; value: string; onChangeText: (v: string) => void; placeholder?: string; multiline?: boolean;
+  inputRef?: React.RefObject<TextInput | null>;
 }) {
   return (
     <View style={f.field}>
       <Text style={f.label}>{label}</Text>
       <TextInput
+        ref={inputRef}
         style={[f.input, multiline && f.inputMulti]}
         value={value}
         onChangeText={onChangeText}

@@ -1,22 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, Modal, FlatList, TextInput,
   StyleSheet, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ROSTER } from '../constants/roster';
+import { useStore } from '../store/useStore';
 
 interface Props {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  /**
+   * When true, prefill an empty value with the last name picked on this device
+   * (persisted in Zustand local storage as `lastFoundBy`) and remember any new
+   * selection. Per-device only — never synced to the cloud.
+   */
+  rememberLastUsed?: boolean;
 }
 
-export default function NameSelectField({ label, value, onChange, placeholder }: Props) {
+export default function NameSelectField({ label, value, onChange, placeholder, rememberLastUsed }: Props) {
   const [open, setOpen] = useState(false);
   const [customMode, setCustomMode] = useState(false);
   const [customText, setCustomText] = useState('');
+
+  const lastFoundBy = useStore((s) => s.lastFoundBy);
+  const setLastFoundBy = useStore((s) => s.setLastFoundBy);
+
+  // One-shot prefill on mount when value is empty and we have a remembered name.
+  // Guarded by a ref so re-renders that clear the field (e.g. user deletes it)
+  // don't keep snapping it back.
+  const didPrefillRef = useRef(false);
+  useEffect(() => {
+    if (!rememberLastUsed) return;
+    if (didPrefillRef.current) return;
+    if (value) { didPrefillRef.current = true; return; }
+    if (lastFoundBy) {
+      didPrefillRef.current = true;
+      onChange(lastFoundBy);
+    }
+  }, [rememberLastUsed, value, lastFoundBy, onChange]);
+
+  const remember = (name: string) => {
+    if (rememberLastUsed && name.trim()) setLastFoundBy(name.trim());
+  };
 
   const openPicker = () => {
     setCustomMode(false);
@@ -26,11 +54,13 @@ export default function NameSelectField({ label, value, onChange, placeholder }:
 
   const handleSelect = (name: string) => {
     onChange(name);
+    remember(name);
     setOpen(false);
   };
 
   const handleCustomSave = () => {
-    if (customText.trim()) onChange(customText.trim());
+    const v = customText.trim();
+    if (v) { onChange(v); remember(v); }
     setOpen(false);
     setCustomMode(false);
     setCustomText('');

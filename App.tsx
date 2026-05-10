@@ -8,6 +8,7 @@ import AuthGate from './src/components/AuthGate';
 import EditModeBanner from './src/components/EditModeBanner';
 import IssueTicker from './src/components/IssueTicker';
 import UpdateBanner from './src/components/UpdateBanner';
+import ToastHost from './src/components/ToastHost';
 import { EditModeProvider, useEditMode } from './src/context/EditModeContext';
 import { UserProvider } from './src/context/UserContext';
 import { useSessionTimeout } from './src/hooks/useSessionTimeout';
@@ -57,6 +58,7 @@ function AppShell() {
       <UpdateBanner />
       <IssueTicker />
       <Navigation />
+      <ToastHost />
     </View>
   );
 }

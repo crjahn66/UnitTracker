@@ -18,9 +18,38 @@ import { useEditMode } from '../context/EditModeContext';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitDetail'>;
 
-export default function UnitDetailScreen({ route }: Props) {
+// Session-scoped scroll position cache, keyed by unitId. Restored when the
+// same unit is reopened (typically via the prev/next sibling nav, or after
+// going back to UnitList and tapping the same card again). Cleared on app
+// restart — intentionally lightweight, not persisted.
+const _scrollCache = new Map<string, number>();
+
+export default function UnitDetailScreen({ route, navigation }: Props) {
   const { unitId } = route.params;
   const unit = useStore((state) => state.units[unitId]);
+  const allUnits = useStore((state) => state.units);
+
+  // Sibling navigation: prev/next within the same side, ordered by unitNumber.
+  // Matches the order shown on UnitListScreen so swiping/arrowing feels natural.
+  const { prevId, nextId } = useMemo(() => {
+    if (!unit) return { prevId: null as string | null, nextId: null as string | null };
+    const siblings = Object.values(allUnits)
+      .filter((u) => u.side === unit.side)
+      .sort((a, b) => a.unitNumber - b.unitNumber);
+    const idx = siblings.findIndex((u) => u.id === unit.id);
+    return {
+      prevId: idx > 0 ? siblings[idx - 1].id : null,
+      nextId: idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1].id : null,
+    };
+  }, [allUnits, unit]);
+
+  const goToUnit = useCallback(
+    (targetId: string) => {
+      // replace() so swiping through 20 units doesn't pile up a 20-deep back stack.
+      navigation.replace('UnitDetail', { unitId: targetId });
+    },
+    [navigation]
+  );
   const updateStage  = useStore((state) => state.updateStage);
   const setStageNote = useStore((state) => state.setStageNote);
   const setStageDate = useStore((state) => state.setStageDate);
@@ -54,6 +83,34 @@ export default function UnitDetailScreen({ route }: Props) {
     const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardPad(0));
     return () => { show.remove(); hide.remove(); };
   }, []);
+
+  // Restore previously-saved scroll position for this unit (if any). Runs once
+  // per unitId mount; deferred to next tick so the ScrollView has laid out its
+  // children. Most units re-open at the top (cache miss = no-op).
+  useEffect(() => {
+    const saved = _scrollCache.get(unitId);
+    if (saved && saved > 0) {
+      const t = setTimeout(() => {
+        scrollRef.current?.scrollTo({ y: saved, animated: false });
+      }, 0);
+      return () => clearTimeout(t);
+    }
+  }, [unitId]);
+
+  // Auto-open a modal when navigated here with openComponent / openMiscItem
+  // params (Dashboard "tap an open issue" deep link). Clear the params after
+  // consuming so subsequent re-renders don't reopen the modal.
+  const openComponentParam = (route.params as any).openComponent as ComponentKey | undefined;
+  const openMiscItemParam  = (route.params as any).openMiscItem  as string       | undefined;
+  useEffect(() => {
+    if (openComponentParam) {
+      setSelectedComponent(openComponentParam);
+      navigation.setParams({ openComponent: undefined } as any);
+    } else if (openMiscItemParam) {
+      setSelectedMiscItem(openMiscItemParam);
+      navigation.setParams({ openMiscItem: undefined } as any);
+    }
+  }, [openComponentParam, openMiscItemParam, navigation]);
 
   const handleStageChange = useCallback(
     (key: StageKey, status: StageStatus) => {
@@ -107,6 +164,33 @@ export default function UnitDetailScreen({ route }: Props) {
 
   return (
     <View style={s.container}>
+      {/* Sibling unit nav: ‹ Prev | N-XX | Next › */}
+      <View style={s.siblingNav}>
+        <TouchableOpacity
+          style={[s.siblingBtn, !prevId && s.siblingBtnDisabled]}
+          onPress={() => prevId && goToUnit(prevId)}
+          disabled={!prevId}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={16} color={prevId ? '#58a6ff' : '#30363d'} />
+          <Text style={[s.siblingBtnText, !prevId && s.siblingBtnTextDisabled]} numberOfLines={1}>
+            {prevId ?? '—'}
+          </Text>
+        </TouchableOpacity>
+        <Text style={s.siblingCurrent}>{unit.id}</Text>
+        <TouchableOpacity
+          style={[s.siblingBtn, s.siblingBtnRight, !nextId && s.siblingBtnDisabled]}
+          onPress={() => nextId && goToUnit(nextId)}
+          disabled={!nextId}
+          activeOpacity={0.7}
+        >
+          <Text style={[s.siblingBtnText, !nextId && s.siblingBtnTextDisabled]} numberOfLines={1}>
+            {nextId ?? '—'}
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={nextId ? '#58a6ff' : '#30363d'} />
+        </TouchableOpacity>
+      </View>
+
       {/* Header summary strip */}
       <View style={s.headerBar}>
         <HeaderStat label="Stages" value={`${stagesComplete}/${STAGES.length}`} color="#58a6ff" />
@@ -115,7 +199,13 @@ export default function UnitDetailScreen({ route }: Props) {
         <HeaderStat label="Open Issues" value={openIssues} color={openIssues > 0 ? '#f85149' : '#3fb950'} />
       </View>
 
-      <ScrollView ref={scrollRef} contentContainerStyle={[s.scroll, keyboardPad > 0 && { paddingBottom: keyboardPad }]} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={[s.scroll, keyboardPad > 0 && { paddingBottom: keyboardPad }]}
+        keyboardShouldPersistTaps="handled"
+        scrollEventThrottle={250}
+        onScroll={(e) => { _scrollCache.set(unitId, e.nativeEvent.contentOffset.y); }}
+      >
         {/* Photo gallery shortcut */}
         {photoCount > 0 && (
           <TouchableOpacity style={s.galleryBtn} onPress={() => setGalleryOpen(true)} activeOpacity={0.7}>
@@ -537,6 +627,29 @@ const s = StyleSheet.create({
     borderBottomColor: '#21262d',
     paddingVertical: 10,
   },
+  siblingNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0d1117',
+    borderBottomWidth: 1,
+    borderBottomColor: '#21262d',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  siblingBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    minWidth: 80,
+  },
+  siblingBtnRight: { justifyContent: 'flex-end' },
+  siblingBtnDisabled: { opacity: 0.4 },
+  siblingBtnText: { color: '#58a6ff', fontSize: 13, fontWeight: '600', marginHorizontal: 4 },
+  siblingBtnTextDisabled: { color: '#30363d' },
+  siblingCurrent: { color: '#e6edf3', fontSize: 13, fontWeight: '700' },
   headerStat: { flex: 1, alignItems: 'center' },
   headerStatValue: { fontSize: 20, fontWeight: '700' },
   headerStatLabel: { color: '#8b949e', fontSize: 10, marginTop: 1 },

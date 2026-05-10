@@ -1,1 +1,6 @@
-- Auto sign-out after 12 hours of inactivity on web (Chrome background tab freeze fix)
+- "Found By" now remembers the last name you picked on this device — auto-fills new issues with one fewer tap
+- Prev/Next unit arrows on the unit detail screen — jump between units on the same side without going back to the list
+- Unit detail remembers your scroll position — coming back to a unit drops you where you left off
+- Tap an open issue on the Dashboard to open it directly in the component modal — no more drilling through Unit Detail
+- After picking "Found By" on a new issue, focus jumps straight to the Notes field
+- Deleting an issue or misc equipment now shows a 5-second "Undo" toast — photos are kept until the undo window closes

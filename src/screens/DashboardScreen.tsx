@@ -102,17 +102,17 @@ export default function DashboardScreen() {
     const sidePcts = { N: sidePct(northUnits), S: sidePct(southUnits) };
     const sideDone = { N: sideDoneCount(northUnits), S: sideDoneCount(southUnits) };
 
-    const openIssues: { key: string; unitId: string; unit: Unit; compLabel: string; notes: string; foundBy: string; ageDays: number }[] = [];
+    const openIssues: { key: string; unitId: string; unit: Unit; compLabel: string; notes: string; foundBy: string; ageDays: number; componentKey?: string; miscItemId?: string }[] = [];
     for (const unit of all) {
       for (const comp of COMPONENTS) {
         const label = unit.customComponentLabels?.[comp.key] ?? comp.label;
         for (const issue of unit.components[comp.key].issues.filter((i) => !i.resolved && !i.deleted)) {
-          openIssues.push({ key: issue.id, unitId: unit.id, unit, compLabel: label, notes: issue.notes, foundBy: issue.foundBy, ageDays: Math.floor((Date.now() - new Date(issue.dateFound).getTime()) / 86400000) });
+          openIssues.push({ key: issue.id, unitId: unit.id, unit, compLabel: label, notes: issue.notes, foundBy: issue.foundBy, ageDays: Math.floor((Date.now() - new Date(issue.dateFound).getTime()) / 86400000), componentKey: comp.key });
         }
       }
       for (const m of (unit.miscEquipment ?? []).filter((m) => !m.deleted)) {
         for (const issue of m.issues.filter((i) => !i.resolved && !i.deleted)) {
-          openIssues.push({ key: issue.id, unitId: unit.id, unit, compLabel: m.label || 'Misc Equipment', notes: issue.notes, foundBy: issue.foundBy, ageDays: Math.floor((Date.now() - new Date(issue.dateFound).getTime()) / 86400000) });
+          openIssues.push({ key: issue.id, unitId: unit.id, unit, compLabel: m.label || 'Misc Equipment', notes: issue.notes, foundBy: issue.foundBy, ageDays: Math.floor((Date.now() - new Date(issue.dateFound).getTime()) / 86400000), miscItemId: m.id });
         }
       }
     }
@@ -146,10 +146,10 @@ export default function DashboardScreen() {
 
   const isFiltering = !!searchText || sideFilter !== 'all';
 
-  const goToUnit = (unit: Unit) => {
+  const goToUnit = (unit: Unit, openComponent?: string, openMiscItem?: string) => {
     navigation.navigate(unit.side === 'North' ? 'NorthTab' : 'SouthTab', {
       screen: 'UnitDetail',
-      params: { unitId: unit.id },
+      params: { unitId: unit.id, openComponent, openMiscItem },
     } as any);
   };
 
@@ -254,7 +254,7 @@ export default function DashboardScreen() {
         <>
           <SectionLabel title={isFiltering ? `Issues (${filteredIssues.length} of ${openIssues.length})` : `Open Issues (${openIssues.length})`} />
           {filteredIssues.map((item) => (
-            <TouchableOpacity key={item.key} style={s.issueCard} onPress={() => goToUnit(item.unit)} activeOpacity={0.7}>
+            <TouchableOpacity key={item.key} style={s.issueCard} onPress={() => goToUnit(item.unit, item.componentKey, item.miscItemId)} activeOpacity={0.7}>
               <View style={s.issueHeader}>
                 <Text style={s.issueUnitId}>{item.unitId}</Text>
                 <Text style={s.issueComp} numberOfLines={1}>{item.compLabel}</Text>

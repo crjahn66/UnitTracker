@@ -10,6 +10,7 @@ import { pushToCloud } from '../utils/sync';
 import { GeneralIssue } from '../types';
 import { useEditMode } from '../context/EditModeContext';
 import NameSelectField from './NameSelectField';
+import { showToast } from '../utils/toast';
 
 interface Props {
   onClose: () => void;
@@ -49,6 +50,7 @@ function AddIssueForm({ onSave, onCancel }: {
   const [form, setForm] = useState({ ...EMPTY_ISSUE(), suggestedResolution: '' });
   const set = (key: 'dateFound' | 'foundBy' | 'responsibleParty' | 'notes' | 'suggestedResolution', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
+  const notesRef = React.useRef<TextInput>(null);
 
   const handleSave = () => {
     if (!form.foundBy.trim()) { showAlert('Required', 'Please enter who found the issue.'); return; }
@@ -60,9 +62,9 @@ function AddIssueForm({ onSave, onCancel }: {
     <View>
       <Text style={f.formTitle}>Log General Issue</Text>
       <FormField label="Date Found"        value={form.dateFound}        onChangeText={(v) => set('dateFound', v)}        placeholder="MM/DD/YYYY" />
-      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} />
+      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => { set('foundBy', v); if (v) setTimeout(() => notesRef.current?.focus(), 50); }} rememberLastUsed />
       <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Person / company responsible" />
-      <FormField label="Notes"             value={form.notes}            onChangeText={(v) => set('notes', v)}            placeholder="Describe the issue…" multiline />
+      <FormField label="Notes"             value={form.notes}            onChangeText={(v) => set('notes', v)}            placeholder="Describe the issue…" multiline inputRef={notesRef} />
       <FormField label="Suggested Resolution" value={form.suggestedResolution} onChangeText={(v) => set('suggestedResolution', v)} placeholder="Proposed fix or next steps…" multiline />
       <View style={f.buttonRow}>
         <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={onCancel}>
@@ -115,7 +117,7 @@ function EditIssueForm({ issue, onSave, onCancel }: {
       <Text style={f.formTitle}>Edit Issue</Text>
       <FormField label="Date Found"        value={form.dateFound}        onChangeText={(v) => set('dateFound', v)}        placeholder="MM/DD/YYYY" />
       <FormField label="Last Updated"      value={form.dateUpdated}      onChangeText={(v) => set('dateUpdated', v)}      placeholder="MM/DD/YYYY" />
-      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} />
+      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} rememberLastUsed />
       <FormField label="Responsible Party" value={form.responsibleParty} onChangeText={(v) => set('responsibleParty', v)} placeholder="Person / company responsible" />
       <FormField label="Notes"             value={form.notes}            onChangeText={(v) => set('notes', v)}            placeholder="Describe the issue…" multiline />
       <FormField label="Suggested Resolution" value={form.suggestedResolution} onChangeText={(v) => set('suggestedResolution', v)} placeholder="Proposed fix or next steps…" multiline />
@@ -290,7 +292,21 @@ export default function GeneralIssueModal({ onClose }: Props) {
   }, [updateGeneralIssue]);
 
   const handleDelete = useCallback((issueId: string) => {
-    const doDelete = () => { deleteGeneralIssue(issueId); pushToCloud().catch(() => {}); };
+    const doDelete = () => {
+      deleteGeneralIssue(issueId);
+      pushToCloud().catch(() => {});
+      showToast({
+        message: 'Issue deleted',
+        actionLabel: 'Undo',
+        onAction: () => {
+          // Soft-delete is reversible: clear the tombstone fields and bump
+          // dateUpdated (handled by updateGeneralIssue) so any incoming
+          // remote tombstone loses the resolveDeletion timestamp race.
+          updateGeneralIssue(issueId, { deleted: false, deletedAt: undefined });
+          pushToCloud().catch(() => {});
+        },
+      });
+    };
     if (Platform.OS === 'web') {
       if ((window as any).confirm('Permanently remove this issue?')) doDelete();
     } else {
@@ -299,7 +315,7 @@ export default function GeneralIssueModal({ onClose }: Props) {
         { text: 'Delete', style: 'destructive', onPress: doDelete },
       ]);
     }
-  }, [deleteGeneralIssue]);
+  }, [deleteGeneralIssue, updateGeneralIssue]);
 
   const active    = generalIssues.filter((i) => !i.deleted);
   const sorted    = [...active].sort((a, b) => b.dateFound.localeCompare(a.dateFound));
@@ -374,17 +390,19 @@ export default function GeneralIssueModal({ onClose }: Props) {
 
 // ─── FormField ─────────────────────────────────────────────────────────────────
 
-function FormField({ label, value, onChangeText, placeholder, multiline }: {
+function FormField({ label, value, onChangeText, placeholder, multiline, inputRef }: {
   label: string;
   value: string;
   onChangeText: (v: string) => void;
   placeholder?: string;
   multiline?: boolean;
+  inputRef?: React.RefObject<TextInput | null>;
 }) {
   return (
     <View style={f.field}>
       <Text style={f.label}>{label}</Text>
       <TextInput
+        ref={inputRef}
         style={[f.input, multiline && f.inputMulti]}
         value={value}
         onChangeText={onChangeText}

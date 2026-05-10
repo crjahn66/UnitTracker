@@ -32,6 +32,11 @@ const debouncedStorage = {
 interface StoreState {
   units: UnitsStore;
   generalIssues: GeneralIssue[];
+  // Per-device UI preference: last name picked in any "Found By" field.
+  // Local-only — NOT included in mergeImport / pushToCloud (different devices
+  // belong to different techs and should keep their own defaults).
+  lastFoundBy?: string;
+  setLastFoundBy: (name: string) => void;
   updateStage: (unitId: string, stage: StageKey, status: StageStatus) => void;
   setStageNote: (unitId: string, stage: StageKey, note: string) => void;
   updateComponentStatus: (unitId: string, component: ComponentKey, status: ComponentStatus) => void;
@@ -45,7 +50,7 @@ interface StoreState {
   resetUnit: (unitId: string) => void;
   setCustomComponentLabel: (unitId: string, componentKey: ComponentKey, label: string) => void;
   addMiscEquip: (unitId: string, label: string, id?: string) => void;
-  updateMiscEquip: (unitId: string, itemId: string, updates: { label?: string; status?: ComponentStatus; progressNote?: string; goodNote?: string; progressImages?: string[]; goodImages?: string[] }) => void;
+  updateMiscEquip: (unitId: string, itemId: string, updates: { label?: string; status?: ComponentStatus; progressNote?: string; goodNote?: string; progressImages?: string[]; goodImages?: string[]; deleted?: boolean; deletedAt?: string | undefined }) => void;
   deleteMiscEquip: (unitId: string, itemId: string) => void;
   addMiscIssue: (unitId: string, itemId: string, issue: MiscIssue) => void;
   updateMiscIssue: (unitId: string, itemId: string, issueId: string, updates: Partial<MiscIssue>) => void;
@@ -69,6 +74,9 @@ export const useStore = create<StoreState>()(
     (set) => ({
       units: createInitialUnits(),
       generalIssues: [] as GeneralIssue[],
+      lastFoundBy: undefined,
+
+      setLastFoundBy: (name) => set({ lastFoundBy: name || undefined }),
 
       updateStage: (unitId, stage, status) =>
         set((state) => {

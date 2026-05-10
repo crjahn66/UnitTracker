@@ -14,7 +14,9 @@ import { Side } from '../types';
 
 export type UnitStackParamList = {
   UnitList: { side: Side };
-  UnitDetail: { unitId: string };
+  // openComponent / openMiscItem: when set, UnitDetail auto-opens the matching
+  // modal on mount (used for Dashboard "tap an open issue → go straight to it").
+  UnitDetail: { unitId: string; openComponent?: string; openMiscItem?: string };
 };
 
 export type RootTabParamList = {
