@@ -18,6 +18,7 @@ import { computeBurndown } from '../utils/burndown';
 import { useEditMode } from '../context/EditModeContext';
 import { useUser } from '../context/UserContext';
 import { runUpdateCheck } from '../hooks/useUpdateCheck';
+import CopyrightFooter from '../components/CopyrightFooter';
 
 function isUnitCommissioned(unit: Unit): boolean {
   return STAGES.every(s => normalizeStageStatus(unit.stages[s.key]) === 'complete') &&
@@ -643,6 +644,7 @@ export default function ReportsScreen() {
         </TouchableOpacity>
       )}
 
+      <CopyrightFooter />
     </ScrollView>
   );
 }

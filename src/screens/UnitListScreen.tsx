@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
 import { Unit, STAGES, COMPONENTS, normalizeStageStatus } from '../types';
+import CopyrightFooter from '../components/CopyrightFooter';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitList'>;
 type Filter = 'all' | 'issues' | 'inProgress' | 'complete' | 'chiller';
@@ -193,6 +194,7 @@ export default function UnitListScreen({ navigation, route }: Props) {
         ListEmptyComponent={
           <Text style={s.emptyText}>No units match this filter.</Text>
         }
+        ListFooterComponent={CopyrightFooter}
         renderItem={renderItem}
       />
     </View>
