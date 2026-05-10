@@ -549,11 +549,10 @@ export default function ReportsScreen() {
                       {sideUnits.filter((u) => u.chillerAvailable === true).length} / {sideUnits.length} ready
                     </Text>
                   </View>
-                  {sideUnits.map((unit, idx) => {
-                    const commissioned = isUnitCommissioned(unit);
-                    return (
-                      <View key={unit.id} style={[s.chillerRow, idx < sideUnits.length - 1 && s.rowBorder]}>
-                        <Text style={[s.chillerUnitId, unit.chillerAvailable === true && s.chillerUnitIdReady]}>
+                  <View style={s.chillerGrid}>
+                    {sideUnits.map((unit) => (
+                      <View key={unit.id} style={s.chillerCell}>
+                        <Text style={[s.chillerUnitId, unit.chillerAvailable === true && s.chillerUnitIdReady]} numberOfLines={1}>
                           {unit.chillerAvailable === true ? '❄ ' : ''}{unit.id}
                         </Text>
                         <Switch
@@ -564,8 +563,8 @@ export default function ReportsScreen() {
                           thumbColor={unit.chillerAvailable === true ? '#58a6ff' : '#6e7681'}
                         />
                       </View>
-                    );
-                  })}
+                    ))}
+                  </View>
                 </View>
               );
             })}
@@ -591,8 +590,7 @@ export default function ReportsScreen() {
         <StatRow label="Total Units" value={stats.total} />
         <StatRow label="Fully Commissioned" value={`${stats.fullyComplete} / ${stats.total}`} valueColor="#3fb950" />
         <StatRow label="In Progress" value={stats.hasAnyWork - stats.fullyComplete} valueColor="#d29922" />
-        <StatRow label="Not Started" value={stats.total - stats.hasAnyWork} valueColor="#6e7681" />
-        <StatRow label="Open Issues" value={stats.openIssueCount} valueColor={stats.openIssueCount > 0 ? '#f85149' : '#3fb950'} last />
+        <StatRow label="Not Started" value={stats.total - stats.hasAnyWork} valueColor="#6e7681" last />
       </View>
 
       {/* Stage completion */}
@@ -635,25 +633,6 @@ export default function ReportsScreen() {
         ))}
       </View>
 
-      {/* Open issues */}
-      {stats.issuesByUnit.length > 0 && (
-        <>
-          <SectionHeader title={`Open Issues (${stats.openIssueCount})`} />
-          {stats.issuesByUnit.map(({ issue, unitId, compLabel }) => (
-            <View key={issue.id} style={s.issueCard}>
-              <View style={s.issueCardHeader}>
-                <Text style={s.issueUnit}>{unitId}</Text>
-                <Text style={s.issueComp}>{compLabel}</Text>
-                <Text style={s.issueDate}>
-                  {(() => { try { return new Date(issue.dateFound).toLocaleDateString(); } catch { return issue.dateFound; } })()}
-                </Text>
-              </View>
-              <Text style={s.issueNotes} numberOfLines={2}>{issue.notes}</Text>
-              {issue.foundBy ? <Text style={s.issueBy}>Found by: {issue.foundBy}</Text> : null}
-            </View>
-          ))}
-        </>
-      )}
     </ScrollView>
   );
 }
@@ -835,9 +814,11 @@ const s = StyleSheet.create({
   },
   chillerSideLabel: { color: '#8b949e', fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
   chillerSideCount: { color: '#6e7681', fontSize: 11 },
-  chillerRow: {
+  chillerGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingVertical: 4 },
+  chillerCell: {
+    width: '50%',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 10, paddingHorizontal: 14,
+    paddingVertical: 5, paddingHorizontal: 12,
   },
   chillerUnitId: { color: '#8b949e', fontSize: 14, fontWeight: '600' },
   chillerUnitIdReady: { color: '#58a6ff' },

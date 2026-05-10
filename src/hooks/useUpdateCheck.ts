@@ -3,6 +3,11 @@ import { AppState, Platform } from 'react-native';
 import { create } from 'zustand';
 import { checkForUpdate, cleanupDownloadedApks, UpdateInfo } from '../utils/appUpdater';
 
+const BUNDLE_VERSION: string = (() => {
+  try { return (require('../../app.json') as { expo: { version: string } }).expo.version ?? ''; }
+  catch { return ''; }
+})();
+
 const POLL_INTERVAL_MS = 30 * 60 * 1000; // 30 min
 const INITIAL_DELAY_MS = 4000;
 const MANUAL_THROTTLE_MS = 5 * 1000;
@@ -67,8 +72,11 @@ export function dismissUpdate() {
   useUpdateStore.getState().setUpdateInfo(null);
 }
 
+let _dismissedWebVersion: string | null = null;
+
 export function dismissWebUpdate() {
   const s = useUpdateStore.getState();
+  _dismissedWebVersion = s.webUpdateVersion;
   s.setWebUpdateAvailable(false);
   s.setWebUpdateMeta(null, null);
 }
@@ -111,15 +119,17 @@ export function useAutoUpdateCheck() {
     }
 
     if (Platform.OS === 'web') {
-      let buildTs: number | null = null;
+      let sessionBuildTs: number | null = null;
       const check = async () => {
         try {
           const res = await fetch('/_v.json?_=' + Date.now(), { cache: 'no-store' });
           if (!res.ok) return;
           const { b, v, n } = await res.json();
-          if (buildTs === null) {
-            buildTs = b;
-          } else if (b !== buildTs) {
+          const freshLoad = sessionBuildTs === null;
+          if (freshLoad) { sessionBuildTs = b; }
+          const buildChanged = !freshLoad && b !== sessionBuildTs;
+          if (buildChanged) sessionBuildTs = b;
+          if (buildChanged || (v && v !== BUNDLE_VERSION && v !== _dismissedWebVersion && !useUpdateStore.getState().webUpdateAvailable)) {
             const s = useUpdateStore.getState();
             s.setWebUpdateMeta(v ?? null, n ?? null);
             s.setWebUpdateAvailable(true);

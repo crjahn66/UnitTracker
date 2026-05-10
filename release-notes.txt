@@ -1,3 +1,3 @@
-- Dashboard detail list now shows 2 columns (North | South) with compact rows
-- New 4-segment per-stage bar replaces the single % bar — at a glance see which stage each unit is in (green=complete, yellow=in-progress, red=stuck, gray=pending)
-- Roughly 4× more units visible without scrolling
+- Fix update banner not appearing when opening the web app after an overnight update
+- Chiller Availability now shows in a compact 2-column grid
+- Open Issues list removed from Reports tab (available on Dashboard with search/filter)
