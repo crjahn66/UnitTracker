@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import { useUser } from './UserContext';
 
 export const EDIT_TIMEOUT_MS = 180_000;
@@ -28,11 +29,16 @@ export function EditModeProvider({ children }: { children: React.ReactNode }) {
   const [lastActivity, setLastActivity] = useState(Date.now());
   const [isPaused, setIsPaused] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Ref mirrors isPaused so startTimer always sees the current value without stale closures.
   const isPausedRef = useRef(false);
+  // Ref mirrors lastActivity so the visibilitychange handler always sees the current value.
+  const lastActivityRef = useRef(Date.now());
+  const isEditModeRef = useRef(false);
   const { isViewOnly } = useUser();
 
-  const exitEditMode = useCallback(() => setIsEditMode(false), []);
+  const exitEditMode = useCallback(() => {
+    setIsEditMode(false);
+    isEditModeRef.current = false;
+  }, []);
 
   const startTimer = useCallback(() => {
     if (isPausedRef.current) return;
@@ -42,14 +48,19 @@ export function EditModeProvider({ children }: { children: React.ReactNode }) {
 
   const enterEditMode = useCallback(() => {
     if (isViewOnly) return;
+    const now = Date.now();
     setIsEditMode(true);
-    setLastActivity(Date.now());
+    isEditModeRef.current = true;
+    setLastActivity(now);
+    lastActivityRef.current = now;
     startTimer();
   }, [startTimer, isViewOnly]);
 
   const resetTimer = useCallback(() => {
     if (!isEditMode || isPausedRef.current) return;
-    setLastActivity(Date.now());
+    const now = Date.now();
+    setLastActivity(now);
+    lastActivityRef.current = now;
     startTimer();
   }, [isEditMode, startTimer]);
 
@@ -63,12 +74,29 @@ export function EditModeProvider({ children }: { children: React.ReactNode }) {
     isPausedRef.current = false;
     setIsPaused(false);
     if (isEditMode) {
-      setLastActivity(Date.now());
+      const now = Date.now();
+      setLastActivity(now);
+      lastActivityRef.current = now;
       startTimer();
     }
   }, [isEditMode, startTimer]);
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  // On web, Chrome freezes background tabs so setTimeout never fires.
+  // Check elapsed time against lastActivityRef when the tab becomes visible again.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && isEditModeRef.current && !isPausedRef.current) {
+        if (Date.now() - lastActivityRef.current >= EDIT_TIMEOUT_MS) {
+          exitEditMode();
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [exitEditMode]);
 
   return (
     <EditModeContext.Provider value={{ isEditMode, lastActivity, isPaused, enterEditMode, resetTimer, pauseTimer, resumeTimer }}>

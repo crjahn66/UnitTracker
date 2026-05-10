@@ -583,17 +583,6 @@ export default function ReportsScreen() {
         </>
       )}
 
-      {Platform.OS === 'web' && (
-        <TouchableOpacity
-          style={s.logoutBtn}
-          onPress={() => supabase.auth.signOut()}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="log-out-outline" size={16} color="#6e7681" style={{ marginRight: 6 }} />
-          <Text style={s.logoutBtnText}>Sign Out</Text>
-        </TouchableOpacity>
-      )}
-
       {/* Overall progress */}
       <SectionHeader title="Overall Progress" />
       <View style={s.card}>
@@ -642,6 +631,17 @@ export default function ReportsScreen() {
           </View>
         ))}
       </View>
+
+      {Platform.OS === 'web' && (
+        <TouchableOpacity
+          style={s.logoutBtn}
+          onPress={() => supabase.auth.signOut()}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="log-out-outline" size={16} color="#6e7681" style={{ marginRight: 6 }} />
+          <Text style={s.logoutBtnText}>Sign Out</Text>
+        </TouchableOpacity>
+      )}
 
     </ScrollView>
   );

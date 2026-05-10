@@ -1,1 +1,2 @@
-- New burndown chart on Reports tab showing open issues over the last 30 days (North / South / Total)
+- Fix edit mode not expiring on web when tab is left in background (Chrome freezes timers for inactive tabs)
+- Move Sign Out button to bottom of Reports tab
