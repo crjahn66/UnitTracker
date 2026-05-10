@@ -126,6 +126,8 @@ export default function DashboardScreen() {
     () => showAllUnits ? sortedUnits : sortedUnits.filter((u) => !isUnitComplete(u)),
     [sortedUnits, showAllUnits],
   );
+  const detailNorth = useMemo(() => detailUnits.filter((u) => u.side === 'North'), [detailUnits]);
+  const detailSouth = useMemo(() => detailUnits.filter((u) => u.side === 'South'), [detailUnits]);
 
   const filteredIssues = useMemo(() => {
     let result = openIssues;
@@ -240,43 +242,12 @@ export default function DashboardScreen() {
           <Text style={s.emptyText}>All units complete 🎉</Text>
         </View>
       )}
-      {!isFiltering && detailUnits.length > 0 && <View style={s.listCard}>
-        {detailUnits.map((unit, idx) => {
-          const pct = getUnitPct(unit);
-          const allIssues = getOpenIssueCount(unit);
-          const color = unitColor(unit);
-          return (
-            <TouchableOpacity
-              key={unit.id}
-              style={[s.unitRow, idx < detailUnits.length - 1 && s.rowBorder]}
-              onPress={() => goToUnit(unit)}
-              activeOpacity={0.7}
-            >
-              <View style={[s.sideDot, { backgroundColor: color }]} />
-              <View style={s.unitInfo}>
-                <View style={s.unitTopRow}>
-                  <Text style={s.unitId}>{unit.id}</Text>
-                  {unit.chillerAvailable === true && (
-                    <View style={s.chillerWrap}>
-                      <Text style={s.chillerBadge}>❄</Text>
-                    </View>
-                  )}
-                  {allIssues > 0 && (
-                    <View style={s.issueBadge}>
-                      <Text style={s.issueBadgeText}>{allIssues}</Text>
-                    </View>
-                  )}
-                  <Text style={[s.unitPct, { color }]}>{pct}%</Text>
-                </View>
-                <View style={s.barBg}>
-                  <View style={[s.barFill, { width: `${pct}%` as any, backgroundColor: color }]} />
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={14} color="#30363d" style={{ marginLeft: 8 }} />
-            </TouchableOpacity>
-          );
-        })}
-      </View>}
+      {!isFiltering && detailUnits.length > 0 && (
+        <View style={s.twoColRow}>
+          <DetailColumn title="North" units={detailNorth} onUnitPress={goToUnit} />
+          <DetailColumn title="South" units={detailSouth} onUnitPress={goToUnit} />
+        </View>
+      )}
 
       {/* Open issues */}
       {openIssues.length > 0 && (
@@ -368,6 +339,73 @@ function Legend({ color, text, dim }: { color: string; text: string; dim?: boole
   );
 }
 
+const STAGE_SEG_COLOR: Record<string, string> = {
+  complete: '#3fb950',
+  inProgress: '#d29922',
+  stuck: '#f85149',
+  pending: '#30363d',
+};
+
+function StageSegmentBar({ unit }: { unit: Unit }) {
+  return (
+    <View style={s.segBar}>
+      {STAGES.map((stg) => {
+        const status = normalizeStageStatus(unit.stages[stg.key]);
+        return (
+          <View
+            key={stg.key}
+            style={[s.segCell, { backgroundColor: STAGE_SEG_COLOR[status] ?? STAGE_SEG_COLOR.pending }]}
+          />
+        );
+      })}
+    </View>
+  );
+}
+
+function CompactUnitRow({ unit, onPress, lastInColumn }: { unit: Unit; onPress: (u: Unit) => void; lastInColumn: boolean }) {
+  const pct = getUnitPct(unit);
+  const allIssues = getOpenIssueCount(unit);
+  const color = unitColor(unit);
+  return (
+    <TouchableOpacity
+      style={[s.compactRow, !lastInColumn && s.rowBorder]}
+      onPress={() => onPress(unit)}
+      activeOpacity={0.7}
+    >
+      <View style={[s.sideDotSm, { backgroundColor: color }]} />
+      <Text style={[s.compactId, { color }]}>{unit.unitNumber}</Text>
+      {unit.chillerAvailable === true && <Text style={s.compactChiller}>❄</Text>}
+      <StageSegmentBar unit={unit} />
+      <Text style={s.compactPct}>{pct}%</Text>
+      {allIssues > 0 && (
+        <View style={s.compactIssueBadge}>
+          <Text style={s.compactIssueText}>{allIssues}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+function DetailColumn({ title, units, onUnitPress }: { title: string; units: Unit[]; onUnitPress: (u: Unit) => void }) {
+  return (
+    <View style={s.detailCol}>
+      <Text style={s.detailColHeader}>{title} ({units.length})</Text>
+      <View style={s.detailColCard}>
+        {units.length === 0 ? (
+          <View style={s.colEmpty}>
+            <Ionicons name="checkmark-circle" size={14} color="#3fb950" style={{ marginRight: 4 }} />
+            <Text style={s.colEmptyText}>All done</Text>
+          </View>
+        ) : (
+          units.map((u, i) => (
+            <CompactUnitRow key={u.id} unit={u} onPress={onUnitPress} lastInColumn={i === units.length - 1} />
+          ))
+        )}
+      </View>
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0d1117' },
   content: { paddingBottom: 50 },
@@ -431,6 +469,35 @@ const s = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center' },
   legendSwatch: { width: 10, height: 10, borderRadius: 2, marginRight: 4 },
   legendText: { color: '#6e7681', fontSize: 10, fontWeight: '600' },
+
+  twoColRow: { flexDirection: 'row', paddingHorizontal: 10, gap: 8 },
+  detailCol: { flex: 1 },
+  detailColHeader: {
+    color: '#8b949e', fontSize: 10, fontWeight: '700', letterSpacing: 0.8,
+    textTransform: 'uppercase', marginBottom: 6, paddingHorizontal: 4,
+  },
+  detailColCard: {
+    backgroundColor: '#161b22', borderRadius: 8,
+    borderWidth: 1, borderColor: '#21262d',
+    overflow: 'hidden',
+  },
+  colEmpty: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 14,
+  },
+  colEmptyText: { color: '#3fb950', fontSize: 11, fontWeight: '600' },
+  compactRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 7, paddingHorizontal: 8, gap: 5,
+  },
+  sideDotSm: { width: 6, height: 6, borderRadius: 3 },
+  compactId: { fontSize: 12, fontWeight: '700', minWidth: 18 },
+  compactChiller: { color: '#58a6ff', fontSize: 11, marginRight: -2 },
+  segBar: { flex: 1, flexDirection: 'row', gap: 2, alignItems: 'center' },
+  segCell: { flex: 1, height: 6, borderRadius: 1.5 },
+  compactPct: { color: '#c9d1d9', fontSize: 11, fontWeight: '600', minWidth: 28, textAlign: 'right' },
+  compactIssueBadge: { backgroundColor: '#f85149', borderRadius: 7, paddingHorizontal: 5, paddingVertical: 1 },
+  compactIssueText: { color: '#fff', fontSize: 9, fontWeight: '800' },
   listCard: { backgroundColor: '#161b22', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#21262d' },
   unitRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: '#21262d' },
