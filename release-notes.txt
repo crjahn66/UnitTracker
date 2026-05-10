@@ -1,6 +1,3 @@
-- Dashboard rework: at-a-glance fleet grid (all 50 units visible) per side
-- Done counts in side headers (e.g. "North 18 of 25 done")
-- Overall completion bar now shows N/S split percentages
-- "In Progress" detail list hides completed units; toggle "Show all units" to see everything
-- Detail list sorted by attention need (issues → stuck → in progress)
-- New STUCK badge on stuck-but-no-issues units
+- Dashboard: units now in numerical order in the detail list
+- Original colors restored — yellow = in progress
+- "Issues" status now also covers bad component status and stuck commissioning stages

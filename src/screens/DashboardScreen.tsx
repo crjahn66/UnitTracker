@@ -3,9 +3,9 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput } from 
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, Unit, StageKey, normalizeStageStatus } from '../types';
+import { STAGES, COMPONENTS, Unit, normalizeStageStatus } from '../types';
 
-type UnitStatus = 'issues' | 'stuck' | 'complete' | 'inProgress' | 'notStarted';
+type UnitStatus = 'issues' | 'complete' | 'inProgress' | 'notStarted';
 
 function getUnitPct(unit: Unit): number {
   const stagesComplete = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
@@ -23,18 +23,27 @@ function getOpenCompIssueCount(unit: Unit): number {
   return Object.values(unit.components).flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted).length;
 }
 
-function getStuckStages(unit: Unit): StageKey[] {
-  return STAGES.map((s) => s.key).filter((k) => normalizeStageStatus(unit.stages[k]) === 'stuck');
+function hasBadComponentStatus(unit: Unit): boolean {
+  return Object.values(unit.components).some((c) => c.status === 'bad');
+}
+
+function hasStuckStage(unit: Unit): boolean {
+  return STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) === 'stuck');
+}
+
+// A unit has "issues" if any of: open component issues, bad component status,
+// or any commissioning stage is stuck. These all roll into the same red state.
+function unitHasIssues(unit: Unit): boolean {
+  return getOpenCompIssueCount(unit) > 0 || hasBadComponentStatus(unit) || hasStuckStage(unit);
 }
 
 function isUnitComplete(unit: Unit): boolean {
   return STAGES.every((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete') && getOpenCompIssueCount(unit) === 0;
 }
 
-// Priority: issues > stuck > complete > in-progress > not-started
+// Priority: issues > complete > in-progress > not-started
 function getUnitStatus(unit: Unit): UnitStatus {
-  if (getOpenCompIssueCount(unit) > 0) return 'issues';
-  if (getStuckStages(unit).length > 0) return 'stuck';
+  if (unitHasIssues(unit)) return 'issues';
   if (isUnitComplete(unit)) return 'complete';
   if (getUnitPct(unit) > 0) return 'inProgress';
   return 'notStarted';
@@ -42,17 +51,13 @@ function getUnitStatus(unit: Unit): UnitStatus {
 
 const STATUS_COLOR: Record<UnitStatus, string> = {
   issues:     '#f85149',
-  stuck:      '#e3b341',
   complete:   '#3fb950',
-  inProgress: '#58a6ff',
+  inProgress: '#d29922',
   notStarted: '#30363d',
 };
 
-function unitColor(pct: number, compIssues: number): string {
-  if (compIssues > 0) return STATUS_COLOR.issues;
-  if (pct === 100) return STATUS_COLOR.complete;
-  if (pct > 0) return STATUS_COLOR.inProgress;
-  return STATUS_COLOR.notStarted;
+function unitColor(unit: Unit): string {
+  return STATUS_COLOR[getUnitStatus(unit)];
 }
 
 export default function DashboardScreen() {
@@ -116,22 +121,11 @@ export default function DashboardScreen() {
     return { sortedUnits: all, northUnits, southUnits, stats: { total: all.length, complete, inProgress, totalIssues, chillerReady }, openIssues, overallPct, sidePcts, sideDone };
   }, [units]);
 
-  // Detail list: when not showing all, hide complete units; sort by attention need
-  const detailUnits = useMemo(() => {
-    const list = showAllUnits ? sortedUnits : sortedUnits.filter((u) => !isUnitComplete(u));
-    const statusOrder: Record<UnitStatus, number> = {
-      issues: 0, stuck: 1, inProgress: 2, notStarted: 3, complete: 4,
-    };
-    return [...list].sort((a, b) => {
-      const sa = statusOrder[getUnitStatus(a)];
-      const sb = statusOrder[getUnitStatus(b)];
-      if (sa !== sb) return sa - sb;
-      const pa = getUnitPct(a); const pb = getUnitPct(b);
-      if (pa !== pb) return pa - pb;
-      if (a.side !== b.side) return a.side.localeCompare(b.side);
-      return a.unitNumber - b.unitNumber;
-    });
-  }, [sortedUnits, showAllUnits]);
+  // Detail list: when not showing all, hide complete units. Order is numerical (by side, then unit number).
+  const detailUnits = useMemo(
+    () => showAllUnits ? sortedUnits : sortedUnits.filter((u) => !isUnitComplete(u)),
+    [sortedUnits, showAllUnits],
+  );
 
   const filteredIssues = useMemo(() => {
     let result = openIssues;
@@ -249,10 +243,8 @@ export default function DashboardScreen() {
       {!isFiltering && detailUnits.length > 0 && <View style={s.listCard}>
         {detailUnits.map((unit, idx) => {
           const pct = getUnitPct(unit);
-          const compIssues = getOpenCompIssueCount(unit);
           const allIssues = getOpenIssueCount(unit);
-          const color = unitColor(pct, compIssues);
-          const stuckN = getStuckStages(unit).length;
+          const color = unitColor(unit);
           return (
             <TouchableOpacity
               key={unit.id}
@@ -272,12 +264,6 @@ export default function DashboardScreen() {
                   {allIssues > 0 && (
                     <View style={s.issueBadge}>
                       <Text style={s.issueBadgeText}>{allIssues}</Text>
-                    </View>
-                  )}
-                  {stuckN > 0 && compIssues === 0 && (
-                    <View style={s.stuckBadge}>
-                      <Ionicons name="warning" size={9} color="#0d1117" style={{ marginRight: 2 }} />
-                      <Text style={s.stuckBadgeText}>STUCK</Text>
                     </View>
                   )}
                   <Text style={[s.unitPct, { color }]}>{pct}%</Text>
@@ -347,10 +333,6 @@ function FleetGrid({
         {units.map((unit) => {
           const status = getUnitStatus(unit);
           const color = STATUS_COLOR[status];
-          const compIssues = getOpenCompIssueCount(unit);
-          // Text color: dark on light cells, white on dark/red cells
-          const isLightBg = status === 'stuck';
-          const textColor = isLightBg ? '#0d1117' : '#ffffff';
           const opacity = status === 'notStarted' ? 0.55 : 1;
           return (
             <TouchableOpacity
@@ -359,10 +341,7 @@ function FleetGrid({
               onPress={() => onUnitPress(unit)}
               activeOpacity={0.7}
             >
-              <Text style={[s.gridCellText, { color: textColor }]}>{unit.unitNumber}</Text>
-              {compIssues > 0 && (
-                <View style={s.gridCellIssueDot} />
-              )}
+              <Text style={s.gridCellText}>{unit.unitNumber}</Text>
               {unit.chillerAvailable === true && (
                 <Text style={s.gridCellChiller}>❄</Text>
               )}
@@ -373,9 +352,8 @@ function FleetGrid({
       <View style={s.gridLegend}>
         <Legend color={STATUS_COLOR.complete}   text="Done" />
         <Legend color={STATUS_COLOR.inProgress} text="In Prog" />
-        <Legend color={STATUS_COLOR.stuck}      text="Stuck" />
         <Legend color={STATUS_COLOR.issues}     text="Issues" />
-        <Legend color={STATUS_COLOR.notStarted} text="—" dim />
+        <Legend color={STATUS_COLOR.notStarted} text="Not Started" dim />
       </View>
     </View>
   );
@@ -431,11 +409,6 @@ const s = StyleSheet.create({
     paddingVertical: 22,
   },
   emptyText: { color: '#3fb950', fontSize: 14, fontWeight: '600' },
-  stuckBadge: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#e3b341', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1, marginRight: 6,
-  },
-  stuckBadgeText: { color: '#0d1117', fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
 
   gridCard: {
     margin: 14, marginTop: 8, marginBottom: 0, padding: 12,
@@ -449,12 +422,7 @@ const s = StyleSheet.create({
     width: 32, height: 32, borderRadius: 6,
     alignItems: 'center', justifyContent: 'center', position: 'relative',
   },
-  gridCellText: { fontSize: 12, fontWeight: '700' },
-  gridCellIssueDot: {
-    position: 'absolute', top: 3, right: 3,
-    width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff',
-    borderWidth: 1, borderColor: '#f85149',
-  },
+  gridCellText: { fontSize: 12, fontWeight: '700', color: '#ffffff' },
   gridCellChiller: {
     position: 'absolute', bottom: -1, right: 2,
     color: '#cfe1ff', fontSize: 9,
