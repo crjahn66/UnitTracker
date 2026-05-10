@@ -13,6 +13,8 @@ import { syncWithCloud, wipeAllPhotos } from '../utils/sync';
 import { supabase } from '../utils/supabase';
 import GeneralIssueModal from '../components/GeneralIssueModal';
 import FeedbackModal from '../components/FeedbackModal';
+import BurndownChart from '../components/BurndownChart';
+import { computeBurndown } from '../utils/burndown';
 import { useEditMode } from '../context/EditModeContext';
 import { useUser } from '../context/UserContext';
 import { runUpdateCheck } from '../hooks/useUpdateCheck';
@@ -197,6 +199,8 @@ export default function ReportsScreen() {
     ),
     [units]
   );
+
+  const burndownData = useMemo(() => computeBurndown(units, 30), [units]);
 
   const openGeneralCount = generalIssues.filter((i) => !i.resolved && !i.deleted).length;
 
@@ -533,6 +537,12 @@ export default function ReportsScreen() {
 
       {generalModalOpen && <GeneralIssueModal onClose={() => setGeneralModalOpen(false)} />}
       {feedbackOpen && <FeedbackModal userEmail={email} onClose={() => setFeedbackOpen(false)} />}
+
+      {/* Open Issues Burndown */}
+      <SectionHeader title="Open Issues — Last 30 Days" />
+      <View style={s.card}>
+        <BurndownChart data={burndownData} />
+      </View>
 
       {/* Chiller Availability — hidden from view-only users */}
       {!isViewOnly && (

@@ -1,3 +1,1 @@
-- Fix update banner not appearing when opening the web app after an overnight update
-- Chiller Availability now shows in a compact 2-column grid
-- Open Issues list removed from Reports tab (available on Dashboard with search/filter)
+- New burndown chart on Reports tab showing open issues over the last 30 days (North / South / Total)
