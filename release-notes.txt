@@ -1,1 +1,1 @@
-- Fix feedback form using official EmailJS SDK
+- Fix feedback form service ID so submissions reach the correct email account

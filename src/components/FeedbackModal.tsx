@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import emailjs from '@emailjs/browser';
 
-const EMAILJS_SERVICE_ID  = 'service_nj6jht6';
+const EMAILJS_SERVICE_ID  = 'service_aexfnia';
 const EMAILJS_TEMPLATE_ID = 'template_hd31ssm';
 const EMAILJS_PUBLIC_KEY  = 'g-zc9hAI8Xg1RKU4w';
 
