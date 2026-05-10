@@ -3,7 +3,9 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput } from 
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, Unit, normalizeStageStatus } from '../types';
+import { STAGES, COMPONENTS, Unit, StageKey, normalizeStageStatus } from '../types';
+
+type UnitStatus = 'issues' | 'stuck' | 'complete' | 'inProgress' | 'notStarted';
 
 function getUnitPct(unit: Unit): number {
   const stagesComplete = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
@@ -21,11 +23,36 @@ function getOpenCompIssueCount(unit: Unit): number {
   return Object.values(unit.components).flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted).length;
 }
 
+function getStuckStages(unit: Unit): StageKey[] {
+  return STAGES.map((s) => s.key).filter((k) => normalizeStageStatus(unit.stages[k]) === 'stuck');
+}
+
+function isUnitComplete(unit: Unit): boolean {
+  return STAGES.every((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete') && getOpenCompIssueCount(unit) === 0;
+}
+
+// Priority: issues > stuck > complete > in-progress > not-started
+function getUnitStatus(unit: Unit): UnitStatus {
+  if (getOpenCompIssueCount(unit) > 0) return 'issues';
+  if (getStuckStages(unit).length > 0) return 'stuck';
+  if (isUnitComplete(unit)) return 'complete';
+  if (getUnitPct(unit) > 0) return 'inProgress';
+  return 'notStarted';
+}
+
+const STATUS_COLOR: Record<UnitStatus, string> = {
+  issues:     '#f85149',
+  stuck:      '#e3b341',
+  complete:   '#3fb950',
+  inProgress: '#58a6ff',
+  notStarted: '#30363d',
+};
+
 function unitColor(pct: number, compIssues: number): string {
-  if (compIssues > 0) return '#f85149';
-  if (pct === 100) return '#3fb950';
-  if (pct > 0) return '#d29922';
-  return '#30363d';
+  if (compIssues > 0) return STATUS_COLOR.issues;
+  if (pct === 100) return STATUS_COLOR.complete;
+  if (pct > 0) return STATUS_COLOR.inProgress;
+  return STATUS_COLOR.notStarted;
 }
 
 export default function DashboardScreen() {
@@ -34,6 +61,7 @@ export default function DashboardScreen() {
 
   const [searchText, setSearchText] = useState('');
   const [sideFilter, setSideFilter] = useState<'all' | 'North' | 'South'>('all');
+  const [showAllUnits, setShowAllUnits] = useState(false);
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearchChange = useCallback((text: string) => {
@@ -51,18 +79,23 @@ export default function DashboardScreen() {
 
   useEffect(() => () => { if (clearTimerRef.current) clearTimeout(clearTimerRef.current); }, []);
 
-  const { sortedUnits, stats, openIssues, overallPct } = useMemo(() => {
+  const { sortedUnits, northUnits, southUnits, stats, openIssues, overallPct, sidePcts, sideDone } = useMemo(() => {
     const all = Object.values(units).sort((a, b) =>
       a.side !== b.side ? a.side.localeCompare(b.side) : a.unitNumber - b.unitNumber
     );
 
-    const isUnitComplete = (u: Unit) =>
-      STAGES.every((s) => normalizeStageStatus(u.stages[s.key]) === 'complete') && getOpenCompIssueCount(u) === 0;
     const complete = all.filter(isUnitComplete).length;
     const inProgress = all.filter((u) => { const p = getUnitPct(u); return p > 0 && !isUnitComplete(u); }).length;
     const totalIssues = all.reduce((n, u) => n + getOpenIssueCount(u), 0);
     const chillerReady = all.filter((u) => u.chillerAvailable === true).length;
     const overallPct = all.length > 0 ? Math.round(all.reduce((n, u) => n + getUnitPct(u), 0) / all.length) : 0;
+
+    const northUnits = all.filter((u) => u.side === 'North').sort((a, b) => a.unitNumber - b.unitNumber);
+    const southUnits = all.filter((u) => u.side === 'South').sort((a, b) => a.unitNumber - b.unitNumber);
+    const sidePct = (arr: Unit[]) => arr.length === 0 ? 0 : Math.round(arr.reduce((n, u) => n + getUnitPct(u), 0) / arr.length);
+    const sideDoneCount = (arr: Unit[]) => arr.filter(isUnitComplete).length;
+    const sidePcts = { N: sidePct(northUnits), S: sidePct(southUnits) };
+    const sideDone = { N: sideDoneCount(northUnits), S: sideDoneCount(southUnits) };
 
     const openIssues: { key: string; unitId: string; unit: Unit; compLabel: string; notes: string; foundBy: string; ageDays: number }[] = [];
     for (const unit of all) {
@@ -80,8 +113,25 @@ export default function DashboardScreen() {
     }
     openIssues.sort((a, b) => b.ageDays - a.ageDays);
 
-    return { sortedUnits: all, stats: { total: all.length, complete, inProgress, totalIssues, chillerReady }, openIssues, overallPct };
+    return { sortedUnits: all, northUnits, southUnits, stats: { total: all.length, complete, inProgress, totalIssues, chillerReady }, openIssues, overallPct, sidePcts, sideDone };
   }, [units]);
+
+  // Detail list: when not showing all, hide complete units; sort by attention need
+  const detailUnits = useMemo(() => {
+    const list = showAllUnits ? sortedUnits : sortedUnits.filter((u) => !isUnitComplete(u));
+    const statusOrder: Record<UnitStatus, number> = {
+      issues: 0, stuck: 1, inProgress: 2, notStarted: 3, complete: 4,
+    };
+    return [...list].sort((a, b) => {
+      const sa = statusOrder[getUnitStatus(a)];
+      const sb = statusOrder[getUnitStatus(b)];
+      if (sa !== sb) return sa - sb;
+      const pa = getUnitPct(a); const pb = getUnitPct(b);
+      if (pa !== pb) return pa - pb;
+      if (a.side !== b.side) return a.side.localeCompare(b.side);
+      return a.unitNumber - b.unitNumber;
+    });
+  }, [sortedUnits, showAllUnits]);
 
   const filteredIssues = useMemo(() => {
     let result = openIssues;
@@ -127,7 +177,15 @@ export default function DashboardScreen() {
         <View style={s.overallBarBg}>
           <View style={[s.overallBarFill, { width: `${overallPct}%` as any }]} />
         </View>
+        <View style={s.sideSplitRow}>
+          <Text style={s.sideSplitText}>N: <Text style={s.sideSplitPct}>{sidePcts.N}%</Text></Text>
+          <Text style={s.sideSplitText}>S: <Text style={s.sideSplitPct}>{sidePcts.S}%</Text></Text>
+        </View>
       </View>
+
+      {/* Fleet Grid — at-a-glance status of all units */}
+      <FleetGrid title="North" units={northUnits} doneCount={sideDone.N} onUnitPress={goToUnit} />
+      <FleetGrid title="South" units={southUnits} doneCount={sideDone.S} onUnitPress={goToUnit} />
 
       {/* Issue search + side filter — only shown when there are open issues */}
       {openIssues.length > 0 && (
@@ -169,18 +227,36 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Per-unit list — hidden while filtering */}
-      {!isFiltering && <SectionLabel title="Units" />}
-      {!isFiltering && <View style={s.listCard}>
-        {sortedUnits.map((unit, idx) => {
+      {/* Per-unit list — hidden while filtering issues */}
+      {!isFiltering && (
+        <View style={s.unitsHeaderRow}>
+          <Text style={s.sectionLabelInline}>
+            {showAllUnits ? `All Units (${sortedUnits.length})` : `In Progress (${detailUnits.length})`}
+          </Text>
+          <TouchableOpacity onPress={() => setShowAllUnits((v) => !v)} hitSlop={8} activeOpacity={0.7}>
+            <Text style={s.toggleLink}>
+              {showAllUnits ? 'Hide complete' : 'Show all units'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {!isFiltering && detailUnits.length === 0 && (
+        <View style={s.emptyCard}>
+          <Ionicons name="checkmark-circle" size={20} color="#3fb950" style={{ marginRight: 8 }} />
+          <Text style={s.emptyText}>All units complete 🎉</Text>
+        </View>
+      )}
+      {!isFiltering && detailUnits.length > 0 && <View style={s.listCard}>
+        {detailUnits.map((unit, idx) => {
           const pct = getUnitPct(unit);
           const compIssues = getOpenCompIssueCount(unit);
           const allIssues = getOpenIssueCount(unit);
           const color = unitColor(pct, compIssues);
+          const stuckN = getStuckStages(unit).length;
           return (
             <TouchableOpacity
               key={unit.id}
-              style={[s.unitRow, idx < sortedUnits.length - 1 && s.rowBorder]}
+              style={[s.unitRow, idx < detailUnits.length - 1 && s.rowBorder]}
               onPress={() => goToUnit(unit)}
               activeOpacity={0.7}
             >
@@ -196,6 +272,12 @@ export default function DashboardScreen() {
                   {allIssues > 0 && (
                     <View style={s.issueBadge}>
                       <Text style={s.issueBadgeText}>{allIssues}</Text>
+                    </View>
+                  )}
+                  {stuckN > 0 && compIssues === 0 && (
+                    <View style={s.stuckBadge}>
+                      <Ionicons name="warning" size={9} color="#0d1117" style={{ marginRight: 2 }} />
+                      <Text style={s.stuckBadgeText}>STUCK</Text>
                     </View>
                   )}
                   <Text style={[s.unitPct, { color }]}>{pct}%</Text>
@@ -246,6 +328,68 @@ function SectionLabel({ title }: { title: string }) {
   return <Text style={s.sectionLabel}>{title}</Text>;
 }
 
+function FleetGrid({
+  title, units, doneCount, onUnitPress,
+}: {
+  title: string;
+  units: Unit[];
+  doneCount: number;
+  onUnitPress: (u: Unit) => void;
+}) {
+  if (units.length === 0) return null;
+  return (
+    <View style={s.gridCard}>
+      <View style={s.gridHeader}>
+        <Text style={s.gridTitle}>{title}</Text>
+        <Text style={s.gridDoneCount}>{doneCount} of {units.length} done</Text>
+      </View>
+      <View style={s.gridWrap}>
+        {units.map((unit) => {
+          const status = getUnitStatus(unit);
+          const color = STATUS_COLOR[status];
+          const compIssues = getOpenCompIssueCount(unit);
+          // Text color: dark on light cells, white on dark/red cells
+          const isLightBg = status === 'stuck';
+          const textColor = isLightBg ? '#0d1117' : '#ffffff';
+          const opacity = status === 'notStarted' ? 0.55 : 1;
+          return (
+            <TouchableOpacity
+              key={unit.id}
+              style={[s.gridCell, { backgroundColor: color, opacity }]}
+              onPress={() => onUnitPress(unit)}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.gridCellText, { color: textColor }]}>{unit.unitNumber}</Text>
+              {compIssues > 0 && (
+                <View style={s.gridCellIssueDot} />
+              )}
+              {unit.chillerAvailable === true && (
+                <Text style={s.gridCellChiller}>❄</Text>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      <View style={s.gridLegend}>
+        <Legend color={STATUS_COLOR.complete}   text="Done" />
+        <Legend color={STATUS_COLOR.inProgress} text="In Prog" />
+        <Legend color={STATUS_COLOR.stuck}      text="Stuck" />
+        <Legend color={STATUS_COLOR.issues}     text="Issues" />
+        <Legend color={STATUS_COLOR.notStarted} text="—" dim />
+      </View>
+    </View>
+  );
+}
+
+function Legend({ color, text, dim }: { color: string; text: string; dim?: boolean }) {
+  return (
+    <View style={s.legendItem}>
+      <View style={[s.legendSwatch, { backgroundColor: color, opacity: dim ? 0.55 : 1 }]} />
+      <Text style={s.legendText}>{text}</Text>
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0d1117' },
   content: { paddingBottom: 50 },
@@ -265,10 +409,60 @@ const s = StyleSheet.create({
   overallPct: { color: '#58a6ff', fontSize: 18, fontWeight: '700' },
   overallBarBg: { height: 6, backgroundColor: '#21262d', borderRadius: 3, overflow: 'hidden' },
   overallBarFill: { height: 6, backgroundColor: '#58a6ff', borderRadius: 3 },
+  sideSplitRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  sideSplitText: { color: '#6e7681', fontSize: 11, fontWeight: '600' },
+  sideSplitPct: { color: '#c9d1d9', fontSize: 12, fontWeight: '700' },
   sectionLabel: {
     color: '#8b949e', fontSize: 11, fontWeight: '700', letterSpacing: 1,
     textTransform: 'uppercase', paddingHorizontal: 14, marginTop: 18, marginBottom: 8,
   },
+  sectionLabelInline: {
+    color: '#8b949e', fontSize: 11, fontWeight: '700', letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  unitsHeaderRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 14, marginTop: 18, marginBottom: 8,
+  },
+  toggleLink: { color: '#58a6ff', fontSize: 12, fontWeight: '600' },
+  emptyCard: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#161b22', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#21262d',
+    paddingVertical: 22,
+  },
+  emptyText: { color: '#3fb950', fontSize: 14, fontWeight: '600' },
+  stuckBadge: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#e3b341', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1, marginRight: 6,
+  },
+  stuckBadgeText: { color: '#0d1117', fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
+
+  gridCard: {
+    margin: 14, marginTop: 8, marginBottom: 0, padding: 12,
+    backgroundColor: '#161b22', borderRadius: 10, borderWidth: 1, borderColor: '#21262d',
+  },
+  gridHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 },
+  gridTitle: { color: '#e6edf3', fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
+  gridDoneCount: { color: '#8b949e', fontSize: 11, fontWeight: '600' },
+  gridWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  gridCell: {
+    width: 32, height: 32, borderRadius: 6,
+    alignItems: 'center', justifyContent: 'center', position: 'relative',
+  },
+  gridCellText: { fontSize: 12, fontWeight: '700' },
+  gridCellIssueDot: {
+    position: 'absolute', top: 3, right: 3,
+    width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff',
+    borderWidth: 1, borderColor: '#f85149',
+  },
+  gridCellChiller: {
+    position: 'absolute', bottom: -1, right: 2,
+    color: '#cfe1ff', fontSize: 9,
+  },
+  gridLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
+  legendItem: { flexDirection: 'row', alignItems: 'center' },
+  legendSwatch: { width: 10, height: 10, borderRadius: 2, marginRight: 4 },
+  legendText: { color: '#6e7681', fontSize: 10, fontWeight: '600' },
   listCard: { backgroundColor: '#161b22', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#21262d' },
   unitRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: '#21262d' },
