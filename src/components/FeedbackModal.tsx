@@ -47,7 +47,9 @@ export default function FeedbackModal({ userEmail, onClose }: Props) {
       );
       setSent(true);
     } catch (e: any) {
-      showAlert('Failed to Send', e?.message ?? 'Please check your connection and try again.');
+      console.error('[feedback] send error:', JSON.stringify(e));
+      const msg = e?.text ?? e?.message ?? JSON.stringify(e) ?? 'Unknown error';
+      showAlert('Failed to Send', msg);
     } finally {
       setSending(false);
     }
