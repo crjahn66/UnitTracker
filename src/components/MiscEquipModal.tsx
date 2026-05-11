@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { format, parse, isValid } from 'date-fns';
 import { useStore } from '../store/useStore';
-import { ComponentStatus, MiscIssue } from '../types';
+import { ComponentStatus, MiscIssue, IssueUpdate } from '../types';
 import { saveImage, deleteImage } from '../utils/imageStorage';
 import { pushToCloud } from '../utils/sync';
 import { useEditMode } from '../context/EditModeContext';
@@ -166,13 +166,41 @@ function ResolveForm({ onSave, onCancel }: {
   );
 }
 
+// ─── Add Update Form ──────────────────────────────────────────────────────────
+
+function AddUpdateForm({ onSave, onCancel }: {
+  onSave: (note: string, updatedBy: string) => void;
+  onCancel: () => void;
+}) {
+  const [note, setNote] = useState('');
+  const [updatedBy, setUpdatedBy] = useState('');
+  const noteRef = React.useRef<TextInput>(null);
+  return (
+    <View style={uf.container}>
+      <Text style={uf.title}>Add Update</Text>
+      <NameSelectField label="Updated By" value={updatedBy} onChange={(v) => { setUpdatedBy(v); if (v) setTimeout(() => noteRef.current?.focus(), 50); }} rememberLastUsed />
+      <FormField label="Update Note" value={note} onChangeText={setNote} placeholder="What changed or was actioned…" multiline inputRef={noteRef} />
+      <View style={f.buttonRow}>
+        <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={onCancel}><Text style={f.btnOutlineText}>Cancel</Text></TouchableOpacity>
+        <TouchableOpacity style={[f.btn, f.btnPrimary]} onPress={() => {
+          if (!updatedBy.trim()) { if (Platform.OS === 'web') { (window as any).alert('Required\nPlease enter who is adding this update.'); } else { Alert.alert('Required', 'Please enter who is adding this update.'); } return; }
+          if (!note.trim()) { if (Platform.OS === 'web') { (window as any).alert('Required\nPlease enter an update note.'); } else { Alert.alert('Required', 'Please enter an update note.'); } return; }
+          onSave(note.trim(), updatedBy.trim());
+        }}><Text style={f.btnPrimaryText}>Save Update</Text></TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 // ─── Issue Card ────────────────────────────────────────────────────────────────
 
-function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddImage, onRemoveImage, onViewImage }: {
+function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddUpdate, onAddImage, onRemoveImage, onViewImage }: {
   issue: MiscIssue; onResolve: () => void; onUnresolve: () => void; onDelete: () => void; onEdit: () => void;
+  onAddUpdate: (note: string, updatedBy: string) => void;
   onAddImage: (uri: string) => void; onRemoveImage: (uri: string) => void; onViewImage: (uri: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [showUpdateForm, setShowUpdateForm] = useState(false);
   const { isEditMode } = useEditMode();
   const ageDays = !issue.resolved && issue.dateFound
     ? Math.floor((Date.now() - new Date(issue.dateFound).getTime()) / 86400000)
@@ -216,7 +244,6 @@ function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddImage
         <View style={ic.body}>
           {!!issue.notes && <View style={ic.detailRow}><Text style={ic.detailLabel}>Notes:</Text><Text style={ic.detailValue}>{issue.notes}</Text></View>}
           {!!issue.suggestedResolution && <View style={ic.detailRow}><Text style={ic.detailLabel}>Suggested:</Text><Text style={ic.detailValue}>{issue.suggestedResolution}</Text></View>}
-          {!!issue.dateUpdated && <View style={ic.detailRow}><Text style={ic.detailLabel}>Last Updated:</Text><Text style={ic.detailValue}>{fmtDate(issue.dateUpdated)}</Text></View>}
           {issue.resolved && (
             <>
               <View style={ic.detailRow}><Text style={ic.detailLabel}>Fixed:</Text><Text style={ic.detailValue}>{fmtDate(issue.dateFixed)}</Text></View>
@@ -224,10 +251,21 @@ function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddImage
               {!!issue.howFixed && <View style={ic.detailRow}><Text style={ic.detailLabel}>How Fixed:</Text><Text style={ic.detailValue}>{issue.howFixed}</Text></View>}
             </>
           )}
+          {(issue.updates?.length ?? 0) > 0 && (
+            <View style={uf.log}>
+              <Text style={uf.logHeader}>Updates</Text>
+              {[...(issue.updates ?? [])].reverse().map((u) => (
+                <View key={u.id} style={uf.logEntry}>
+                  <Text style={uf.logMeta}>{fmtDate(u.date)}  ·  {u.updatedBy}</Text>
+                  <Text style={uf.logNote}>{u.note}</Text>
+                </View>
+              ))}
+            </View>
+          )}
           {(issue.images?.length ?? 0) > 0 && (
             <ImageStrip images={issue.images ?? []} onAdd={pickImages} onRemove={onRemoveImage} onView={onViewImage} />
           )}
-          {isEditMode && (
+          {isEditMode && !showUpdateForm && (
             <View style={ic.actions}>
               {!issue.resolved && (
                 <TouchableOpacity style={[ic.actionBtn, ic.resolveBtn]} onPress={onResolve}>
@@ -245,6 +283,10 @@ function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddImage
                 <Ionicons name="pencil-outline" size={14} color="#d29922" style={{ marginRight: 4 }} />
                 <Text style={ic.editBtnText}>Edit</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={[ic.actionBtn, ic.updateBtn]} onPress={() => setShowUpdateForm(true)}>
+                <Ionicons name="add-circle-outline" size={14} color="#58a6ff" style={{ marginRight: 4 }} />
+                <Text style={ic.updateBtnText}>Add Update</Text>
+              </TouchableOpacity>
               {!issue.resolved && (
                 <TouchableOpacity style={[ic.actionBtn, ic.photoBtn]} onPress={pickImages}>
                   <Ionicons name="camera-outline" size={14} color="#58a6ff" style={{ marginRight: 4 }} />
@@ -256,6 +298,12 @@ function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddImage
                 <Text style={ic.deleteBtnText}>Delete</Text>
               </TouchableOpacity>
             </View>
+          )}
+          {isEditMode && showUpdateForm && (
+            <AddUpdateForm
+              onCancel={() => setShowUpdateForm(false)}
+              onSave={(note, updatedBy) => { onAddUpdate(note, updatedBy); setShowUpdateForm(false); }}
+            />
           )}
         </View>
       )}
@@ -417,6 +465,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
   const addMiscIssue      = useStore((state) => state.addMiscIssue);
   const updateMiscIssue   = useStore((state) => state.updateMiscIssue);
   const deleteMiscIssue   = useStore((state) => state.deleteMiscIssue);
+  const addMiscIssueUpdate = useStore((state) => state.addMiscIssueUpdate);
   const setMiscEquipStatusDate = useStore((state) => state.setMiscEquipStatusDate);
   const { isEditMode } = useEditMode();
 
@@ -549,6 +598,12 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
     updateMiscIssue(unitId, itemId, issueId, { resolved: false, dateFixed: undefined, fixedBy: undefined, howFixed: undefined });
     pushToCloud().catch(() => {});
   }, [unitId, itemId, updateMiscIssue]);
+
+  const handleAddUpdate = useCallback((issueId: string, note: string, updatedBy: string) => {
+    const update = { id: genId(), date: new Date().toISOString(), note, updatedBy };
+    addMiscIssueUpdate(unitId, itemId, issueId, update);
+    pushToCloud().catch(() => {});
+  }, [unitId, itemId, addMiscIssueUpdate]);
 
   const handleDeleteItem = useCallback(() => {
     const doDelete = () => {
@@ -696,6 +751,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
                 onUnresolve={() => handleUnresolve(issue.id)}
                 onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}
                 onDelete={() => handleDelete(issue.id)}
+                onAddUpdate={(note, updatedBy) => handleAddUpdate(issue.id, note, updatedBy)}
                 onAddImage={(uri) => handleAddImage(issue.id, uri)}
                 onRemoveImage={(uri) => handleRemoveImage(issue.id, uri)}
                 onViewImage={setViewingPhoto}
@@ -713,6 +769,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
                     onUnresolve={() => handleUnresolve(issue.id)}
                     onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}
                     onDelete={() => handleDelete(issue.id)}
+                    onAddUpdate={(note, updatedBy) => handleAddUpdate(issue.id, note, updatedBy)}
                     onAddImage={(uri) => handleAddImage(issue.id, uri)}
                     onRemoveImage={(uri) => handleRemoveImage(issue.id, uri)}
                     onViewImage={setViewingPhoto}
@@ -862,6 +919,7 @@ const ic = StyleSheet.create({
   resolveBtn: { borderColor: '#3fb950' }, resolveBtnText: { color: '#3fb950', fontSize: 12, fontWeight: '600' },
   unresolveBtn: { borderColor: '#8b949e' }, unresolveBtnText: { color: '#8b949e', fontSize: 12, fontWeight: '600' },
   editBtn: { borderColor: '#d29922' }, editBtnText: { color: '#d29922', fontSize: 12, fontWeight: '600' },
+  updateBtn: { borderColor: '#58a6ff' }, updateBtnText: { color: '#58a6ff', fontSize: 12, fontWeight: '600' },
   photoBtn: { borderColor: '#58a6ff' }, photoBtnText: { color: '#58a6ff', fontSize: 12, fontWeight: '600' },
   deleteBtn: { borderColor: '#f85149' }, deleteBtnText: { color: '#f85149', fontSize: 12, fontWeight: '600' },
 });
@@ -877,6 +935,16 @@ const img = StyleSheet.create({
   addBtnText: { color: '#58a6ff', fontSize: 11, marginTop: 2 },
   statusAddBtn: { flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingVertical: 5, paddingHorizontal: 8, borderRadius: 6, borderWidth: 1, alignSelf: 'flex-start' },
   statusAddBtnText: { fontSize: 12, fontWeight: '600', marginLeft: 4 },
+});
+
+const uf = StyleSheet.create({
+  container: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#21262d' },
+  title: { color: '#e6edf3', fontSize: 13, fontWeight: '700', marginBottom: 10 },
+  log: { marginTop: 10, marginBottom: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#21262d' },
+  logHeader: { color: '#8b949e', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 8 },
+  logEntry: { borderLeftWidth: 2, borderLeftColor: '#58a6ff', paddingLeft: 8, marginBottom: 8 },
+  logMeta: { color: '#8b949e', fontSize: 11, marginBottom: 2 },
+  logNote: { color: '#e6edf3', fontSize: 12 },
 });
 
 const f = StyleSheet.create({

@@ -79,6 +79,15 @@ const fmtDate = (iso?: string) => {
   try { return format(new Date(iso), 'MM/dd/yyyy'); } catch { return iso; }
 };
 
+function notesWithUpdates(issue: { notes: string; updates?: Array<{ date: string; updatedBy: string; note: string }> }): string {
+  if (!issue.updates?.length) return issue.notes;
+  const log = [...issue.updates]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .map((u) => `[${fmtDate(u.date)} · ${u.updatedBy}]\n${u.note}`)
+    .join('\n\n');
+  return `${issue.notes}\n\n--- Updates ---\n${log}`;
+}
+
 function rowClr(unit: Unit): Clr {
   const compIssues = Object.values(unit.components).flatMap((c) => c.issues);
   const miscIssues = (unit.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues);
@@ -232,7 +241,7 @@ async function buildConstraints(wb: any, sorted: Unit[]) {
 
     const r = ws.addRow([
       unitId, side, unitNum, label,
-      fmtDate(issue.dateFound), fmtDate(issue.dateUpdated), issue.foundBy, (issue as any).responsibleParty ?? '', issue.notes,
+      fmtDate(issue.dateFound), fmtDate(issue.dateUpdated), issue.foundBy, (issue as any).responsibleParty ?? '', notesWithUpdates(issue),
       (issue as any).suggestedResolution ?? '',
       issue.resolved ? 'Resolved' : 'Open',
       fmtDate(issue.dateFixed), issue.fixedBy ?? '', issue.howFixed ?? '',
@@ -377,7 +386,7 @@ async function buildWithConstraints(wb: any, sorted: Unit[]) {
       unitId, side, unitNum, label,
       fmtDate(issue.dateFound), fmtDate(issue.dateUpdated),
       issue.foundBy, (issue as any).responsibleParty ?? '',
-      issue.notes, (issue as any).suggestedResolution ?? '',
+      notesWithUpdates(issue), (issue as any).suggestedResolution ?? '',
       issue.resolved ? 'Resolved' : 'Open',
       '',
     ]);
@@ -426,7 +435,7 @@ function buildGeneralIssues(wb: any, issues: GeneralIssue[]) {
   const sorted = [...issues].sort((a, b) => b.dateFound.localeCompare(a.dateFound));
   for (const issue of sorted) {
     const clr = issue.resolved ? GRN : RED;
-    const r = ws.addRow([fmtDate(issue.dateFound), fmtDate(issue.dateUpdated), issue.foundBy, issue.responsibleParty ?? '', issue.notes, issue.resolved ? 'Resolved' : 'Open', fmtDate(issue.dateFixed), issue.fixedBy ?? '', issue.howFixed ?? '']);
+    const r = ws.addRow([fmtDate(issue.dateFound), fmtDate(issue.dateUpdated), issue.foundBy, issue.responsibleParty ?? '', notesWithUpdates(issue), issue.resolved ? 'Resolved' : 'Open', fmtDate(issue.dateFixed), issue.fixedBy ?? '', issue.howFixed ?? '']);
     r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, clr, col === 6, col === 1 || col >= 6));
     r.height = autoRowHeight(r, colWidths);
   }
