@@ -1,1 +1,3 @@
-- Added "© 2026 CustomIsTheName" copyright footer at the bottom of every tab
+- Add Update button on issues — log updates with date and name
+- Edit or delete individual issue updates
+- Version number now shown under copyright footer
