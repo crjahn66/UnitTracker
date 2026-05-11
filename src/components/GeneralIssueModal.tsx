@@ -198,16 +198,20 @@ function AddUpdateForm({ onSave, onCancel }: {
 
 // ─── Issue Card ────────────────────────────────────────────────────────────────
 
-function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddUpdate }: {
+function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddUpdate, onEditUpdate, onDeleteUpdate }: {
   issue: GeneralIssue;
   onResolve: () => void;
   onUnresolve: () => void;
   onDelete: () => void;
   onEdit: () => void;
   onAddUpdate: (note: string, updatedBy: string) => void;
+  onEditUpdate: (updateId: string, changes: { note: string; updatedBy: string }) => void;
+  onDeleteUpdate: (updateId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showUpdateForm, setShowUpdateForm] = useState(false);
+  const [editingUpdateId, setEditingUpdateId] = useState<string | null>(null);
+  const [editUpdateForm, setEditUpdateForm] = useState({ note: '', updatedBy: '' });
   const { isEditMode } = useEditMode();
 
   return (
@@ -240,12 +244,35 @@ function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddUpdat
           {(issue.updates?.length ?? 0) > 0 && (
             <View style={uf.log}>
               <Text style={uf.logHeader}>Updates</Text>
-              {[...(issue.updates ?? [])].reverse().map((u) => (
-                <View key={u.id} style={uf.logEntry}>
-                  <Text style={uf.logMeta}>{fmtDate(u.date)}  ·  {u.updatedBy}</Text>
-                  <Text style={uf.logNote}>{u.note}</Text>
-                </View>
-              ))}
+              {[...(issue.updates ?? [])].reverse().map((u) =>
+                editingUpdateId === u.id ? (
+                  <View key={u.id} style={uf.logEditEntry}>
+                    <NameSelectField label="Updated By" value={editUpdateForm.updatedBy} onChange={(v) => setEditUpdateForm((p) => ({ ...p, updatedBy: v }))} rememberLastUsed />
+                    <FormField label="Note" value={editUpdateForm.note} onChangeText={(v) => setEditUpdateForm((p) => ({ ...p, note: v }))} multiline />
+                    <View style={f.buttonRow}>
+                      <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={() => setEditingUpdateId(null)}><Text style={f.btnOutlineText}>Cancel</Text></TouchableOpacity>
+                      <TouchableOpacity style={[f.btn, f.btnPrimary]} onPress={() => { if (editUpdateForm.note.trim() && editUpdateForm.updatedBy.trim()) { onEditUpdate(u.id, editUpdateForm); setEditingUpdateId(null); } }}><Text style={f.btnPrimaryText}>Save</Text></TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <View key={u.id} style={uf.logEntry}>
+                    <View style={uf.logEntryHeader}>
+                      <Text style={uf.logMeta}>{fmtDate(u.date)}  ·  {u.updatedBy}</Text>
+                      {isEditMode && (
+                        <View style={uf.logEntryActions}>
+                          <TouchableOpacity onPress={() => { setEditingUpdateId(u.id); setEditUpdateForm({ note: u.note, updatedBy: u.updatedBy }); }}>
+                            <Ionicons name="pencil-outline" size={13} color="#d29922" />
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => onDeleteUpdate(u.id)} style={{ marginLeft: 10 }}>
+                            <Ionicons name="trash-outline" size={13} color="#f85149" />
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={uf.logNote}>{u.note}</Text>
+                  </View>
+                )
+              )}
             </View>
           )}
           {isEditMode && !showUpdateForm && (
@@ -295,7 +322,9 @@ export default function GeneralIssueModal({ onClose }: Props) {
   const addGeneralIssue    = useStore((state) => state.addGeneralIssue);
   const updateGeneralIssue = useStore((state) => state.updateGeneralIssue);
   const deleteGeneralIssue = useStore((state) => state.deleteGeneralIssue);
-  const addGeneralIssueUpdate = useStore((state) => state.addGeneralIssueUpdate);
+  const addGeneralIssueUpdate    = useStore((state) => state.addGeneralIssueUpdate);
+  const editGeneralIssueUpdate   = useStore((state) => state.editGeneralIssueUpdate);
+  const deleteGeneralIssueUpdate = useStore((state) => state.deleteGeneralIssueUpdate);
 
   const { isEditMode } = useEditMode();
   const [view, setView]           = useState<ModalView>('list');
@@ -369,6 +398,16 @@ export default function GeneralIssueModal({ onClose }: Props) {
     pushToCloud().catch(() => {});
   }, [addGeneralIssueUpdate]);
 
+  const handleEditUpdate = useCallback((issueId: string, updateId: string, changes: { note: string; updatedBy: string }) => {
+    editGeneralIssueUpdate(issueId, updateId, changes);
+    pushToCloud().catch(() => {});
+  }, [editGeneralIssueUpdate]);
+
+  const handleDeleteUpdate = useCallback((issueId: string, updateId: string) => {
+    deleteGeneralIssueUpdate(issueId, updateId);
+    pushToCloud().catch(() => {});
+  }, [deleteGeneralIssueUpdate]);
+
   const active    = generalIssues.filter((i) => !i.deleted);
   const sorted    = [...active].sort((a, b) => b.dateFound.localeCompare(a.dateFound));
   const openCount = active.filter((i) => !i.resolved).length;
@@ -425,6 +464,8 @@ export default function GeneralIssueModal({ onClose }: Props) {
                   onEdit={() => { setEditingId(issue.id); setView('editIssue'); }}
                   onDelete={() => handleDelete(issue.id)}
                   onAddUpdate={(note, updatedBy) => handleAddUpdate(issue.id, note, updatedBy)}
+                  onEditUpdate={(updateId, changes) => handleEditUpdate(issue.id, updateId, changes)}
+                  onDeleteUpdate={(updateId) => handleDeleteUpdate(issue.id, updateId)}
                 />
               ))}
               {isEditMode && (
@@ -552,7 +593,10 @@ const uf = StyleSheet.create({
   log: { marginTop: 10, marginBottom: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#21262d' },
   logHeader: { color: '#8b949e', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 8 },
   logEntry: { borderLeftWidth: 2, borderLeftColor: '#58a6ff', paddingLeft: 8, marginBottom: 8 },
-  logMeta: { color: '#8b949e', fontSize: 11, marginBottom: 2 },
+  logEntryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
+  logEntryActions: { flexDirection: 'row', alignItems: 'center' },
+  logEditEntry: { marginBottom: 8, paddingTop: 4, borderTopWidth: 1, borderTopColor: '#21262d' },
+  logMeta: { color: '#8b949e', fontSize: 11 },
   logNote: { color: '#e6edf3', fontSize: 12 },
 });
 

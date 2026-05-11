@@ -61,10 +61,16 @@ interface StoreState {
   setComponentStatusDate: (unitId: string, component: ComponentKey, date: string) => void;
   setMiscEquipStatusDate: (unitId: string, itemId: string, date: string) => void;
   addIssueUpdate: (unitId: string, componentKey: ComponentKey, issueId: string, update: IssueUpdate) => void;
+  editIssueUpdate: (unitId: string, componentKey: ComponentKey, issueId: string, updateId: string, changes: Pick<IssueUpdate, 'note' | 'updatedBy'>) => void;
+  deleteIssueUpdate: (unitId: string, componentKey: ComponentKey, issueId: string, updateId: string) => void;
   addMiscIssueUpdate: (unitId: string, itemId: string, issueId: string, update: IssueUpdate) => void;
+  editMiscIssueUpdate: (unitId: string, itemId: string, issueId: string, updateId: string, changes: Pick<IssueUpdate, 'note' | 'updatedBy'>) => void;
+  deleteMiscIssueUpdate: (unitId: string, itemId: string, issueId: string, updateId: string) => void;
   addGeneralIssue: (issue: GeneralIssue) => void;
   updateGeneralIssue: (issueId: string, updates: Partial<GeneralIssue>) => void;
   addGeneralIssueUpdate: (issueId: string, update: IssueUpdate) => void;
+  editGeneralIssueUpdate: (issueId: string, updateId: string, changes: Pick<IssueUpdate, 'note' | 'updatedBy'>) => void;
+  deleteGeneralIssueUpdate: (issueId: string, updateId: string) => void;
   deleteGeneralIssue: (issueId: string) => void;
   setChillerAvailable: (unitId: string, available: boolean) => void;
   mergeImport: (importUnits: UnitsStore, importGeneralIssues: GeneralIssue[]) => void;
@@ -470,6 +476,22 @@ export const useStore = create<StoreState>()(
           };
         }),
 
+      editIssueUpdate: (unitId, componentKey, issueId, updateId, changes) =>
+        set((state) => {
+          const comp = state.units[unitId].components[componentKey];
+          return {
+            units: { ...state.units, [unitId]: { ...state.units[unitId], components: { ...state.units[unitId].components, [componentKey]: { ...comp, issues: comp.issues.map((i) => i.id === issueId ? { ...i, updates: (i.updates ?? []).map((u) => u.id === updateId ? { ...u, ...changes } : u) } : i) } } } },
+          };
+        }),
+
+      deleteIssueUpdate: (unitId, componentKey, issueId, updateId) =>
+        set((state) => {
+          const comp = state.units[unitId].components[componentKey];
+          return {
+            units: { ...state.units, [unitId]: { ...state.units[unitId], components: { ...state.units[unitId].components, [componentKey]: { ...comp, issues: comp.issues.map((i) => i.id === issueId ? { ...i, updates: (i.updates ?? []).filter((u) => u.id !== updateId) } : i) } } } },
+          };
+        }),
+
       addMiscIssueUpdate: (unitId, itemId, issueId, update) =>
         set((state) => {
           const u = state.units[unitId];
@@ -495,6 +517,22 @@ export const useStore = create<StoreState>()(
           };
         }),
 
+      editMiscIssueUpdate: (unitId, itemId, issueId, updateId, changes) =>
+        set((state) => {
+          const u = state.units[unitId];
+          return {
+            units: { ...state.units, [unitId]: { ...u, miscEquipment: (u.miscEquipment ?? []).map((item) => item.id === itemId ? { ...item, issues: item.issues.map((i) => i.id === issueId ? { ...i, updates: (i.updates ?? []).map((upd) => upd.id === updateId ? { ...upd, ...changes } : upd) } : i) } : item) } },
+          };
+        }),
+
+      deleteMiscIssueUpdate: (unitId, itemId, issueId, updateId) =>
+        set((state) => {
+          const u = state.units[unitId];
+          return {
+            units: { ...state.units, [unitId]: { ...u, miscEquipment: (u.miscEquipment ?? []).map((item) => item.id === itemId ? { ...item, issues: item.issues.map((i) => i.id === issueId ? { ...i, updates: (i.updates ?? []).filter((upd) => upd.id !== updateId) } : i) } : item) } },
+          };
+        }),
+
       addGeneralIssue: (issue) =>
         set((state) => ({ generalIssues: [...state.generalIssues, issue] })),
 
@@ -510,6 +548,24 @@ export const useStore = create<StoreState>()(
           generalIssues: state.generalIssues.map((i) =>
             i.id === issueId
               ? { ...i, dateUpdated: update.date, updates: [...(i.updates ?? []), update] }
+              : i
+          ),
+        })),
+
+      editGeneralIssueUpdate: (issueId, updateId, changes) =>
+        set((state) => ({
+          generalIssues: state.generalIssues.map((i) =>
+            i.id === issueId
+              ? { ...i, updates: (i.updates ?? []).map((u) => u.id === updateId ? { ...u, ...changes } : u) }
+              : i
+          ),
+        })),
+
+      deleteGeneralIssueUpdate: (issueId, updateId) =>
+        set((state) => ({
+          generalIssues: state.generalIssues.map((i) =>
+            i.id === issueId
+              ? { ...i, updates: (i.updates ?? []).filter((u) => u.id !== updateId) }
               : i
           ),
         })),

@@ -194,13 +194,17 @@ function AddUpdateForm({ onSave, onCancel }: {
 
 // ─── Issue Card ────────────────────────────────────────────────────────────────
 
-function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddUpdate, onAddImage, onRemoveImage, onViewImage }: {
+function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddUpdate, onEditUpdate, onDeleteUpdate, onAddImage, onRemoveImage, onViewImage }: {
   issue: MiscIssue; onResolve: () => void; onUnresolve: () => void; onDelete: () => void; onEdit: () => void;
   onAddUpdate: (note: string, updatedBy: string) => void;
+  onEditUpdate: (updateId: string, changes: { note: string; updatedBy: string }) => void;
+  onDeleteUpdate: (updateId: string) => void;
   onAddImage: (uri: string) => void; onRemoveImage: (uri: string) => void; onViewImage: (uri: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showUpdateForm, setShowUpdateForm] = useState(false);
+  const [editingUpdateId, setEditingUpdateId] = useState<string | null>(null);
+  const [editUpdateForm, setEditUpdateForm] = useState({ note: '', updatedBy: '' });
   const { isEditMode } = useEditMode();
   const ageDays = !issue.resolved && issue.dateFound
     ? Math.floor((Date.now() - new Date(issue.dateFound).getTime()) / 86400000)
@@ -254,12 +258,35 @@ function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddUpdat
           {(issue.updates?.length ?? 0) > 0 && (
             <View style={uf.log}>
               <Text style={uf.logHeader}>Updates</Text>
-              {[...(issue.updates ?? [])].reverse().map((u) => (
-                <View key={u.id} style={uf.logEntry}>
-                  <Text style={uf.logMeta}>{fmtDate(u.date)}  ·  {u.updatedBy}</Text>
-                  <Text style={uf.logNote}>{u.note}</Text>
-                </View>
-              ))}
+              {[...(issue.updates ?? [])].reverse().map((u) =>
+                editingUpdateId === u.id ? (
+                  <View key={u.id} style={uf.logEditEntry}>
+                    <NameSelectField label="Updated By" value={editUpdateForm.updatedBy} onChange={(v) => setEditUpdateForm((p) => ({ ...p, updatedBy: v }))} rememberLastUsed />
+                    <FormField label="Note" value={editUpdateForm.note} onChangeText={(v) => setEditUpdateForm((p) => ({ ...p, note: v }))} multiline />
+                    <View style={f.buttonRow}>
+                      <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={() => setEditingUpdateId(null)}><Text style={f.btnOutlineText}>Cancel</Text></TouchableOpacity>
+                      <TouchableOpacity style={[f.btn, f.btnPrimary]} onPress={() => { if (editUpdateForm.note.trim() && editUpdateForm.updatedBy.trim()) { onEditUpdate(u.id, editUpdateForm); setEditingUpdateId(null); } }}><Text style={f.btnPrimaryText}>Save</Text></TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <View key={u.id} style={uf.logEntry}>
+                    <View style={uf.logEntryHeader}>
+                      <Text style={uf.logMeta}>{fmtDate(u.date)}  ·  {u.updatedBy}</Text>
+                      {isEditMode && (
+                        <View style={uf.logEntryActions}>
+                          <TouchableOpacity onPress={() => { setEditingUpdateId(u.id); setEditUpdateForm({ note: u.note, updatedBy: u.updatedBy }); }}>
+                            <Ionicons name="pencil-outline" size={13} color="#d29922" />
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => onDeleteUpdate(u.id)} style={{ marginLeft: 10 }}>
+                            <Ionicons name="trash-outline" size={13} color="#f85149" />
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={uf.logNote}>{u.note}</Text>
+                  </View>
+                )
+              )}
             </View>
           )}
           {(issue.images?.length ?? 0) > 0 && (
@@ -465,7 +492,9 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
   const addMiscIssue      = useStore((state) => state.addMiscIssue);
   const updateMiscIssue   = useStore((state) => state.updateMiscIssue);
   const deleteMiscIssue   = useStore((state) => state.deleteMiscIssue);
-  const addMiscIssueUpdate = useStore((state) => state.addMiscIssueUpdate);
+  const addMiscIssueUpdate    = useStore((state) => state.addMiscIssueUpdate);
+  const editMiscIssueUpdate   = useStore((state) => state.editMiscIssueUpdate);
+  const deleteMiscIssueUpdate = useStore((state) => state.deleteMiscIssueUpdate);
   const setMiscEquipStatusDate = useStore((state) => state.setMiscEquipStatusDate);
   const { isEditMode } = useEditMode();
 
@@ -604,6 +633,16 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
     addMiscIssueUpdate(unitId, itemId, issueId, update);
     pushToCloud().catch(() => {});
   }, [unitId, itemId, addMiscIssueUpdate]);
+
+  const handleEditUpdate = useCallback((issueId: string, updateId: string, changes: { note: string; updatedBy: string }) => {
+    editMiscIssueUpdate(unitId, itemId, issueId, updateId, changes);
+    pushToCloud().catch(() => {});
+  }, [unitId, itemId, editMiscIssueUpdate]);
+
+  const handleDeleteUpdate = useCallback((issueId: string, updateId: string) => {
+    deleteMiscIssueUpdate(unitId, itemId, issueId, updateId);
+    pushToCloud().catch(() => {});
+  }, [unitId, itemId, deleteMiscIssueUpdate]);
 
   const handleDeleteItem = useCallback(() => {
     const doDelete = () => {
@@ -752,6 +791,8 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
                 onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}
                 onDelete={() => handleDelete(issue.id)}
                 onAddUpdate={(note, updatedBy) => handleAddUpdate(issue.id, note, updatedBy)}
+                onEditUpdate={(updateId, changes) => handleEditUpdate(issue.id, updateId, changes)}
+                onDeleteUpdate={(updateId) => handleDeleteUpdate(issue.id, updateId)}
                 onAddImage={(uri) => handleAddImage(issue.id, uri)}
                 onRemoveImage={(uri) => handleRemoveImage(issue.id, uri)}
                 onViewImage={setViewingPhoto}
@@ -770,6 +811,8 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
                     onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}
                     onDelete={() => handleDelete(issue.id)}
                     onAddUpdate={(note, updatedBy) => handleAddUpdate(issue.id, note, updatedBy)}
+                    onEditUpdate={(updateId, changes) => handleEditUpdate(issue.id, updateId, changes)}
+                    onDeleteUpdate={(updateId) => handleDeleteUpdate(issue.id, updateId)}
                     onAddImage={(uri) => handleAddImage(issue.id, uri)}
                     onRemoveImage={(uri) => handleRemoveImage(issue.id, uri)}
                     onViewImage={setViewingPhoto}
@@ -943,7 +986,10 @@ const uf = StyleSheet.create({
   log: { marginTop: 10, marginBottom: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#21262d' },
   logHeader: { color: '#8b949e', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 8 },
   logEntry: { borderLeftWidth: 2, borderLeftColor: '#58a6ff', paddingLeft: 8, marginBottom: 8 },
-  logMeta: { color: '#8b949e', fontSize: 11, marginBottom: 2 },
+  logEntryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
+  logEntryActions: { flexDirection: 'row', alignItems: 'center' },
+  logEditEntry: { marginBottom: 8, paddingTop: 4, borderTopWidth: 1, borderTopColor: '#21262d' },
+  logMeta: { color: '#8b949e', fontSize: 11 },
   logNote: { color: '#e6edf3', fontSize: 12 },
 });
 
