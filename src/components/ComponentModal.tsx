@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { format, parse, isValid } from 'date-fns';
 import { useStore } from '../store/useStore';
-import { COMPONENTS, ComponentKey, ComponentStatus, Issue } from '../types';
+import { COMPONENTS, ComponentKey, ComponentStatus, Issue, IssueUpdate } from '../types';
 import { saveImage, deleteImage } from '../utils/imageStorage';
 import { pushToCloud } from '../utils/sync';
 import { useEditMode } from '../context/EditModeContext';
@@ -191,19 +191,52 @@ function ResolveForm({ onSave, onCancel, subtitle }: {
   );
 }
 
+// ─── Add Update Form ──────────────────────────────────────────────────────────
+
+function AddUpdateForm({ onSave, onCancel }: {
+  onSave: (note: string, updatedBy: string) => void;
+  onCancel: () => void;
+}) {
+  const [note, setNote] = useState('');
+  const [updatedBy, setUpdatedBy] = useState('');
+  const noteRef = React.useRef<TextInput>(null);
+
+  return (
+    <View style={uf.container}>
+      <Text style={uf.title}>Add Update</Text>
+      <NameSelectField label="Updated By" value={updatedBy} onChange={(v) => { setUpdatedBy(v); if (v) setTimeout(() => noteRef.current?.focus(), 50); }} rememberLastUsed />
+      <FormField label="Update Note" value={note} onChangeText={setNote} placeholder="What changed or was actioned…" multiline inputRef={noteRef} />
+      <View style={f.buttonRow}>
+        <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={onCancel}>
+          <Text style={f.btnOutlineText}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[f.btn, f.btnPrimary]} onPress={() => {
+          if (!updatedBy.trim()) { showAlert('Required', 'Please enter who is adding this update.'); return; }
+          if (!note.trim()) { showAlert('Required', 'Please enter an update note.'); return; }
+          onSave(note.trim(), updatedBy.trim());
+        }}>
+          <Text style={f.btnPrimaryText}>Save Update</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 // ─── Issue Card ────────────────────────────────────────────────────────────────
 
-function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddImage, onRemoveImage, onViewImage }: {
+function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddUpdate, onAddImage, onRemoveImage, onViewImage }: {
   issue: Issue;
   onResolve: () => void;
   onUnresolve: () => void;
   onDelete: () => void;
   onEdit: () => void;
+  onAddUpdate: (note: string, updatedBy: string) => void;
   onAddImage: (uri: string) => void;
   onRemoveImage: (uri: string) => void;
   onViewImage: (uri: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [showUpdateForm, setShowUpdateForm] = useState(false);
   const { isEditMode } = useEditMode();
   const ageDays = !issue.resolved && issue.dateFound
     ? Math.floor((Date.now() - new Date(issue.dateFound).getTime()) / 86400000)
@@ -248,13 +281,23 @@ function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddImage
         <View style={ic.body}>
           <DetailRow label="Notes" value={issue.notes} />
           <DetailRow label="Suggested Resolution" value={issue.suggestedResolution} />
-          {issue.dateUpdated && <DetailRow label="Last Updated" value={fmtDate(issue.dateUpdated)} />}
           {issue.resolved && (
             <>
               <DetailRow label="Fixed" value={fmtDate(issue.dateFixed)} />
               <DetailRow label="Fixed By" value={issue.fixedBy} />
               <DetailRow label="How Fixed" value={issue.howFixed} />
             </>
+          )}
+          {(issue.updates?.length ?? 0) > 0 && (
+            <View style={uf.log}>
+              <Text style={uf.logHeader}>Updates</Text>
+              {[...(issue.updates ?? [])].reverse().map((u) => (
+                <View key={u.id} style={uf.logEntry}>
+                  <Text style={uf.logMeta}>{fmtDate(u.date)}  ·  {u.updatedBy}</Text>
+                  <Text style={uf.logNote}>{u.note}</Text>
+                </View>
+              ))}
+            </View>
           )}
           {(issue.images?.length ?? 0) > 0 && (
             <ImageStrip
@@ -264,7 +307,7 @@ function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddImage
               onView={onViewImage}
             />
           )}
-          {isEditMode && (
+          {isEditMode && !showUpdateForm && (
             <View style={ic.actions}>
               {!issue.resolved && (
                 <TouchableOpacity style={[ic.actionBtn, ic.resolveBtn]} onPress={onResolve}>
@@ -282,6 +325,10 @@ function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddImage
                 <Ionicons name="pencil-outline" size={14} color="#d29922" style={{ marginRight: 4 }} />
                 <Text style={ic.editBtnText}>Edit</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={[ic.actionBtn, ic.updateBtn]} onPress={() => setShowUpdateForm(true)}>
+                <Ionicons name="add-circle-outline" size={14} color="#58a6ff" style={{ marginRight: 4 }} />
+                <Text style={ic.updateBtnText}>Add Update</Text>
+              </TouchableOpacity>
               {!issue.resolved && (
                 <TouchableOpacity style={[ic.actionBtn, ic.photoBtn]} onPress={pickImages}>
                   <Ionicons name="camera-outline" size={14} color="#58a6ff" style={{ marginRight: 4 }} />
@@ -293,6 +340,12 @@ function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddImage
                 <Text style={ic.deleteBtnText}>Delete</Text>
               </TouchableOpacity>
             </View>
+          )}
+          {isEditMode && showUpdateForm && (
+            <AddUpdateForm
+              onCancel={() => setShowUpdateForm(false)}
+              onSave={(note, updatedBy) => { onAddUpdate(note, updatedBy); setShowUpdateForm(false); }}
+            />
           )}
         </View>
       )}
@@ -484,9 +537,10 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
   const setComponentProgressImages = useStore((state) => state.setComponentProgressImages);
   const setComponentGoodImages     = useStore((state) => state.setComponentGoodImages);
   const setComponentStatusDate     = useStore((state) => state.setComponentStatusDate);
-  const addIssue    = useStore((state) => state.addIssue);
-  const updateIssue = useStore((state) => state.updateIssue);
-  const deleteIssue = useStore((state) => state.deleteIssue);
+  const addIssue       = useStore((state) => state.addIssue);
+  const updateIssue    = useStore((state) => state.updateIssue);
+  const deleteIssue    = useStore((state) => state.deleteIssue);
+  const addIssueUpdate = useStore((state) => state.addIssueUpdate);
   const { isEditMode } = useEditMode();
 
   const [view, setView] = useState<ModalView>('detail');
@@ -706,6 +760,15 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
     [unitId, componentKey, updateIssue]
   );
 
+  const handleAddUpdate = useCallback(
+    (issueId: string, note: string, updatedBy: string) => {
+      const update: IssueUpdate = { id: genId(), date: new Date().toISOString(), note, updatedBy };
+      addIssueUpdate(unitId, componentKey, issueId, update);
+      pushToCloud();
+    },
+    [unitId, componentKey, addIssueUpdate]
+  );
+
   const visibleIssues = compData.issues.filter((i) => !i.deleted);
   const openIssuesList = visibleIssues.filter((i) => !i.resolved);
   const resolvedIssuesList = visibleIssues.filter((i) => i.resolved);
@@ -912,6 +975,7 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
                 onUnresolve={() => handleUnresolve(issue.id)}
                 onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}
                 onDelete={() => handleDelete(issue.id)}
+                onAddUpdate={(note, updatedBy) => handleAddUpdate(issue.id, note, updatedBy)}
                 onAddImage={(uri) => handleAddImage(issue.id, uri)}
                 onRemoveImage={(uri) => handleRemoveImage(issue.id, uri)}
                 onViewImage={setViewingPhoto}
@@ -931,6 +995,7 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
                     onUnresolve={() => handleUnresolve(issue.id)}
                     onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}
                     onDelete={() => handleDelete(issue.id)}
+                    onAddUpdate={(note, updatedBy) => handleAddUpdate(issue.id, note, updatedBy)}
                     onAddImage={(uri) => handleAddImage(issue.id, uri)}
                     onRemoveImage={(uri) => handleRemoveImage(issue.id, uri)}
                     onViewImage={setViewingPhoto}
@@ -1072,6 +1137,8 @@ const ic = StyleSheet.create({
   unresolveBtnText: { color: '#8b949e', fontSize: 12, fontWeight: '600' },
   editBtn: { borderColor: '#d29922' },
   editBtnText: { color: '#d29922', fontSize: 12, fontWeight: '600' },
+  updateBtn: { borderColor: '#58a6ff' },
+  updateBtnText: { color: '#58a6ff', fontSize: 12, fontWeight: '600' },
   photoBtn: { borderColor: '#58a6ff' },
   photoBtnText: { color: '#58a6ff', fontSize: 12, fontWeight: '600' },
   deleteBtn: { borderColor: '#f85149' },
@@ -1106,4 +1173,14 @@ const f = StyleSheet.create({
   btnGreen: { backgroundColor: '#3fb950' },
   btnAmber: { backgroundColor: '#d29922' },
   btnPrimaryText: { color: '#0d1117', fontWeight: '700', fontSize: 14 },
+});
+
+const uf = StyleSheet.create({
+  container: { marginTop: 10, padding: 10, backgroundColor: '#161b22', borderRadius: 8, borderWidth: 1, borderColor: '#58a6ff44' },
+  title: { color: '#58a6ff', fontSize: 13, fontWeight: '700', marginBottom: 8 },
+  log: { marginTop: 10, marginBottom: 4, backgroundColor: '#161b22', borderRadius: 6, borderLeftWidth: 2, borderLeftColor: '#58a6ff55', paddingHorizontal: 10, paddingVertical: 8 },
+  logHeader: { color: '#6e7681', fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 6, textTransform: 'uppercase' },
+  logEntry: { marginBottom: 8 },
+  logMeta: { color: '#58a6ff', fontSize: 11, fontWeight: '600', marginBottom: 2 },
+  logNote: { color: '#c9d1d9', fontSize: 12 },
 });

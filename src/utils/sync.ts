@@ -262,6 +262,15 @@ function unionPhotoArrays(a: string[] | undefined, b: string[] | undefined): str
   return all.length ? all : undefined;
 }
 
+function mergeIssueUpdates(a: any[] | undefined, b: any[] | undefined): any[] | undefined {
+  if (!a?.length && !b?.length) return undefined;
+  const map = new Map<string, any>();
+  for (const u of (a ?? [])) map.set(u.id, u);
+  for (const u of (b ?? [])) map.set(u.id, u);
+  const result = [...map.values()].sort((x, y) => x.date.localeCompare(y.date));
+  return result.length ? result : undefined;
+}
+
 // Merge remote photo URLs into a deep-copy of localUnits without touching the Zustand store.
 // Iterates over REMOTE issues so photos on issues that don't yet exist in the web local store
 // are still carried into the push, preventing web's auto-push from silently dropping them.

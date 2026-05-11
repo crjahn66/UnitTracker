@@ -9,6 +9,7 @@ import {
   ComponentKey,
   ComponentStatus,
   Issue,
+  IssueUpdate,
   GeneralIssue,
   MiscEquipItem,
   MiscIssue,
@@ -59,8 +60,11 @@ interface StoreState {
   setStageDate: (unitId: string, stage: StageKey, date: string) => void;
   setComponentStatusDate: (unitId: string, component: ComponentKey, date: string) => void;
   setMiscEquipStatusDate: (unitId: string, itemId: string, date: string) => void;
+  addIssueUpdate: (unitId: string, componentKey: ComponentKey, issueId: string, update: IssueUpdate) => void;
+  addMiscIssueUpdate: (unitId: string, itemId: string, issueId: string, update: IssueUpdate) => void;
   addGeneralIssue: (issue: GeneralIssue) => void;
   updateGeneralIssue: (issueId: string, updates: Partial<GeneralIssue>) => void;
+  addGeneralIssueUpdate: (issueId: string, update: IssueUpdate) => void;
   deleteGeneralIssue: (issueId: string) => void;
   setChillerAvailable: (unitId: string, available: boolean) => void;
   mergeImport: (importUnits: UnitsStore, importGeneralIssues: GeneralIssue[]) => void;
@@ -442,6 +446,55 @@ export const useStore = create<StoreState>()(
           },
         })),
 
+      addIssueUpdate: (unitId, componentKey, issueId, update) =>
+        set((state) => {
+          const comp = state.units[unitId].components[componentKey];
+          return {
+            units: {
+              ...state.units,
+              [unitId]: {
+                ...state.units[unitId],
+                components: {
+                  ...state.units[unitId].components,
+                  [componentKey]: {
+                    ...comp,
+                    issues: comp.issues.map((i) =>
+                      i.id === issueId
+                        ? { ...i, dateUpdated: update.date, updates: [...(i.updates ?? []), update] }
+                        : i
+                    ),
+                  },
+                },
+              },
+            },
+          };
+        }),
+
+      addMiscIssueUpdate: (unitId, itemId, issueId, update) =>
+        set((state) => {
+          const u = state.units[unitId];
+          return {
+            units: {
+              ...state.units,
+              [unitId]: {
+                ...u,
+                miscEquipment: (u.miscEquipment ?? []).map((item) =>
+                  item.id === itemId
+                    ? {
+                        ...item,
+                        issues: item.issues.map((i) =>
+                          i.id === issueId
+                            ? { ...i, dateUpdated: update.date, updates: [...(i.updates ?? []), update] }
+                            : i
+                        ),
+                      }
+                    : item
+                ),
+              },
+            },
+          };
+        }),
+
       addGeneralIssue: (issue) =>
         set((state) => ({ generalIssues: [...state.generalIssues, issue] })),
 
@@ -449,6 +502,15 @@ export const useStore = create<StoreState>()(
         set((state) => ({
           generalIssues: state.generalIssues.map((i) =>
             i.id === issueId ? { ...i, dateUpdated: new Date().toISOString(), ...updates } : i
+          ),
+        })),
+
+      addGeneralIssueUpdate: (issueId, update) =>
+        set((state) => ({
+          generalIssues: state.generalIssues.map((i) =>
+            i.id === issueId
+              ? { ...i, dateUpdated: update.date, updates: [...(i.updates ?? []), update] }
+              : i
           ),
         })),
 
@@ -465,6 +527,15 @@ export const useStore = create<StoreState>()(
           // If local side (a) has pending local file paths, preserve them — don't let stale remote
           // https:// URLs overwrite them (can happen when a prior sync failed mid-upload).
           // Only combine https:// URLs from both sides when local is already fully uploaded.
+          const mergeIssueUpdates = (a: any[] | undefined, b: any[] | undefined): any[] | undefined => {
+            if (!a?.length && !b?.length) return undefined;
+            const map = new Map<string, any>();
+            for (const u of (a ?? [])) map.set(u.id, u);
+            for (const u of (b ?? [])) map.set(u.id, u);
+            const result = [...map.values()].sort((x, y) => x.date.localeCompare(y.date));
+            return result.length ? result : undefined;
+          };
+
           const mergeImages = (a: string[] = [], b: string[] = []): string[] | undefined => {
             const aLocal = a.filter(u => !u.startsWith('https://'));
             const aRemote = a.filter(u => u.startsWith('https://'));
@@ -524,12 +595,13 @@ export const useStore = create<StoreState>()(
               const mergedIssues = existComp.issues.map((existIssue: any) => {
                 const impIssue = impIssueMap.get(existIssue.id);
                 if (!impIssue) return existIssue;
-                const { deleted: _d, deletedAt: _dA, images: _i, ...rest } = { ...existIssue, ...impIssue };
+                const { deleted: _d, deletedAt: _dA, images: _i, updates: _u, ...rest } = { ...existIssue, ...impIssue };
                 const dateUpdated = (existIssue.dateUpdated && impIssue.dateUpdated)
                   ? (existIssue.dateUpdated > impIssue.dateUpdated ? existIssue.dateUpdated : impIssue.dateUpdated)
                   : (existIssue.dateUpdated ?? impIssue.dateUpdated);
                 const delResult = resolveDeletion(existIssue, impIssue, dateUpdated);
-                return { ...rest, images: mergeImages(existIssue.images, impIssue.images) ?? [], ...delResult, ...(dateUpdated ? { dateUpdated } : {}) };
+                const mergedUpdates = mergeIssueUpdates(existIssue.updates, impIssue.updates);
+                return { ...rest, images: mergeImages(existIssue.images, impIssue.images) ?? [], ...delResult, ...(dateUpdated ? { dateUpdated } : {}), ...(mergedUpdates ? { updates: mergedUpdates } : {}) };
               });
               const existIds = new Set(existComp.issues.map((i: any) => i.id));
               const newIssues = (impComp.issues ?? []).filter((i: any) => !existIds.has(i.id));
@@ -560,12 +632,13 @@ export const useStore = create<StoreState>()(
                 const mergedMiscIssues = existingMisc[idx].issues.map((existIssue: any) => {
                   const impIssue = impMiscIssueMap.get(existIssue.id);
                   if (!impIssue) return existIssue;
-                  const { deleted: _d, deletedAt: _dA, images: _i, ...rest } = { ...existIssue, ...impIssue };
+                  const { deleted: _d, deletedAt: _dA, images: _i, updates: _u, ...rest } = { ...existIssue, ...impIssue };
                   const dateUpdated = (existIssue.dateUpdated && impIssue.dateUpdated)
                     ? (existIssue.dateUpdated > impIssue.dateUpdated ? existIssue.dateUpdated : impIssue.dateUpdated)
                     : (existIssue.dateUpdated ?? impIssue.dateUpdated);
                   const delResult = resolveDeletion(existIssue, impIssue, dateUpdated);
-                  return { ...rest, images: mergeImages(existIssue.images, impIssue.images) ?? [], ...delResult, ...(dateUpdated ? { dateUpdated } : {}) };
+                  const mergedUpdates = mergeIssueUpdates(existIssue.updates, impIssue.updates);
+                  return { ...rest, images: mergeImages(existIssue.images, impIssue.images) ?? [], ...delResult, ...(dateUpdated ? { dateUpdated } : {}), ...(mergedUpdates ? { updates: mergedUpdates } : {}) };
                 });
                 const existIds = new Set(existingMisc[idx].issues.map((i) => i.id));
                 const newIssues = importItem.issues.filter((i: any) => !existIds.has(i.id));
@@ -647,9 +720,10 @@ export const useStore = create<StoreState>()(
               ? (i.dateUpdated > imp.dateUpdated ? i.dateUpdated : imp.dateUpdated)
               : (i.dateUpdated ?? imp.dateUpdated);
             const delResult = resolveDeletion(i, imp, dateUpdated);
-            const { deleted: _gd, deletedAt: _gdA, ...impRest } = imp as any;
-            const { deleted: _ld, deletedAt: _ldA, ...localRest } = i as any;
-            return { ...localRest, ...impRest, ...delResult, ...(dateUpdated ? { dateUpdated } : {}) };
+            const { deleted: _gd, deletedAt: _gdA, updates: _gu, ...impRest } = imp as any;
+            const { deleted: _ld, deletedAt: _ldA, updates: _lu, ...localRest } = i as any;
+            const mergedUpdates = mergeIssueUpdates(i.updates, imp.updates);
+            return { ...localRest, ...impRest, ...delResult, ...(dateUpdated ? { dateUpdated } : {}), ...(mergedUpdates ? { updates: mergedUpdates } : {}) };
           });
           const existGeneralIds = new Set(state.generalIssues.map((i) => i.id));
           const newGeneral = importGeneralIssues.filter((i) => !existGeneralIds.has(i.id));

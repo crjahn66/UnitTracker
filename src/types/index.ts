@@ -36,6 +36,13 @@ export type ComponentKey = (typeof COMPONENTS)[number]['key'];
 
 export type ComponentStatus = 'unchecked' | 'good' | 'bad' | 'inProgress';
 
+export interface IssueUpdate {
+  id: string;
+  date: string;
+  note: string;
+  updatedBy: string;
+}
+
 export interface Issue {
   id: string;
   componentKey: ComponentKey;
@@ -50,6 +57,7 @@ export interface Issue {
   fixedBy?: string;
   howFixed?: string;
   images?: string[];
+  updates?: IssueUpdate[];
   deleted?: boolean;
   deletedAt?: string;
 }
@@ -82,6 +90,7 @@ export interface MiscIssue {
   fixedBy?: string;
   howFixed?: string;
   images?: string[];
+  updates?: IssueUpdate[];
   deleted?: boolean;
   deletedAt?: string;
 }
@@ -130,6 +139,7 @@ export interface GeneralIssue {
   dateFixed?: string;
   fixedBy?: string;
   howFixed?: string;
+  updates?: IssueUpdate[];
   deleted?: boolean;
   deletedAt?: string;
 }
