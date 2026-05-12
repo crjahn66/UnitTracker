@@ -1,3 +1,1 @@
-- Add Update button on issues — log updates with date and name
-- Edit or delete individual issue updates
-- Version number now shown under copyright footer
+- Network section cleanup

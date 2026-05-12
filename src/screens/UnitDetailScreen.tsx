@@ -225,12 +225,8 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
               </Text>
             </View>
             <View style={s.card}>
-              <NetRow label="Gateway IP"                  value={networkEntry.gatewayIp} first />
-              <NetRow label="PLC IP"                      value={networkEntry.plcIp} />
-              <NetRow label="Chiller IP (Modbus AOI)"     value={networkEntry.chillerIp} />
-              <NetRow label="Field Server IP"             value={networkEntry.fieldServerIp} />
-              <NetRow label="BMS Path (MSG AOI)"          value={networkEntry.bmsPath} />
-              <NetRow label="BMS Source (MSG AOI)"        value={networkEntry.bmsSourceElement} last />
+              <NetRow label="BMS Path (MSG AOI)"    value={networkEntry.bmsPath} first />
+              <NetRow label="BMS Source (MSG AOI)"  value={networkEntry.bmsSourceElement} last />
             </View>
           </>
         )}
