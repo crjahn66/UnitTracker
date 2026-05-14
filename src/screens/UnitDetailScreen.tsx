@@ -357,7 +357,7 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
                     activeOpacity={0.7}
                   >
                     <Text style={stageNote ? s.stageNoteText : s.stageNotePlaceholder} numberOfLines={2}>
-                      {stageNote ?? '+ Add note'}
+                      {stageNote || '+ Add note'}
                     </Text>
                     {stageNote ? <Ionicons name="pencil-outline" size={11} color="#6e7681" style={{ marginLeft: 4 }} /> : null}
                   </TouchableOpacity>

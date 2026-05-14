@@ -21,7 +21,8 @@ function unitStatusColor(unit: Unit): string {
   const miscItems = (unit.miscEquipment ?? []).filter((m) => !m.deleted);
   const openCompIssues = comps.flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted).length;
   const hasBad = comps.some((c) => c.status === 'bad');
-  if (hasBad || openCompIssues > 0) return '#f85149';
+  const hasStuck = STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) === 'stuck');
+  if (hasBad || openCompIssues > 0 || hasStuck) return '#f85149';
 
   const stagesComplete = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
   if (stagesComplete === STAGES.length) return '#3fb950';

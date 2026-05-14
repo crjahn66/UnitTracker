@@ -106,7 +106,7 @@ export const useStore = create<StoreState>()(
         set((state) => {
           const u = state.units[unitId];
           const notes = { ...(u.stagesNotes ?? {}) };
-          if (note.trim()) { notes[stage] = note.trim(); } else { delete notes[stage]; }
+          notes[stage] = note.trim(); // '' signals intentional clear; mergeImport respects it
           return { units: { ...state.units, [unitId]: { ...u, stagesNotes: notes } } };
         }),
 
@@ -733,12 +733,17 @@ export const useStore = create<StoreState>()(
             // Merge custom labels — remote wins
             const mergedLabels = { ...(existing.customComponentLabels ?? {}), ...(imp.customComponentLabels ?? {}) };
 
-            // Merge stage notes — remote wins, keep local if remote absent
+            // Merge stage notes — remote wins unless local is '' (intentional clear)
             const mergedStagesNotes: Partial<Record<StageKey, string>> = { ...(existing.stagesNotes ?? {}) };
             for (const key of Object.keys(existing.stages) as StageKey[]) {
               if (key in (imp.stagesNotes ?? {})) {
-                if (imp.stagesNotes[key]) { mergedStagesNotes[key] = imp.stagesNotes[key]; }
-                else { delete mergedStagesNotes[key]; }
+                const remoteVal = imp.stagesNotes![key];
+                if (remoteVal) {
+                  // Only take remote if local hasn't been explicitly cleared
+                  if (mergedStagesNotes[key] !== '') { mergedStagesNotes[key] = remoteVal; }
+                } else {
+                  delete mergedStagesNotes[key];
+                }
               }
             }
 

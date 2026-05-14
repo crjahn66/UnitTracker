@@ -1,3 +1,2 @@
-- Burndown chart day range selector (5/15/30/60 days)
-- Multi-select filters on North/South pages
-- Dashboard open issues count now includes general issues
+- Fix stage note clear being restored on next sync
+- Fix stuck stage showing yellow instead of red on unit cards
