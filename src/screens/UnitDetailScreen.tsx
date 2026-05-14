@@ -339,6 +339,15 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
                       <TouchableOpacity onPress={() => setEditingStageNote(null)}>
                         <Text style={s.stageNoteCancelText}>Cancel</Text>
                       </TouchableOpacity>
+                      {!!stageNote && (
+                        <TouchableOpacity onPress={() => {
+                          setStageNote(unitId, stage.key, '');
+                          pushToCloud().catch(() => {});
+                          setEditingStageNote(null);
+                        }} style={{ marginLeft: 'auto' }}>
+                          <Text style={s.stageNoteClearText}>Clear</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </View>
                 ) : isEditMode ? (
@@ -696,6 +705,7 @@ const s = StyleSheet.create({
   stageNoteSaveBtn: { backgroundColor: '#58a6ff22', borderRadius: 6, paddingVertical: 5, paddingHorizontal: 14, borderWidth: 1, borderColor: '#58a6ff' },
   stageNoteSaveText: { color: '#58a6ff', fontSize: 13, fontWeight: '600' },
   stageNoteCancelText: { color: '#6e7681', fontSize: 13, paddingVertical: 5 },
+  stageNoteClearText: { color: '#f85149', fontSize: 13, paddingVertical: 5 },
   // Component rows
   compRow: {
     flexDirection: 'row',

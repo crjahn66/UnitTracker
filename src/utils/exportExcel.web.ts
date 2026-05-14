@@ -302,12 +302,17 @@ function buildCompleted(wb: any, sorted: Unit[]) {
       addSectionHeader(ws, u.side.toUpperCase(), headers.length);
     }
     const comps = Object.values(u.components);
+    const miscItems = (u.miscEquipment ?? []).filter((m) => !m.deleted);
+    const allIssues = [
+      ...comps.flatMap((c) => c.issues),
+      ...miscItems.flatMap((m) => m.issues),
+    ].filter((i) => !i.deleted);
     const r = ws.addRow([
       u.id, u.side, u.unitNumber,
       ...STAGES.map(() => '✓ Done'),
       comps.filter((c) => c.status === 'good').length,
-      comps.flatMap((c) => c.issues).length,
-      comps.flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted).length,
+      allIssues.length,
+      allIssues.filter((i) => !i.resolved).length,
       u.stagesDates?.commissioning ? fmtDate(u.stagesDates.commissioning) : '',
       'Red Group',
     ]);
