@@ -410,6 +410,25 @@ export function subscribeRealtimeSync(): () => void {
   };
 }
 
+// Surgically remove a single stagesNotes key from the Supabase row without
+// doing a full push. This guarantees the clear lands atomically — bypassing the
+// merge/push pipeline that can race with webAutoPoll and restore the old value.
+export async function forceDeleteStageNote(unitId: string, stageKey: string): Promise<void> {
+  try {
+    const { data } = await supabase.from('sync_state').select('units').eq('id', 1).single();
+    if (!data?.units) return;
+    const units = JSON.parse(JSON.stringify(data.units)) as Record<string, any>;
+    const unit = units[unitId];
+    if (!unit) return;
+    const notes = { ...(unit.stagesNotes ?? {}) };
+    delete notes[stageKey];
+    unit.stagesNotes = Object.keys(notes).length ? notes : undefined;
+    const now = new Date().toISOString();
+    _lastKnownRemoteAt = new Date(now).getTime();
+    await supabase.from('sync_state').update({ units, updated_at: now }).eq('id', 1);
+  } catch {}
+}
+
 // Delete all photos from the bucket, clear refs from the store, and push the
 // cleaned state to sync_state so other devices don't restore the URLs on next sync.
 export async function wipeAllPhotos(): Promise<{ success: boolean; error?: string }> {

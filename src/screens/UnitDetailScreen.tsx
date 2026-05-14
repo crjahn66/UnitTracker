@@ -13,7 +13,7 @@ import ComponentModal from '../components/ComponentModal';
 import MiscEquipModal from '../components/MiscEquipModal';
 import PhotoGalleryModal from '../components/PhotoGalleryModal';
 import { getNetworkEntry } from '../data/networkData';
-import { pushToCloud } from '../utils/sync';
+import { pushToCloud, forceDeleteStageNote } from '../utils/sync';
 import { useEditMode } from '../context/EditModeContext';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitDetail'>;
@@ -342,7 +342,7 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
                       {!!stageNote && (
                         <TouchableOpacity onPress={() => {
                           setStageNote(unitId, stage.key, '');
-                          pushToCloud().catch(() => {});
+                          forceDeleteStageNote(unitId, stage.key).catch(() => {});
                           setEditingStageNote(null);
                         }} style={{ marginLeft: 'auto' }}>
                           <Text style={s.stageNoteClearText}>Clear</Text>
