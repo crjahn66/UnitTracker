@@ -1,1 +1,3 @@
-- Excel header and column width improvements
+- Burndown chart day range selector (5/15/30/60 days)
+- Multi-select filters on North/South pages
+- Dashboard open issues count now includes general issues

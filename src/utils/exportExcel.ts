@@ -329,7 +329,7 @@ function buildCompleted(wb: any, sorted: Unit[]) {
   }
 
   const totalCols = headers.length;
-  const noteText = '⚠  NOTE: Certain equipment in these units is at high risk of failure. All RED Group Tested units will require retesting once the affected equipment has been replaced.';
+  const noteText = '⚠  NOTE: Certain equipment in these units is at risk of failure. RED Group Tested units will require retesting once the affected equipment has been replaced.';
   const noteRow = ws.addRow([noteText]);
   noteRow.height = 40;
   ws.mergeCells(noteRow.number, 1, noteRow.number, totalCols);
@@ -528,7 +528,7 @@ export const exportToExcel = async (units: Record<string, Unit>, generalIssues: 
   for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
   const base64 = btoa(binary);
 
-  const filename = `UnitTracker_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`;
+  const filename = `Optimo Statuses_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`;
   const uri = (FileSystem.documentDirectory ?? FileSystem.cacheDirectory ?? '') + filename;
 
   await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' as any });

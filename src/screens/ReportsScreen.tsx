@@ -201,7 +201,8 @@ export default function ReportsScreen() {
     [units]
   );
 
-  const burndownData = useMemo(() => computeBurndown(units, 30), [units]);
+  const [burndownDays, setBurndownDays] = useState<5 | 15 | 30 | 60>(30);
+  const burndownData = useMemo(() => computeBurndown(units, burndownDays), [units, burndownDays]);
 
   const openGeneralCount = generalIssues.filter((i) => !i.resolved && !i.deleted).length;
 
@@ -540,7 +541,19 @@ export default function ReportsScreen() {
       {feedbackOpen && <FeedbackModal userEmail={email} onClose={() => setFeedbackOpen(false)} />}
 
       {/* Open Issues Burndown */}
-      <SectionHeader title="Open Issues — Last 30 Days" />
+      <SectionHeader title={`Open Issues — Last ${burndownDays} Days`} />
+      <View style={s.dayChips}>
+        {([5, 15, 30, 60] as const).map((d) => (
+          <TouchableOpacity
+            key={d}
+            style={[s.dayChip, burndownDays === d && s.dayChipActive]}
+            onPress={() => setBurndownDays(d)}
+            activeOpacity={0.7}
+          >
+            <Text style={[s.dayChipText, burndownDays === d && s.dayChipTextActive]}>{d}d</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
       <View style={s.card}>
         <BurndownChart data={burndownData} />
       </View>
@@ -834,6 +847,14 @@ const s = StyleSheet.create({
   },
   chillerUnitId: { color: '#8b949e', fontSize: 14, fontWeight: '600' },
   chillerUnitIdReady: { color: '#58a6ff' },
+  dayChips: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  dayChip: {
+    flex: 1, alignItems: 'center', paddingVertical: 6,
+    borderRadius: 8, borderWidth: 1, borderColor: '#30363d', backgroundColor: '#161b22',
+  },
+  dayChipActive: { backgroundColor: '#58a6ff22', borderColor: '#58a6ff' },
+  dayChipText: { color: '#6e7681', fontSize: 13, fontWeight: '600' },
+  dayChipTextActive: { color: '#58a6ff' },
   logoutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     marginTop: 32, paddingVertical: 10,

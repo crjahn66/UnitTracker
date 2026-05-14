@@ -63,6 +63,7 @@ function unitColor(unit: Unit): string {
 
 export default function DashboardScreen() {
   const units = useStore((s) => s.units);
+  const generalIssues = useStore((s) => s.generalIssues);
   const navigation = useNavigation<any>();
 
   const [searchText, setSearchText] = useState('');
@@ -92,7 +93,8 @@ export default function DashboardScreen() {
 
     const complete = all.filter(isUnitComplete).length;
     const inProgress = all.filter((u) => { const p = getUnitPct(u); return p > 0 && !isUnitComplete(u); }).length;
-    const totalIssues = all.reduce((n, u) => n + getOpenIssueCount(u), 0);
+    const openGeneralCount = generalIssues.filter((i) => !i.resolved && !i.deleted).length;
+    const totalIssues = all.reduce((n, u) => n + getOpenIssueCount(u), 0) + openGeneralCount;
     const chillerReady = all.filter((u) => u.chillerAvailable === true).length;
     const overallPct = all.length > 0 ? Math.round(all.reduce((n, u) => n + getUnitPct(u), 0) / all.length) : 0;
 
@@ -120,7 +122,7 @@ export default function DashboardScreen() {
     openIssues.sort((a, b) => b.ageDays - a.ageDays);
 
     return { sortedUnits: all, northUnits, southUnits, stats: { total: all.length, complete, inProgress, totalIssues, chillerReady }, openIssues, overallPct, sidePcts, sideDone };
-  }, [units]);
+  }, [units, generalIssues]);
 
   // Detail list: when not showing all, hide complete units. Order is numerical (by side, then unit number).
   const detailUnits = useMemo(

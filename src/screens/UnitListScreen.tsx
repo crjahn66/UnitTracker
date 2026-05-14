@@ -10,7 +10,7 @@ import { Unit, STAGES, COMPONENTS, normalizeStageStatus } from '../types';
 import CopyrightFooter from '../components/CopyrightFooter';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitList'>;
-type Filter = 'all' | 'issues' | 'inProgress' | 'complete' | 'chiller';
+type Filter = 'issues' | 'inProgress' | 'complete' | 'chiller';
 
 function hasOpenCompIssues(unit: Unit): boolean {
   return Object.values(unit.components).flatMap((c) => c.issues).some((i) => !i.resolved && !i.deleted);
@@ -109,7 +109,7 @@ const UnitCard = React.memo(function UnitCard({ unit, onPress }: { unit: Unit; o
 export default function UnitListScreen({ navigation, route }: Props) {
   const { side } = route.params;
   const units = useStore((state) => state.units);
-  const [activeFilter, setActiveFilter] = useState<Filter>('all');
+  const [activeFilters, setActiveFilters] = useState<Set<Filter>>(new Set());
 
   const sideUnits = useMemo(
     () =>
@@ -132,13 +132,24 @@ export default function UnitListScreen({ navigation, route }: Props) {
     return { complete, hasIssue, inProgress, openIssues, chillerReady };
   }, [sideUnits]);
 
+  const toggleFilter = useCallback((key: Filter) => {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
   const filteredUnits = useMemo(() => {
-    if (activeFilter === 'issues') return sideUnits.filter(hasOpenIssues);
-    if (activeFilter === 'inProgress') return sideUnits.filter(isInProgress);
-    if (activeFilter === 'complete') return sideUnits.filter(isComplete);
-    if (activeFilter === 'chiller') return sideUnits.filter((u) => u.chillerAvailable === true);
-    return sideUnits;
-  }, [sideUnits, activeFilter]);
+    if (activeFilters.size === 0) return sideUnits;
+    return sideUnits.filter((u) =>
+      (activeFilters.has('issues') && hasOpenIssues(u)) ||
+      (activeFilters.has('inProgress') && isInProgress(u)) ||
+      (activeFilters.has('complete') && isComplete(u)) ||
+      (activeFilters.has('chiller') && u.chillerAvailable === true)
+    );
+  }, [sideUnits, activeFilters]);
 
   const renderItem = useCallback(({ item }: { item: Unit }) => (
     <UnitCard
@@ -147,12 +158,11 @@ export default function UnitListScreen({ navigation, route }: Props) {
     />
   ), [navigation]);
 
-  const FILTERS: { key: Filter; label: string; color: string; count: number; flex: number }[] = [
-    { key: 'all',        label: 'All',         color: '#58a6ff', count: sideUnits.length,   flex: 0.65 },
-    { key: 'issues',     label: 'Issues',      color: '#f85149', count: stats.hasIssue,     flex: 1 },
-    { key: 'inProgress', label: 'In Progress', color: '#d29922', count: stats.inProgress,   flex: 1.35 },
-    { key: 'complete',   label: 'Complete',    color: '#3fb950', count: stats.complete,     flex: 1 },
-    { key: 'chiller',    label: '❄ Ready',    color: '#58a6ff', count: stats.chillerReady, flex: 1 },
+  const FILTERS: { key: Filter; label: string; color: string; count: number }[] = [
+    { key: 'issues',     label: 'Issues',      color: '#f85149', count: stats.hasIssue     },
+    { key: 'inProgress', label: 'In Progress', color: '#d29922', count: stats.inProgress   },
+    { key: 'complete',   label: 'Complete',    color: '#3fb950', count: stats.complete     },
+    { key: 'chiller',   label: '❄ Ready',    color: '#58a6ff', count: stats.chillerReady },
   ];
 
   return (
@@ -166,21 +176,25 @@ export default function UnitListScreen({ navigation, route }: Props) {
 
       {/* Filter chips */}
       <View style={s.filterRow}>
-        {FILTERS.map(({ key, label, color, count, flex }) => {
-          const active = activeFilter === key;
+        <TouchableOpacity
+          style={[s.filterChip, s.filterChipAll, activeFilters.size === 0 && { backgroundColor: '#58a6ff22', borderColor: '#58a6ff' }]}
+          onPress={() => setActiveFilters(new Set())}
+          activeOpacity={0.7}
+        >
+          <Text style={[s.filterChipText, { color: activeFilters.size === 0 ? '#58a6ff' : '#6e7681' }]}>All</Text>
+          <Text style={[s.filterChipCount, { color: activeFilters.size === 0 ? '#58a6ff' : '#6e7681' }]}>{sideUnits.length}</Text>
+        </TouchableOpacity>
+        {FILTERS.map(({ key, label, color, count }) => {
+          const active = activeFilters.has(key);
           return (
             <TouchableOpacity
               key={key}
-              style={[s.filterChip, { flex }, active && { backgroundColor: color + '22', borderColor: color }]}
-              onPress={() => setActiveFilter(key)}
+              style={[s.filterChip, { flex: 1 }, active && { backgroundColor: color + '22', borderColor: color }]}
+              onPress={() => toggleFilter(key)}
               activeOpacity={0.7}
             >
-              <Text style={[s.filterChipText, { color: active ? color : '#6e7681' }]}>
-                {label}
-              </Text>
-              <Text style={[s.filterChipCount, { color: active ? color : '#6e7681' }]}>
-                {count}
-              </Text>
+              <Text style={[s.filterChipText, { color: active ? color : '#6e7681' }]}>{label}</Text>
+              <Text style={[s.filterChipCount, { color: active ? color : '#6e7681' }]}>{count}</Text>
             </TouchableOpacity>
           );
         })}
@@ -240,6 +254,7 @@ const s = StyleSheet.create({
     borderColor: '#30363d',
     gap: 4,
   },
+  filterChipAll: { flex: 0.65 },
   filterChipText: { fontSize: 11, fontWeight: '600' },
   filterChipCount: { fontSize: 11, fontWeight: '700' },
   list: { padding: 8 },
