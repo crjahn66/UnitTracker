@@ -120,6 +120,7 @@ export interface Unit {
   stagesNotes?: Partial<Record<StageKey, string>>;
   stagesNotesUpdatedAt?: Partial<Record<StageKey, string>>;
   stagesStuckReasons?: Partial<Record<StageKey, string>>;
+  stagesStuckReasonsUpdatedAt?: Partial<Record<StageKey, string>>;
   components: ComponentsData;
   miscEquipment?: MiscEquipItem[];
   customComponentLabels?: Partial<Record<ComponentKey, string>>;

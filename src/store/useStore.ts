@@ -397,8 +397,10 @@ export const useStore = create<StoreState>()(
         set((state) => {
           const u = state.units[unitId];
           const reasons = { ...(u.stagesStuckReasons ?? {}) };
-          if (reason.trim()) { reasons[stage] = reason.trim(); } else { delete reasons[stage]; }
-          return { units: { ...state.units, [unitId]: { ...u, stagesStuckReasons: Object.keys(reasons).length ? reasons : undefined } } };
+          const updatedAt = { ...(u.stagesStuckReasonsUpdatedAt ?? {}) };
+          reasons[stage] = reason.trim(); // '' signals intentional clear
+          updatedAt[stage] = new Date().toISOString();
+          return { units: { ...state.units, [unitId]: { ...u, stagesStuckReasons: reasons, stagesStuckReasonsUpdatedAt: updatedAt } } };
         }),
 
       setStageDate: (unitId, stage, date) =>
@@ -766,12 +768,21 @@ export const useStore = create<StoreState>()(
             // Merge stage dates — remote wins
             const mergedStagesDates: Partial<Record<StageKey, string>> = { ...(existing.stagesDates ?? {}), ...(imp.stagesDates ?? {}) };
 
-            // Merge stuck reasons — remote wins, keep local if remote absent
+            // Merge stuck reasons — timestamp-based CRDT (mirrors stagesNotes logic)
             const mergedStagesStuckReasons: Partial<Record<StageKey, string>> = { ...(existing.stagesStuckReasons ?? {}) };
+            const mergedStagesStuckReasonsUpdatedAt: Partial<Record<StageKey, string>> = { ...(existing.stagesStuckReasonsUpdatedAt ?? {}) };
             for (const key of Object.keys(existing.stages) as StageKey[]) {
-              if (key in (imp.stagesStuckReasons ?? {})) {
-                if (imp.stagesStuckReasons![key]) { mergedStagesStuckReasons[key] = imp.stagesStuckReasons![key]!; }
+              const hasRemote = key in (imp.stagesStuckReasons ?? {}) || key in (imp.stagesStuckReasonsUpdatedAt ?? {});
+              if (!hasRemote) continue;
+              const localAt = existing.stagesStuckReasonsUpdatedAt?.[key];
+              const remoteAt = imp.stagesStuckReasonsUpdatedAt?.[key];
+              const remoteIsNewer = remoteAt && (!localAt || remoteAt > localAt);
+              const noTimestamps = !localAt && !remoteAt;
+              if (remoteIsNewer || (noTimestamps && key in (imp.stagesStuckReasons ?? {}))) {
+                const remoteVal = imp.stagesStuckReasons?.[key];
+                if (remoteVal) { mergedStagesStuckReasons[key] = remoteVal; }
                 else { delete mergedStagesStuckReasons[key]; }
+                if (remoteAt) mergedStagesStuckReasonsUpdatedAt[key] = remoteAt;
               }
             }
 
@@ -782,6 +793,7 @@ export const useStore = create<StoreState>()(
               stagesNotes: Object.keys(mergedStagesNotes).length ? mergedStagesNotes : undefined,
               stagesNotesUpdatedAt: Object.keys(mergedStagesNotesUpdatedAt).length ? mergedStagesNotesUpdatedAt : undefined,
               stagesStuckReasons: Object.keys(mergedStagesStuckReasons).length ? mergedStagesStuckReasons : undefined,
+              stagesStuckReasonsUpdatedAt: Object.keys(mergedStagesStuckReasonsUpdatedAt).length ? mergedStagesStuckReasonsUpdatedAt : undefined,
               components: mergedComponents,
               miscEquipment: existingMisc,
               customComponentLabels: Object.keys(mergedLabels).length ? mergedLabels : undefined,
