@@ -106,8 +106,10 @@ export const useStore = create<StoreState>()(
         set((state) => {
           const u = state.units[unitId];
           const notes = { ...(u.stagesNotes ?? {}) };
-          notes[stage] = note.trim(); // '' signals intentional clear; mergeImport respects it
-          return { units: { ...state.units, [unitId]: { ...u, stagesNotes: notes } } };
+          const updatedAt = { ...(u.stagesNotesUpdatedAt ?? {}) };
+          notes[stage] = note.trim();
+          updatedAt[stage] = new Date().toISOString();
+          return { units: { ...state.units, [unitId]: { ...u, stagesNotes: notes, stagesNotesUpdatedAt: updatedAt } } };
         }),
 
       updateComponentStatus: (unitId, component, status) =>
@@ -733,18 +735,32 @@ export const useStore = create<StoreState>()(
             // Merge custom labels — remote wins
             const mergedLabels = { ...(existing.customComponentLabels ?? {}), ...(imp.customComponentLabels ?? {}) };
 
-            // Merge stage notes — remote wins unless local is '' (intentional clear)
+            // Merge stage notes — timestamp-based CRDT: newer write wins.
+            // '' in stagesNotes means explicitly cleared. stagesNotesUpdatedAt tracks when.
             const mergedStagesNotes: Partial<Record<StageKey, string>> = { ...(existing.stagesNotes ?? {}) };
+            const mergedStagesNotesUpdatedAt: Partial<Record<StageKey, string>> = { ...(existing.stagesNotesUpdatedAt ?? {}) };
             for (const key of Object.keys(existing.stages) as StageKey[]) {
-              if (key in (imp.stagesNotes ?? {})) {
-                const remoteVal = imp.stagesNotes![key];
-                if (remoteVal) {
-                  // Only take remote if local hasn't been explicitly cleared
-                  if (mergedStagesNotes[key] !== '') { mergedStagesNotes[key] = remoteVal; }
+              const hasRemoteNote = key in (imp.stagesNotes ?? {});
+              const hasRemoteAt = key in (imp.stagesNotesUpdatedAt ?? {});
+              if (!hasRemoteNote && !hasRemoteAt) continue;
+              const localAt = existing.stagesNotesUpdatedAt?.[key];
+              const remoteAt = imp.stagesNotesUpdatedAt?.[key];
+              // If both sides have timestamps, newer wins
+              // If only remote has a timestamp, remote wins (it's a newer-format record)
+              // If neither has a timestamp, fall back to '' guard (legacy records)
+              const remoteIsNewer = remoteAt && (!localAt || remoteAt > localAt);
+              const noTimestamps = !localAt && !remoteAt;
+              if (remoteIsNewer || (noTimestamps && hasRemoteNote)) {
+                const remoteNote = imp.stagesNotes?.[key];
+                if (remoteNote) {
+                  mergedStagesNotes[key] = remoteNote;
                 } else {
+                  // Remote cleared ('' or absent with timestamp) — honor the clear
                   delete mergedStagesNotes[key];
                 }
+                if (remoteAt) mergedStagesNotesUpdatedAt[key] = remoteAt;
               }
+              // else local is newer or same — keep existing local value
             }
 
             // Merge stage dates — remote wins
@@ -764,6 +780,7 @@ export const useStore = create<StoreState>()(
               stages: mergedStages,
               stagesDates: Object.keys(mergedStagesDates).length ? mergedStagesDates : undefined,
               stagesNotes: Object.keys(mergedStagesNotes).length ? mergedStagesNotes : undefined,
+              stagesNotesUpdatedAt: Object.keys(mergedStagesNotesUpdatedAt).length ? mergedStagesNotesUpdatedAt : undefined,
               stagesStuckReasons: Object.keys(mergedStagesStuckReasons).length ? mergedStagesStuckReasons : undefined,
               components: mergedComponents,
               miscEquipment: existingMisc,
