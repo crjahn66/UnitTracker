@@ -16,7 +16,7 @@ function getUnitPct(unit: Unit): number {
 
 function getOpenIssueCount(unit: Unit): number {
   const compIssues = Object.values(unit.components).flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted);
-  const miscIssues = (unit.miscEquipment ?? []).flatMap((m) => m.issues ?? []).filter((i) => !i.resolved && !i.deleted);
+  const miscIssues = (unit.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues ?? []).filter((i) => !i.resolved && !i.deleted);
   return compIssues.length + miscIssues.length;
 }
 
