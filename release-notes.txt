@@ -1,2 +1,1 @@
-- Clear button on stage notes
-- Fix constraint counts in Completed Units export
+- Excel header and column width improvements

@@ -102,11 +102,11 @@ function rowClr(unit: Unit): Clr {
 // ─── Sheet 1: Overview ────────────────────────────────────────────────────────
 function buildOverview(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Overview');
-  const colWidths = [9, 7, 7, 24, 22, 14, 16, 11, 10, 12, 14];
+  const colWidths = [9, 7, 7, 24, 18, 24, 18, 14, 18, 10, 20];
   const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Stages Done', 'Open Constraints', 'Status', 'RED Group Tested On'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
-  row1.height = 30;
+  row1.height = 45;
 
   let currentSide = '';
   for (const u of sorted) {
@@ -152,7 +152,7 @@ function buildOverview(wb: any, sorted: Unit[]) {
 // ─── Sheet 2: Component Status ────────────────────────────────────────────────
 function buildComponents(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Component Status');
-  const colWidths = [9, 7, 7, ...COMPONENTS.map(() => 14), 40];
+  const colWidths = [9, 7, 7, ...COMPONENTS.map(() => 20), 40];
   const headers = ['Unit ID', 'Side', 'Unit #', ...COMPONENTS.map((c) => c.label), 'Misc Equipment'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
@@ -201,7 +201,7 @@ async function buildConstraints(wb: any, sorted: Unit[]) {
   const headers = ['Unit ID', 'Side', 'Unit #', 'Component', 'Date Found', 'Last Updated', 'Found By', 'Responsible Party', 'Notes', 'Suggested Resolution', 'Status', 'Date Fixed', 'Fixed By', 'How Fixed', 'Photos'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
-  row1.height = 30;
+  row1.height = 45;
 
   const IMG_COL = 15; // 1-indexed column for photos
   const IMG_H   = 80; // pixel height for thumbnail rows
@@ -289,11 +289,11 @@ async function buildConstraints(wb: any, sorted: Unit[]) {
 // ─── Sheet 4: Completed Units ─────────────────────────────────────────────────
 function buildCompleted(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Completed Units');
-  const colWidths = [9, 7, 7, 24, 22, 14, 16, 16, 12, 10, 14, 14];
+  const colWidths = [9, 7, 7, 24, 18, 24, 18, 16, 16, 16, 18, 14];
   const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Functional Components', 'Total Constraints', 'Active Constraints', 'RED Group Tested On', 'Tested By'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
-  row1.height = 30;
+  row1.height = 45;
 
   const done = sorted.filter((u) =>
     STAGES.every((s) => normalizeStageStatus(u.stages[s.key]) === 'complete')
@@ -355,7 +355,7 @@ async function buildWithConstraints(wb: any, sorted: Unit[]) {
   const headers = ['Unit ID', 'Side', 'Unit #', 'Component', 'Date Found', 'Last Updated', 'Found By', 'Responsible Party', 'Notes', 'Suggested Resolution', 'Status', 'Photos'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
-  row1.height = 30;
+  row1.height = 45;
 
   const IMG_COL = 12;
   const IMG_H   = 80;
@@ -435,7 +435,7 @@ function buildGeneralIssues(wb: any, issues: GeneralIssue[]) {
   const headers = ['Date Found', 'Last Updated', 'Found By', 'Responsible Party', 'Notes', 'Status', 'Date Fixed', 'Fixed By', 'How Fixed'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
-  row1.height = 30;
+  row1.height = 45;
 
   const sorted = [...issues].sort((a, b) => b.dateFound.localeCompare(a.dateFound));
   for (const issue of sorted) {
