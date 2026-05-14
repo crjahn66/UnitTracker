@@ -1,3 +1,1 @@
-- Fix stage note clear being restored on next sync
-- Fix stuck stage showing yellow instead of red on unit cards
-- Fix stage note clear not removing note from DB (timestamp-based CRDT resolution)
+- Add clear button for stuck reason notes

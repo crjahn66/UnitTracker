@@ -392,6 +392,15 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
                         <TouchableOpacity onPress={() => setEditingStuckReason(null)}>
                           <Text style={s.stageNoteCancelText}>Cancel</Text>
                         </TouchableOpacity>
+                        {!!stuckReason && (
+                          <TouchableOpacity onPress={() => {
+                            setStageStuckReason(unitId, stage.key, '');
+                            pushToCloud().catch(() => {});
+                            setEditingStuckReason(null);
+                          }} style={{ marginLeft: 'auto' }}>
+                            <Text style={s.stageNoteClearText}>Clear</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     </View>
                   ) : (
