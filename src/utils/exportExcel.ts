@@ -129,9 +129,10 @@ function buildOverview(wb: any, sorted: Unit[]) {
     const stageLabel = (s: typeof STAGES[number]) => {
       const st = normalizeStageStatus(u.stages[s.key]);
       const note = u.stagesNotes?.[s.key];
+      const stuckReason = st === 'stuck' ? u.stagesStuckReasons?.[s.key] : null;
       const date = st !== 'pending' && u.stagesDates?.[s.key] ? fmtDate(u.stagesDates[s.key]) : null;
       const base = st === 'complete' ? '✓ Done' : st === 'inProgress' ? '⏳ In Progress' : st === 'stuck' ? '⚠ Stuck' : '—';
-      return [base, date, note].filter(Boolean).join('\n');
+      return [base, date, stuckReason, note].filter(Boolean).join('\n');
     };
     const commDate = u.stagesDates?.commissioning ? fmtDate(u.stagesDates.commissioning) : '';
     const rowData = [u.id, u.side, u.unitNumber, ...STAGES.map(stageLabel), `${done} / ${STAGES.length}`, open, status, commDate];

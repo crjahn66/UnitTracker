@@ -1,1 +1,1 @@
-- Fix stuck reason clear being restored on next sync
+- Show stuck reason in Excel export stage columns
