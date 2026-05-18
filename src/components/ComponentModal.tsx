@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import { format, parse, isValid } from 'date-fns';
 import { useStore } from '../store/useStore';
 import { COMPONENTS, ComponentKey, ComponentStatus, Issue, IssueUpdate } from '../types';
@@ -107,11 +108,13 @@ function ImageStrip({ images, onAdd, onRemove, onView = () => {} }: {
 interface AddIssueFormProps {
   onSave: (data: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; suggestedResolution: string; images: string[] }) => void;
   onCancel: () => void;
+  /** Pre-attach photos (e.g. from the "Photo-first issue" camera button). */
+  initialImages?: string[];
 }
 
-function AddIssueForm({ onSave, onCancel }: AddIssueFormProps) {
+function AddIssueForm({ onSave, onCancel, initialImages }: AddIssueFormProps) {
   const [form, setForm] = useState({ ...EMPTY_ISSUE(), suggestedResolution: '' });
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<string[]>(initialImages ?? []);
   const set = (key: 'dateFound' | 'foundBy' | 'responsibleParty' | 'notes' | 'suggestedResolution', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
   const notesRef = React.useRef<TextInput>(null);
@@ -582,6 +585,9 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [editingStatusDate, setEditingStatusDate] = useState(false);
   const [statusDateValue, setStatusDateValue] = useState('');
+  // Photos pre-attached to the next AddIssueForm. Set by the "Photo Issue"
+  // shortcut (camera capture). Cleared when the form is dismissed.
+  const [photoFirstImages, setPhotoFirstImages] = useState<string[]>([]);
 
   const compInfo    = COMPONENTS.find((c) => c.key === componentKey) ?? { key: componentKey, label: componentKey };
   const compData    = unit.components[componentKey];
@@ -662,6 +668,7 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
       };
       addIssue(unitId, issue);
       setView('detail');
+      setPhotoFirstImages([]);
       // Upload photos in the background — form is already closed
       if (data.images.length > 0) {
         (async () => {
@@ -814,6 +821,33 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
     [unitId, componentKey, deleteIssueUpdate]
   );
 
+  // Photo-first issue flow: launch the camera, then jump into AddIssueForm
+  // with the captured photo pre-attached. Native opens the system camera;
+  // on web, expo-image-picker falls back to a file picker with `capture` hint.
+  const handlePhotoFirstIssue = useCallback(async () => {
+    try {
+      if (Platform.OS !== 'web') {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) {
+          showAlert('Camera Permission', 'Camera access is required to capture a photo for the issue.');
+          return;
+        }
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+        allowsEditing: false,
+      });
+      if (result.canceled) return;
+      const uri = result.assets?.[0]?.uri;
+      if (!uri) return;
+      setPhotoFirstImages([uri]);
+      setView('addIssue');
+    } catch (e) {
+      showAlert('Camera Error', 'Could not open the camera.');
+    }
+  }, []);
+
   const visibleIssues = compData.issues.filter((i) => !i.deleted);
   const openIssuesList = visibleIssues.filter((i) => !i.resolved);
   const resolvedIssuesList = visibleIssues.filter((i) => i.resolved);
@@ -822,7 +856,13 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
 
   const renderContent = () => {
     if (view === 'addIssue') {
-      return <AddIssueForm onSave={handleAddIssue} onCancel={() => setView('detail')} />;
+      return (
+        <AddIssueForm
+          onSave={handleAddIssue}
+          onCancel={() => { setView('detail'); setPhotoFirstImages([]); }}
+          initialImages={photoFirstImages}
+        />
+      );
     }
     if (view === 'editIssue' && editingIssueId) {
       const issue = compData.issues.find((i) => i.id === editingIssueId);
@@ -1056,10 +1096,16 @@ export default function ComponentModal({ unitId, componentKey, onClose }: Props)
         )}
 
         {isEditMode && (
-          <TouchableOpacity style={m.addIssueBtn} onPress={() => setView('addIssue')}>
-            <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 6 }} />
-            <Text style={m.addIssueBtnText}>Log New Issue</Text>
-          </TouchableOpacity>
+          <View style={m.issueBtnRow}>
+            <TouchableOpacity style={[m.addIssueBtn, { flex: 1 }]} onPress={() => setView('addIssue')}>
+              <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 6 }} />
+              <Text style={m.addIssueBtnText}>Log New Issue</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[m.addIssueBtn, m.photoIssueBtn, { flex: 1 }]} onPress={handlePhotoFirstIssue}>
+              <Ionicons name="camera-outline" size={18} color="#d29922" style={{ marginRight: 6 }} />
+              <Text style={[m.addIssueBtnText, { color: '#d29922' }]}>Photo Issue</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
     );
@@ -1137,6 +1183,8 @@ const m = StyleSheet.create({
   noIssues: { color: '#6e7681', fontSize: 13, textAlign: 'center', paddingVertical: 20 },
   addIssueBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 16, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: '#58a6ff' },
   addIssueBtnText: { color: '#58a6ff', fontSize: 14, fontWeight: '600' },
+  issueBtnRow: { flexDirection: 'row', gap: 8 },
+  photoIssueBtn: { borderColor: '#d29922' },
   archiveToggle: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, marginBottom: 4 },
   archiveToggleText: { color: '#6e7681', fontSize: 13, fontWeight: '600' },
   statusDateRow: { marginBottom: 16, marginTop: -8 },

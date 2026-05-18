@@ -2,7 +2,7 @@
   "expo": {
     "name": "UnitTracker",
     "slug": "unit-tracker",
-    "version": "1.5.6",
+    "version": "1.5.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -17,9 +17,16 @@
         "backgroundColor": "#121212"
       },
       "package": "com.redgroup.unittracker",
-      "permissions": ["REQUEST_INSTALL_PACKAGES"]
+      "permissions": ["REQUEST_INSTALL_PACKAGES", "CAMERA"]
     },
-    "plugins": [],
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow UnitTracker to use the camera to attach a photo when logging an issue."
+        }
+      ]
+    ],
     "web": {
       "favicon": "./assets/icon.png",
       "bundler": "metro"

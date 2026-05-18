@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import { format, parse, isValid } from 'date-fns';
 import { useStore } from '../store/useStore';
 import { ComponentStatus, MiscIssue, IssueUpdate } from '../types';
@@ -81,13 +82,15 @@ function ImageStrip({ images, onAdd, onRemove, onView = () => {} }: {
 
 // ─── Add Issue Form ────────────────────────────────────────────────────────────
 
-function AddIssueForm({ onSave, onCancel, currentStatus }: {
+function AddIssueForm({ onSave, onCancel, currentStatus, initialImages }: {
   onSave: (d: { dateFound: string; foundBy: string; responsibleParty: string; notes: string; suggestedResolution: string; images: string[]; status: ComponentStatus }) => void;
   onCancel: () => void;
   currentStatus: ComponentStatus;
+  /** Pre-attach photos (e.g. from the "Photo-first issue" camera button). */
+  initialImages?: string[];
 }) {
   const [form, setForm] = useState({ ...EMPTY_ISSUE(), suggestedResolution: '' });
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<string[]>(initialImages ?? []);
   const [status, setStatus] = useState<ComponentStatus>(currentStatus === 'unchecked' ? 'bad' : currentStatus);
   const set = (key: 'dateFound' | 'foundBy' | 'responsibleParty' | 'notes' | 'suggestedResolution', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
@@ -513,6 +516,8 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [editingStatusDate, setEditingStatusDate] = useState(false);
   const [statusDateValue, setStatusDateValue] = useState('');
+  // Photos pre-attached to the next AddIssueForm (set by camera shortcut).
+  const [photoFirstImages, setPhotoFirstImages] = useState<string[]>([]);
 
   const handleSaveLabel = useCallback(() => {
     const trimmed = labelValue.trim();
@@ -545,6 +550,7 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
     updateMiscEquip(unitId, itemId, { status: data.status });
     addMiscIssue(unitId, itemId, issue);
     setView('detail');
+    setPhotoFirstImages([]);
     // Upload photos in the background — form is already closed
     if (data.images.length > 0) {
       (async () => {
@@ -568,6 +574,35 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
     });
     setResolvingId(null); setView('detail');
   }, [unitId, itemId, updateMiscIssue]);
+
+  // Photo-first issue flow for misc equipment — see ComponentModal counterpart.
+  const handlePhotoFirstIssue = useCallback(async () => {
+    if (!item?.label?.trim()) {
+      showAlert('Name Required', 'Please name this equipment before logging an issue.');
+      return;
+    }
+    try {
+      if (Platform.OS !== 'web') {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) {
+          showAlert('Camera Permission', 'Camera access is required to capture a photo for the issue.');
+          return;
+        }
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+        allowsEditing: false,
+      });
+      if (result.canceled) return;
+      const uri = result.assets?.[0]?.uri;
+      if (!uri) return;
+      setPhotoFirstImages([uri]);
+      setView('addIssue');
+    } catch (e) {
+      showAlert('Camera Error', 'Could not open the camera.');
+    }
+  }, [item]);
 
   const handleDelete = useCallback((issueId: string) => {
     const doDelete = () => {
@@ -678,7 +713,14 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
   const color = statusColor(item.status);
 
   const renderContent = () => {
-    if (view === 'addIssue') return <AddIssueForm onSave={handleAddIssue} onCancel={() => setView('detail')} currentStatus={item.status} />;
+    if (view === 'addIssue') return (
+      <AddIssueForm
+        onSave={handleAddIssue}
+        onCancel={() => { setView('detail'); setPhotoFirstImages([]); }}
+        currentStatus={item.status}
+        initialImages={photoFirstImages}
+      />
+    );
     if (view === 'editIssue' && editingIssueId) {
       const issue = item?.issues.find((i) => i.id === editingIssueId);
       if (issue) return <EditIssueForm issue={issue} onSave={(u) => handleEditIssue(editingIssueId, u)} onCancel={() => { setEditingIssueId(null); setView('detail'); }} />;
@@ -823,13 +865,19 @@ export default function MiscEquipModal({ unitId, itemId, onClose }: Props) {
           </>
         )}
         {isEditMode && (
-          <TouchableOpacity style={m.addIssueBtn} onPress={() => {
-            if (!item.label?.trim()) { showAlert('Name Required', 'Please name this equipment before logging an issue.'); return; }
-            setView('addIssue');
-          }}>
-            <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 6 }} />
-            <Text style={m.addIssueBtnText}>Log New Issue</Text>
-          </TouchableOpacity>
+          <View style={m.issueBtnRow}>
+            <TouchableOpacity style={[m.addIssueBtn, { flex: 1 }]} onPress={() => {
+              if (!item.label?.trim()) { showAlert('Name Required', 'Please name this equipment before logging an issue.'); return; }
+              setView('addIssue');
+            }}>
+              <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 6 }} />
+              <Text style={m.addIssueBtnText}>Log New Issue</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[m.addIssueBtn, m.photoIssueBtn, { flex: 1 }]} onPress={handlePhotoFirstIssue}>
+              <Ionicons name="camera-outline" size={18} color="#d29922" style={{ marginRight: 6 }} />
+              <Text style={[m.addIssueBtnText, { color: '#d29922' }]}>Photo Issue</Text>
+            </TouchableOpacity>
+          </View>
         )}
         {isEditMode && (
           <TouchableOpacity style={m.deleteItemBtn} onPress={handleDeleteItem}>
@@ -914,6 +962,8 @@ const m = StyleSheet.create({
   noIssues: { color: '#6e7681', fontSize: 13, textAlign: 'center', paddingVertical: 20 },
   addIssueBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 16, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: '#58a6ff' },
   addIssueBtnText: { color: '#58a6ff', fontSize: 14, fontWeight: '600' },
+  issueBtnRow: { flexDirection: 'row', gap: 8 },
+  photoIssueBtn: { borderColor: '#d29922' },
   archiveToggle: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, marginBottom: 4 },
   archiveToggleText: { color: '#6e7681', fontSize: 13, fontWeight: '600' },
   deleteItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: '#f8514944' },
