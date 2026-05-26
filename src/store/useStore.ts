@@ -939,6 +939,31 @@ export const useStore = create<StoreState>()(
     {
       name: 'unit-tracker-v1',
       storage: createJSONStorage(() => debouncedStorage),
+      // Synchronously backfill missing component keys during hydration, BEFORE
+      // any React component reads the store. Without this, units persisted
+      // under an older COMPONENTS list crash any consumer that does
+      // `unit.components[newKey].issues` (e.g. Dashboard's useMemo).
+      // The default zustand merge is shallow `{...current, ...persisted}`;
+      // we do the same then patch up units.
+      merge: (persisted: any, current: StoreState): StoreState => {
+        const merged = { ...current, ...(persisted ?? {}) } as StoreState;
+        if (merged.units && typeof merged.units === 'object') {
+          const fixedUnits: UnitsStore = {};
+          for (const [uid, u] of Object.entries(merged.units)) {
+            const unit = u as Unit;
+            if (!unit?.components) { fixedUnits[uid] = unit; continue; }
+            const components: any = { ...unit.components };
+            for (const { key } of COMPONENTS) {
+              if (!components[key]) {
+                components[key] = { status: 'unchecked', issues: [] };
+              }
+            }
+            fixedUnits[uid] = { ...unit, components };
+          }
+          merged.units = fixedUnits;
+        }
+        return merged;
+      },
       // On web, strip image arrays before writing to localStorage to avoid
       // QuotaExceededError. Images are always retrievable from Supabase on
       // next sync; stripping them here only affects what's cached between
