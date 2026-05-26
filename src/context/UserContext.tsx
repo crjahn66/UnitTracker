@@ -2,9 +2,20 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { supabase } from '../utils/supabase';
 
-const VIEW_ONLY_EMAIL = 'viewonly@red.group';
+// Accounts that should be view-only — no edit mode, no write UI. Anyone NOT
+// in this set who logs in successfully is treated as an editor.
+// Case-insensitive comparison against the session email.
+const VIEW_ONLY_EMAILS = new Set<string>([
+  'viewonly@red.group',
+  'coolred@red.group',
+]);
 const INACTIVITY_TIMEOUT_MS = 12 * 60 * 60 * 1000; // 12 hours
 const LAST_ACTIVITY_KEY = 'ut_last_activity';
+
+function isViewOnlyEmail(email: string | null): boolean {
+  if (!email) return false;
+  return VIEW_ONLY_EMAILS.has(email.trim().toLowerCase());
+}
 
 interface UserCtx {
   email: string | null;
@@ -55,7 +66,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <UserContext.Provider value={{ email, isViewOnly: email === VIEW_ONLY_EMAIL }}>
+    <UserContext.Provider value={{ email, isViewOnly: isViewOnlyEmail(email) }}>
       {children}
     </UserContext.Provider>
   );

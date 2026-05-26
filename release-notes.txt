@@ -1,1 +1,1 @@
-- New "Photo Issue" button in component & misc equipment modals — opens the camera directly, then jumps into the issue form with the photo already attached
+- Updated account permissions: coolred@red.group is now view-only
