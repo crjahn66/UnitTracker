@@ -1,1 +1,1 @@
-- Updated account permissions: coolred@red.group is now view-only
+- Added 4 new components per unit: Chiller Modbus Gateway, PSK Field Server, Panduit, Panel Integrity (visible in Component Status, Reports, and Excel export). Existing units are backfilled automatically on app start.

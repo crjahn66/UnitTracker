@@ -30,6 +30,10 @@ export const COMPONENTS = [
   { key: 'chillerInterlocks', label: 'Chiller Interlocks' },
   { key: 'fieldServer', label: 'Field Server' },
   { key: 'plc', label: 'PLC' },
+  { key: 'chillerModbusGateway', label: 'Chiller Modbus Gateway' },
+  { key: 'pskFieldServer', label: 'PSK Field Server' },
+  { key: 'panduit', label: 'Panduit' },
+  { key: 'panelIntegrity', label: 'Panel Integrity' },
 ] as const;
 
 export type ComponentKey = (typeof COMPONENTS)[number]['key'];

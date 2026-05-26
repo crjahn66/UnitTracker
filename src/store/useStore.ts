@@ -13,6 +13,7 @@ import {
   GeneralIssue,
   MiscEquipItem,
   MiscIssue,
+  COMPONENTS,
   normalizeStageStatus,
 } from '../types';
 import { createInitialUnits } from '../utils/initialData';
@@ -38,6 +39,13 @@ interface StoreState {
   // belong to different techs and should keep their own defaults).
   lastFoundBy?: string;
   setLastFoundBy: (name: string) => void;
+  /**
+   * Idempotently ensure every unit has an entry for every key in COMPONENTS.
+   * New units (created from initialData) already have all keys; this exists
+   * to backfill units that were persisted before a new component was added
+   * to the list. Safe to call repeatedly — no-op when nothing is missing.
+   */
+  ensureAllComponentsPresent: () => void;
   updateStage: (unitId: string, stage: StageKey, status: StageStatus) => void;
   setStageNote: (unitId: string, stage: StageKey, note: string) => void;
   updateComponentStatus: (unitId: string, component: ComponentKey, status: ComponentStatus) => void;
@@ -87,6 +95,25 @@ export const useStore = create<StoreState>()(
       lastFoundBy: undefined,
 
       setLastFoundBy: (name) => set({ lastFoundBy: name || undefined }),
+
+      ensureAllComponentsPresent: () =>
+        set((state) => {
+          let anyChanged = false;
+          const newUnits: UnitsStore = {};
+          for (const [uid, unit] of Object.entries(state.units)) {
+            let unitChanged = false;
+            const components: any = { ...unit.components };
+            for (const { key } of COMPONENTS) {
+              if (!components[key]) {
+                components[key] = { status: 'unchecked', issues: [] };
+                unitChanged = true;
+              }
+            }
+            newUnits[uid] = unitChanged ? { ...unit, components } : unit;
+            if (unitChanged) anyChanged = true;
+          }
+          return anyChanged ? { units: newUnits } : state;
+        }),
 
       updateStage: (unitId, stage, status) =>
         set((state) => {

@@ -51,6 +51,12 @@ function AppShell() {
   useRealtimeSync();
   const { resetTimer } = useEditMode();
   const { resetSessionTimer } = useSessionTimeout();
+  // Backfill any units persisted before new entries were added to COMPONENTS,
+  // so consumers can safely do `unit.components[anyKey].status` without
+  // missing-key crashes. Idempotent — no state change when nothing's missing.
+  useEffect(() => {
+    useStore.getState().ensureAllComponentsPresent();
+  }, []);
   const handleTouch = () => { resetTimer(); resetSessionTimer(); };
   return (
     <View style={{ flex: 1 }} onTouchStart={handleTouch}>
