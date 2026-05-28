@@ -1,3 +1,4 @@
-- Added UPS Modbus COMMS and Chiller to component status tracking.
-- New component statuses are included automatically in reports and exports.
-- Existing saved units backfill the new statuses as unchecked on load.
+- Units now count as complete when all commissioning stages are complete, regardless of component status.
+- Dashboard and side counters now include completed units even if they still have open issues.
+- Completed units with open issues show split green/red cards to indicate both states.
+- Excel Completed Units export now includes every stage-complete unit.

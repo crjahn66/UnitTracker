@@ -133,6 +133,10 @@ export interface Unit {
   chillerAvailable?: boolean;
 }
 
+export function isUnitComplete(unit: Pick<Unit, 'stages'>): boolean {
+  return STAGES.every((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete');
+}
+
 export type UnitsStore = Record<string, Unit>;
 
 export interface GeneralIssue {

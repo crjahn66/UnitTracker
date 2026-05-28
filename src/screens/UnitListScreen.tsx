@@ -6,15 +6,11 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { format } from 'date-fns';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
-import { Unit, STAGES, COMPONENTS, normalizeStageStatus } from '../types';
+import { Unit, STAGES, COMPONENTS, normalizeStageStatus, isUnitComplete } from '../types';
 import CopyrightFooter from '../components/CopyrightFooter';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitList'>;
 type Filter = 'issues' | 'inProgress' | 'complete' | 'chiller';
-
-function hasOpenCompIssues(unit: Unit): boolean {
-  return Object.values(unit.components).flatMap((c) => c.issues).some((i) => !i.resolved && !i.deleted);
-}
 
 function unitStatusColor(unit: Unit): string {
   const comps = Object.values(unit.components);
@@ -40,12 +36,8 @@ function hasOpenIssues(unit: Unit): boolean {
   return [...compIssues, ...miscIssues].some((i) => !i.resolved && !i.deleted);
 }
 
-function isComplete(unit: Unit): boolean {
-  return STAGES.every((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete') && !hasOpenCompIssues(unit);
-}
-
 function isInProgress(unit: Unit): boolean {
-  if (isComplete(unit)) return false;
+  if (isUnitComplete(unit)) return false;
   return STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) !== 'pending')
     || Object.values(unit.components).some((c) => c.status !== 'unchecked')
     || (unit.miscEquipment ?? []).some((m) => m.status !== 'unchecked');
@@ -59,6 +51,7 @@ const UnitCard = React.memo(function UnitCard({ unit, onPress }: { unit: Unit; o
   const miscIssues = (unit.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues ?? []);
   const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
   const color = unitStatusColor(unit);
+  const completeWithIssues = isUnitComplete(unit) && (openIssues > 0 || bad > 0);
   const pct = Math.round(
     (stagesComplete / STAGES.length) * 70 + (good / COMPONENTS.length) * 30
   );
@@ -68,14 +61,27 @@ const UnitCard = React.memo(function UnitCard({ unit, onPress }: { unit: Unit; o
 
   return (
     <TouchableOpacity style={[s.card, { borderColor: color }]} onPress={onPress} activeOpacity={0.75}>
-      <View style={[s.cardTop, { backgroundColor: color + '28' }]}>
+      {completeWithIssues && (
+        <View pointerEvents="none" style={s.completeIssueSplitBg}>
+          <View style={[s.completeIssueHalf, { backgroundColor: '#3fb95022' }]} />
+          <View style={[s.completeIssueHalf, { backgroundColor: '#f8514922' }]} />
+        </View>
+      )}
+      <View style={[s.cardTop, { backgroundColor: completeWithIssues ? 'transparent' : color + '28' }]}>
         <Text style={s.unitId}>{unit.id}</Text>
         {unit.chillerAvailable === true && (
           <View style={s.chillerWrap}>
             <Text style={s.chillerBadge}>❄</Text>
           </View>
         )}
-        <View style={[s.dot, { backgroundColor: color }]} />
+        {completeWithIssues ? (
+          <View style={s.splitDot}>
+            <View style={[s.splitDotHalf, { backgroundColor: '#3fb950' }]} />
+            <View style={[s.splitDotHalf, { backgroundColor: '#f85149' }]} />
+          </View>
+        ) : (
+          <View style={[s.dot, { backgroundColor: color }]} />
+        )}
       </View>
       <View style={s.cardBody}>
         <Text style={s.stageLabel}>
@@ -121,7 +127,7 @@ export default function UnitListScreen({ navigation, route }: Props) {
   );
 
   const stats = useMemo(() => {
-    const complete = sideUnits.filter(isComplete).length;
+    const complete = sideUnits.filter(isUnitComplete).length;
     const hasIssue = sideUnits.filter(hasOpenIssues).length;
     const inProgress = sideUnits.filter(isInProgress).length;
     const openIssues = sideUnits.reduce((sum, u) => {
@@ -147,7 +153,7 @@ export default function UnitListScreen({ navigation, route }: Props) {
     return sideUnits.filter((u) =>
       (activeFilters.has('issues') && hasOpenIssues(u)) ||
       (activeFilters.has('inProgress') && isInProgress(u)) ||
-      (activeFilters.has('complete') && isComplete(u)) ||
+      (activeFilters.has('complete') && isUnitComplete(u)) ||
       (activeFilters.has('chiller') && u.chillerAvailable === true)
     );
   }, [sideUnits, activeFilters]);
@@ -268,6 +274,11 @@ const s = StyleSheet.create({
     borderWidth: 2,
     overflow: 'hidden',
   },
+  completeIssueSplitBg: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: 'row',
+  },
+  completeIssueHalf: { flex: 1 },
   cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -279,6 +290,8 @@ const s = StyleSheet.create({
   chillerWrap: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 4, overflow: 'hidden' },
   chillerBadge: { color: '#58a6ff', fontSize: 22, lineHeight: 22 },
   dot: { width: 10, height: 10, borderRadius: 5 },
+  splitDot: { width: 10, height: 10, borderRadius: 5, overflow: 'hidden', flexDirection: 'row' },
+  splitDotHalf: { flex: 1 },
   cardBody: { padding: 10 },
   stageLabel: { color: '#8b949e', fontSize: 12, marginBottom: 4 },
   stageCount: { fontWeight: '700' },

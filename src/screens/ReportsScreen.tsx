@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, UnitsStore, GeneralIssue, Unit, normalizeStageStatus } from '../types';
+import { STAGES, COMPONENTS, UnitsStore, GeneralIssue, Unit, normalizeStageStatus, isUnitComplete } from '../types';
 import { exportToExcel } from '../utils/exportExcel';
 import { backupData, restoreData } from '../utils/backup';
 import { syncWithCloud, wipeAllPhotos } from '../utils/sync';
@@ -21,8 +21,7 @@ import { runUpdateCheck } from '../hooks/useUpdateCheck';
 import CopyrightFooter from '../components/CopyrightFooter';
 
 function isUnitCommissioned(unit: Unit): boolean {
-  return STAGES.every(s => normalizeStageStatus(unit.stages[s.key]) === 'complete') &&
-    COMPONENTS.every(c => unit.components[c.key].status === 'good');
+  return isUnitComplete(unit);
 }
 
 function getUnitCommissionDate(unit: Unit): string | undefined {
@@ -238,11 +237,7 @@ export default function ReportsScreen() {
 
     const openIssueCount = issuesByUnit.length;
 
-    const fullyComplete = all.filter((u) => {
-      const hasOpenComp = Object.values(u.components).flatMap((c) => c.issues)
-        .some((i) => !i.resolved && !i.deleted);
-      return STAGES.every((s) => normalizeStageStatus(u.stages[s.key]) === 'complete') && !hasOpenComp;
-    }).length;
+    const fullyComplete = all.filter(isUnitComplete).length;
     const hasAnyWork = all.filter((u) =>
       STAGES.some((s) => normalizeStageStatus(u.stages[s.key]) !== 'pending')
       || Object.values(u.components).some((c) => c.status !== 'unchecked')

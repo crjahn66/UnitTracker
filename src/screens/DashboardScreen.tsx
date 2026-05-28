@@ -3,10 +3,10 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput } from 
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, Unit, normalizeStageStatus } from '../types';
+import { STAGES, COMPONENTS, Unit, normalizeStageStatus, isUnitComplete } from '../types';
 import CopyrightFooter from '../components/CopyrightFooter';
 
-type UnitStatus = 'issues' | 'complete' | 'inProgress' | 'notStarted';
+type UnitStatus = 'issues' | 'completeWithIssues' | 'complete' | 'inProgress' | 'notStarted';
 
 function getUnitPct(unit: Unit): number {
   const stagesComplete = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
@@ -38,12 +38,9 @@ function unitHasIssues(unit: Unit): boolean {
   return getOpenCompIssueCount(unit) > 0 || hasBadComponentStatus(unit) || hasStuckStage(unit);
 }
 
-function isUnitComplete(unit: Unit): boolean {
-  return STAGES.every((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete') && getOpenCompIssueCount(unit) === 0;
-}
-
-// Priority: issues > complete > in-progress > not-started
+// Priority: complete-with-issues > issues > complete > in-progress > not-started
 function getUnitStatus(unit: Unit): UnitStatus {
+  if (isUnitComplete(unit) && unitHasIssues(unit)) return 'completeWithIssues';
   if (unitHasIssues(unit)) return 'issues';
   if (isUnitComplete(unit)) return 'complete';
   if (getUnitPct(unit) > 0) return 'inProgress';
@@ -52,6 +49,7 @@ function getUnitStatus(unit: Unit): UnitStatus {
 
 const STATUS_COLOR: Record<UnitStatus, string> = {
   issues:     '#f85149',
+  completeWithIssues: '#3fb950',
   complete:   '#3fb950',
   inProgress: '#d29922',
   notStarted: '#30363d',
@@ -316,6 +314,12 @@ function FleetGrid({
               onPress={() => onUnitPress(unit)}
               activeOpacity={0.7}
             >
+              {status === 'completeWithIssues' && (
+                <View pointerEvents="none" style={s.gridSplitBg}>
+                  <View style={[s.gridSplitHalf, { backgroundColor: STATUS_COLOR.complete }]} />
+                  <View style={[s.gridSplitHalf, { backgroundColor: STATUS_COLOR.issues }]} />
+                </View>
+              )}
               <Text style={s.gridCellText}>{unit.unitNumber}</Text>
               {unit.chillerAvailable === true && (
                 <Text style={s.gridCellChiller}>❄</Text>
@@ -326,10 +330,23 @@ function FleetGrid({
       </View>
       <View style={s.gridLegend}>
         <Legend color={STATUS_COLOR.complete}   text="Done" />
+        <SplitLegend text="Done + Issues" />
         <Legend color={STATUS_COLOR.inProgress} text="In Prog" />
         <Legend color={STATUS_COLOR.issues}     text="Issues" />
         <Legend color={STATUS_COLOR.notStarted} text="Not Started" dim />
       </View>
+    </View>
+  );
+}
+
+function SplitLegend({ text }: { text: string }) {
+  return (
+    <View style={s.legendItem}>
+      <View style={s.legendSplitSwatch}>
+        <View style={[s.legendSplitHalf, { backgroundColor: STATUS_COLOR.complete }]} />
+        <View style={[s.legendSplitHalf, { backgroundColor: STATUS_COLOR.issues }]} />
+      </View>
+      <Text style={s.legendText}>{text}</Text>
     </View>
   );
 }
@@ -370,13 +387,21 @@ function CompactUnitRow({ unit, onPress, lastInColumn }: { unit: Unit; onPress: 
   const pct = getUnitPct(unit);
   const allIssues = getOpenIssueCount(unit);
   const color = unitColor(unit);
+  const completeWithIssues = getUnitStatus(unit) === 'completeWithIssues';
   return (
     <TouchableOpacity
       style={[s.compactRow, !lastInColumn && s.rowBorder]}
       onPress={() => onPress(unit)}
       activeOpacity={0.7}
     >
-      <View style={[s.sideDotSm, { backgroundColor: color }]} />
+      {completeWithIssues ? (
+        <View style={s.sideSplitDotSm}>
+          <View style={[s.sideSplitDotHalfSm, { backgroundColor: STATUS_COLOR.complete }]} />
+          <View style={[s.sideSplitDotHalfSm, { backgroundColor: STATUS_COLOR.issues }]} />
+        </View>
+      ) : (
+        <View style={[s.sideDotSm, { backgroundColor: color }]} />
+      )}
       <Text style={[s.compactId, { color }]}>{unit.unitNumber}</Text>
       {unit.chillerAvailable === true && <Text style={s.compactChiller}>❄</Text>}
       <StageSegmentBar unit={unit} />
@@ -463,7 +488,10 @@ const s = StyleSheet.create({
   gridCell: {
     width: 32, height: 32, borderRadius: 6,
     alignItems: 'center', justifyContent: 'center', position: 'relative',
+    overflow: 'hidden',
   },
+  gridSplitBg: { ...StyleSheet.absoluteFillObject, flexDirection: 'row' },
+  gridSplitHalf: { flex: 1 },
   gridCellText: { fontSize: 12, fontWeight: '700', color: '#ffffff' },
   gridCellChiller: {
     position: 'absolute', bottom: -1, right: 2,
@@ -472,6 +500,8 @@ const s = StyleSheet.create({
   gridLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
   legendItem: { flexDirection: 'row', alignItems: 'center' },
   legendSwatch: { width: 10, height: 10, borderRadius: 2, marginRight: 4 },
+  legendSplitSwatch: { width: 10, height: 10, borderRadius: 2, marginRight: 4, overflow: 'hidden', flexDirection: 'row' },
+  legendSplitHalf: { flex: 1 },
   legendText: { color: '#6e7681', fontSize: 10, fontWeight: '600' },
 
   twoColRow: { flexDirection: 'row', paddingHorizontal: 10, gap: 8 },
@@ -495,6 +525,8 @@ const s = StyleSheet.create({
     paddingVertical: 7, paddingHorizontal: 8, gap: 5,
   },
   sideDotSm: { width: 6, height: 6, borderRadius: 3 },
+  sideSplitDotSm: { width: 6, height: 6, borderRadius: 3, overflow: 'hidden', flexDirection: 'row' },
+  sideSplitDotHalfSm: { flex: 1 },
   compactId: { fontSize: 12, fontWeight: '700', minWidth: 18 },
   compactChiller: { color: '#58a6ff', fontSize: 11, marginRight: -2 },
   segBar: { flex: 1, flexDirection: 'row', gap: 2, alignItems: 'center' },
