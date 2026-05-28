@@ -20,22 +20,22 @@ function getOpenIssueCount(unit: Unit): number {
   return compIssues.length + miscIssues.length;
 }
 
-function getOpenCompIssueCount(unit: Unit): number {
-  return Object.values(unit.components).flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted).length;
-}
-
 function hasBadComponentStatus(unit: Unit): boolean {
   return Object.values(unit.components).some((c) => c.status === 'bad');
+}
+
+function hasBadMiscStatus(unit: Unit): boolean {
+  return (unit.miscEquipment ?? []).filter((m) => !m.deleted).some((m) => m.status === 'bad');
 }
 
 function hasStuckStage(unit: Unit): boolean {
   return STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) === 'stuck');
 }
 
-// A unit has "issues" if any of: open component issues, bad component status,
+// A unit has "issues" if any of: open component/misc issues, bad component/misc status,
 // or any commissioning stage is stuck. These all roll into the same red state.
 function unitHasIssues(unit: Unit): boolean {
-  return getOpenCompIssueCount(unit) > 0 || hasBadComponentStatus(unit) || hasStuckStage(unit);
+  return getOpenIssueCount(unit) > 0 || hasBadComponentStatus(unit) || hasBadMiscStatus(unit) || hasStuckStage(unit);
 }
 
 // Priority: complete-with-issues > issues > complete > in-progress > not-started

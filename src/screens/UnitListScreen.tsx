@@ -15,10 +15,13 @@ type Filter = 'issues' | 'inProgress' | 'complete' | 'chiller';
 function unitStatusColor(unit: Unit): string {
   const comps = Object.values(unit.components);
   const miscItems = (unit.miscEquipment ?? []).filter((m) => !m.deleted);
-  const openCompIssues = comps.flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted).length;
-  const hasBad = comps.some((c) => c.status === 'bad');
+  const openIssues = [
+    ...comps.flatMap((c) => c.issues),
+    ...miscItems.flatMap((m) => m.issues ?? []),
+  ].filter((i) => !i.resolved && !i.deleted).length;
+  const hasBad = comps.some((c) => c.status === 'bad') || miscItems.some((m) => m.status === 'bad');
   const hasStuck = STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) === 'stuck');
-  if (hasBad || openCompIssues > 0 || hasStuck) return '#f85149';
+  if (hasBad || openIssues > 0 || hasStuck) return '#f85149';
 
   const stagesComplete = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
   if (stagesComplete === STAGES.length) return '#3fb950';
@@ -48,10 +51,11 @@ const UnitCard = React.memo(function UnitCard({ unit, onPress }: { unit: Unit; o
   const stagesComplete = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
   const good = comps.filter((c) => c.status === 'good').length;
   const bad = comps.filter((c) => c.status === 'bad').length;
-  const miscIssues = (unit.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues ?? []);
+  const miscItems = (unit.miscEquipment ?? []).filter((m) => !m.deleted);
+  const miscIssues = miscItems.flatMap((m) => m.issues ?? []);
   const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
   const color = unitStatusColor(unit);
-  const completeWithIssues = isUnitComplete(unit) && (openIssues > 0 || bad > 0);
+  const completeWithIssues = isUnitComplete(unit) && (openIssues > 0 || bad > 0 || miscItems.some((m) => m.status === 'bad'));
   const pct = Math.round(
     (stagesComplete / STAGES.length) * 70 + (good / COMPONENTS.length) * 30
   );
