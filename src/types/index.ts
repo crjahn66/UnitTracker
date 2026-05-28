@@ -31,6 +31,8 @@ export const COMPONENTS = [
   { key: 'fieldServer', label: 'Field Server' },
   { key: 'plc', label: 'PLC' },
   { key: 'chillerModbusGateway', label: 'Chiller Modbus Gateway' },
+  { key: 'upsModbusComms', label: 'UPS Modbus COMMS' },
+  { key: 'chiller', label: 'Chiller' },
   { key: 'pskFieldServer', label: 'PSK Field Server' },
   { key: 'panduit', label: 'Panduit' },
   { key: 'panelIntegrity', label: 'Panel Integrity' },

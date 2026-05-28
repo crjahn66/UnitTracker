@@ -1,1 +1,3 @@
-- Hotfix for 1.5.9: web app crashed on first load when persisted units were missing the new components. Backfill now runs synchronously during store hydration, before any screen renders.
+- Added UPS Modbus COMMS and Chiller to component status tracking.
+- New component statuses are included automatically in reports and exports.
+- Existing saved units backfill the new statuses as unchecked on load.
