@@ -31,6 +31,30 @@ const debouncedStorage = {
   removeItem: (name: string) => AsyncStorage.removeItem(name),
 };
 
+const VALID_COMPONENT_KEYS = new Set<ComponentKey>(COMPONENTS.map((c) => c.key));
+
+function normalizeComponents(components: Unit['components']): Unit['components'] {
+  const normalized: any = {};
+  for (const { key } of COMPONENTS) {
+    normalized[key] = components?.[key] ?? { status: 'unchecked', issues: [] };
+  }
+  return normalized;
+}
+
+function normalizeUnitComponents<T extends Unit>(unit: T): T {
+  if (!unit?.components) return unit;
+  const currentKeys = Object.keys(unit.components);
+  const needsNormalize = currentKeys.length !== COMPONENTS.length || currentKeys.some((key) => !VALID_COMPONENT_KEYS.has(key as ComponentKey));
+  if (!needsNormalize && COMPONENTS.every(({ key }) => !!unit.components[key])) return unit;
+  return { ...unit, components: normalizeComponents(unit.components) };
+}
+
+function normalizeUnitsComponents(units: UnitsStore): UnitsStore {
+  return Object.fromEntries(
+    Object.entries(units).map(([uid, unit]) => [uid, normalizeUnitComponents(unit)])
+  ) as UnitsStore;
+}
+
 interface StoreState {
   units: UnitsStore;
   generalIssues: GeneralIssue[];
@@ -101,16 +125,9 @@ export const useStore = create<StoreState>()(
           let anyChanged = false;
           const newUnits: UnitsStore = {};
           for (const [uid, unit] of Object.entries(state.units)) {
-            let unitChanged = false;
-            const components: any = { ...unit.components };
-            for (const { key } of COMPONENTS) {
-              if (!components[key]) {
-                components[key] = { status: 'unchecked', issues: [] };
-                unitChanged = true;
-              }
-            }
-            newUnits[uid] = unitChanged ? { ...unit, components } : unit;
-            if (unitChanged) anyChanged = true;
+            const normalized = normalizeUnitComponents(unit);
+            newUnits[uid] = normalized;
+            if (normalized !== unit) anyChanged = true;
           }
           return anyChanged ? { units: newUnits } : state;
         }),
@@ -660,10 +677,11 @@ export const useStore = create<StoreState>()(
           };
 
           for (const [uid, importUnit] of Object.entries(importUnits)) {
-            if (!merged[uid]) { merged[uid] = importUnit as any; continue; }
+            const normalizedImportUnit = normalizeUnitComponents(importUnit as Unit);
+            if (!merged[uid]) { merged[uid] = normalizedImportUnit as any; continue; }
 
-            const existing = merged[uid];
-            const imp = importUnit as any;
+            const existing = normalizeUnitComponents(merged[uid]);
+            const imp = normalizedImportUnit as any;
 
             // Merge stages — remote wins so unchecking propagates
             const mergedStages = { ...existing.stages };
@@ -934,7 +952,7 @@ export const useStore = create<StoreState>()(
           return { units };
         }),
 
-      loadBackup: (units, generalIssues = []) => set({ units, generalIssues }),
+      loadBackup: (units, generalIssues = []) => set({ units: normalizeUnitsComponents(units), generalIssues }),
     }),
     {
       name: 'unit-tracker-v1',
@@ -948,19 +966,7 @@ export const useStore = create<StoreState>()(
       merge: (persisted: any, current: StoreState): StoreState => {
         const merged = { ...current, ...(persisted ?? {}) } as StoreState;
         if (merged.units && typeof merged.units === 'object') {
-          const fixedUnits: UnitsStore = {};
-          for (const [uid, u] of Object.entries(merged.units)) {
-            const unit = u as Unit;
-            if (!unit?.components) { fixedUnits[uid] = unit; continue; }
-            const components: any = { ...unit.components };
-            for (const { key } of COMPONENTS) {
-              if (!components[key]) {
-                components[key] = { status: 'unchecked', issues: [] };
-              }
-            }
-            fixedUnits[uid] = { ...unit, components };
-          }
-          merged.units = fixedUnits;
+          merged.units = normalizeUnitsComponents(merged.units);
         }
         return merged;
       },

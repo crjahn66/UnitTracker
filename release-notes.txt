@@ -1,3 +1,3 @@
-- Split green/red complete-with-issues cards now account for misc equipment issues too.
-- Misc equipment open issues and bad statuses now affect issue coloring consistently.
-- Completion still depends only on all commissioning stages being complete.
+- Component Status now has one PSK Field Server entry instead of separate Field Server and PSK Field Server entries.
+- Existing Field Server status data is retained and displayed under PSK Field Server.
+- The duplicate PSK Field Server component entry has been removed from reports and exports.

@@ -28,12 +28,11 @@ export const COMPONENTS = [
   { key: 'gfci', label: 'Supply Flow Meter GFCI' },
   { key: 'flowSwitch', label: 'Flow Switch' },
   { key: 'chillerInterlocks', label: 'Chiller Interlocks' },
-  { key: 'fieldServer', label: 'Field Server' },
+  { key: 'fieldServer', label: 'PSK Field Server' },
   { key: 'plc', label: 'PLC' },
   { key: 'chillerModbusGateway', label: 'Chiller Modbus Gateway' },
   { key: 'upsModbusComms', label: 'UPS Modbus COMMS' },
   { key: 'chiller', label: 'Chiller' },
-  { key: 'pskFieldServer', label: 'PSK Field Server' },
   { key: 'panduit', label: 'Panduit' },
   { key: 'panelIntegrity', label: 'Panel Integrity' },
 ] as const;
