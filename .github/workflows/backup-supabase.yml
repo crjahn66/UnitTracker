@@ -1,0 +1,34 @@
+name: Backup Supabase sync_state
+
+on:
+  schedule:
+    # Daily at 08:15 UTC. GitHub scheduled workflows run in UTC.
+    - cron: '15 8 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Back up Supabase sync_state
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY || vars.SUPABASE_KEY }}
+          BACKUP_DIR: supabase-backups
+        run: node scripts/backup-supabase-sync-state.mjs
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-sync-state-${{ github.run_id }}
+          path: supabase-backups/
+          retention-days: 90

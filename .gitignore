@@ -16,3 +16,4 @@ expo.log
 scripts/tmp_photos/
 scripts/*.jpg
 scripts/*.png
+supabase-backups/
