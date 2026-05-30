@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
 import { useStore } from '../store/useStore';
-import { UnitsStore, GeneralIssue } from '../types';
+import { UnitsStore, GeneralIssue, STAGES, normalizeStageStatus } from '../types';
 import { uploadLocalPhotos, downloadPhotosToDevice } from './imageStorage';
 
 export interface SyncResult {
@@ -49,6 +49,68 @@ function markSuccess() {
 function markFailure() {
   _isOnline = false;
   notifyListeners();
+}
+
+type ProgressSummary = {
+  unitCount: number;
+  completedStageFields: number;
+  anyStageWork: number;
+  componentStatusesSet: number;
+};
+
+function summarizeProgress(units: UnitsStore): ProgressSummary {
+  let unitCount = 0;
+  let completedStageFields = 0;
+  let anyStageWork = 0;
+  let componentStatusesSet = 0;
+
+  for (const unit of Object.values(units)) {
+    unitCount++;
+    const stageStatuses = STAGES.map((stage) => normalizeStageStatus(unit.stages[stage.key]));
+    completedStageFields += stageStatuses.filter((status) => status === 'complete').length;
+    if (stageStatuses.some((status) => status !== 'pending')) anyStageWork++;
+    componentStatusesSet += Object.values(unit.components).filter((component) => component.status !== 'unchecked').length;
+  }
+
+  return { unitCount, completedStageFields, anyStageWork, componentStatusesSet };
+}
+
+function stalePushReason(localUnits: UnitsStore, remoteUnits: UnitsStore): string | null {
+  const local = summarizeProgress(localUnits);
+  const remote = summarizeProgress(remoteUnits);
+
+  if (remote.unitCount === 0 || local.unitCount === 0) return null;
+
+  const lostStageFields = remote.completedStageFields - local.completedStageFields;
+  const lostComponentStatuses = remote.componentStatusesSet - local.componentStatusesSet;
+  const lostStageWorkUnits = remote.anyStageWork - local.anyStageWork;
+
+  if (lostStageFields >= 5 || lostComponentStatuses >= 20 || lostStageWorkUnits >= 5) {
+    return [
+      'Blocked stale local data from overwriting newer Supabase progress.',
+      `Local progress: ${local.completedStageFields} completed stage fields, ${local.componentStatusesSet} component statuses set.`,
+      `Remote progress: ${remote.completedStageFields} completed stage fields, ${remote.componentStatusesSet} component statuses set.`,
+      'Sync first, then retry the edit.',
+    ].join(' ');
+  }
+
+  return null;
+}
+
+async function guardAgainstStalePush(localUnits: UnitsStore, remoteUnits?: UnitsStore): Promise<void> {
+  let unitsToCompare = remoteUnits;
+  if (!unitsToCompare) {
+    const { data, error } = await supabase.from('sync_state').select('units').eq('id', 1).single();
+    if (error || !data?.units) return;
+    unitsToCompare = data.units as UnitsStore;
+  }
+
+  const reason = stalePushReason(localUnits, unitsToCompare);
+  if (!reason) return;
+
+  _hasPendingChanges = true;
+  notifyListeners();
+  throw new Error(reason);
 }
 
 // On native: poll updated_at every 30s so remote changes (e.g. web photo uploads)
@@ -205,6 +267,7 @@ async function _syncBody(): Promise<SyncResult> {
   // the round-trip is correctly identified as our own write and ignored.
   _lastKnownRemoteAt = new Date(now).getTime();
   try {
+    await guardAgainstStalePush(finalUnits, remoteUnits);
     const pushResult = await withAbortTimeout(
       (signal) => supabase.from('sync_state').update({ units: finalUnits, general_issues: finalGeneralIssues, updated_at: now }).eq('id', 1).abortSignal(signal),
       25_000,
@@ -361,6 +424,12 @@ export async function pushToCloud(): Promise<void> {
   const { units: finalUnits, generalIssues: finalGeneralIssues } = useStore.getState();
   const now = new Date().toISOString();
   _lastKnownRemoteAt = new Date(now).getTime(); // optimistic — prevents Realtime echo self-triggering
+  try {
+    await guardAgainstStalePush(finalUnits);
+  } catch (err) {
+    markFailure();
+    throw err;
+  }
   const { error } = await supabase
     .from('sync_state')
     .update({ units: finalUnits, general_issues: finalGeneralIssues, updated_at: now })

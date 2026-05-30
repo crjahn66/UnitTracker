@@ -1,3 +1,3 @@
-- Component Status now has one PSK Field Server entry instead of separate Field Server and PSK Field Server entries.
-- Existing Field Server status data is retained and displayed under PSK Field Server.
-- The duplicate PSK Field Server component entry has been removed from reports and exports.
+- Added stale-data protection to block local progress wipes from overwriting Supabase.
+- APK releases now mark older installed versions as requiring an update.
+- Daily Supabase backup workflow remains available for restore points.

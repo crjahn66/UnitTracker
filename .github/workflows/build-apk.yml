@@ -111,6 +111,7 @@ jobs:
               versionCode: Number(process.env.VERSION_CODE),
               url: process.env.PUBLIC_URL,
               notes: process.env.NOTES || "",
+              minVersion: process.env.VERSION,
               publishedAt: new Date().toISOString(),
               commit: process.env.GITHUB_SHA
             };
