@@ -13,6 +13,7 @@ export interface SyncResult {
 
 // Module-level sync status — read via getSyncStatus(), updated after each push/sync
 const LS_KEY = 'syncLastSyncedAt';
+const REMOTE_CHANGE_POLL_MS = 5 * 60 * 1000;
 let _lastSyncedAt: number | null = (() => {
   try { const v = (globalThis as any).localStorage?.getItem(LS_KEY); return v ? Number(v) : null; } catch { return null; }
 })();
@@ -133,12 +134,13 @@ async function checkForRemoteChanges() {
 }
 
 if (Platform.OS !== 'web') {
-  // Native: poll and flag — user taps Sync manually
+  // Native fallback polling: Realtime handles normal change detection; this is
+  // only a low-frequency safety net so we don't burn Supabase egress all day.
   setTimeout(checkForRemoteChanges, 5000);
-  setInterval(checkForRemoteChanges, 30000);
+  setInterval(checkForRemoteChanges, REMOTE_CHANGE_POLL_MS);
 } else {
   // Web: on first load always sync to pull remote photos into local store.
-  // Subsequent polls only sync if remote updated_at is > 10s newer than our last push.
+  // Realtime handles normal updates; polling is a low-frequency fallback.
   let _firstPoll = true;
   async function webAutoPoll() {
     try {
@@ -156,7 +158,7 @@ if (Platform.OS !== 'web') {
     } catch {}
   }
   setTimeout(webAutoPoll, 5000);
-  setInterval(webAutoPoll, 30000);
+  setInterval(webAutoPoll, REMOTE_CHANGE_POLL_MS);
 }
 
 function collectRemoteImageUrls(units: UnitsStore): string[] {

@@ -1,3 +1,3 @@
-- Added stale-data protection to block local progress wipes from overwriting Supabase.
-- APK releases now mark older installed versions as requiring an update.
-- Daily Supabase backup workflow remains available for restore points.
+- Reduced background Supabase polling to lower egress usage.
+- Realtime still handles normal sync notifications; polling is now only a fallback.
+- Stale-data protection remains in place to block progress-wipe pushes.
