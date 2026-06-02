@@ -1,2 +1,2 @@
-- North and South unit cards now show the compact Optimo O/L/R badge on chiller units.
-- Dashboard and unit-list Optimo indicators now match.
+- Improved North/South unit card Optimo badge placement and size.
+- The O/L/R badge now sits larger and inline to the left of the snowflake.
