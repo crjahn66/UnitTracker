@@ -1,3 +1,2 @@
-- Added Optimo mode tracking for Off, Local, and Remote.
-- Dashboard chiller icons now show the unit's Optimo mode badge when set.
-- Excel Overview and Component Status sheets now include Optimo Mode.
+- Adjusted dashboard Optimo mode badge alignment on chiller icons.
+- Optimo badge now sits inline with the snowflake and mirrors its spacing.

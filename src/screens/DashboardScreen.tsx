@@ -322,10 +322,12 @@ function FleetGrid({
               )}
               <Text style={s.gridCellText}>{unit.unitNumber}</Text>
               {unit.chillerAvailable === true && (
-                <View style={s.gridCellChillerWrap}>
-                  <Text style={s.gridCellChiller}>❄</Text>
+                <>
                   {unit.optimoMode && <Text style={s.gridCellOptimo}>{unit.optimoMode}</Text>}
-                </View>
+                  <View style={s.gridCellChillerWrap}>
+                    <Text style={s.gridCellChiller}>❄</Text>
+                  </View>
+                </>
               )}
             </TouchableOpacity>
           );
@@ -510,8 +512,8 @@ const s = StyleSheet.create({
     lineHeight: 14, textAlign: 'center',
   },
   gridCellOptimo: {
-    position: 'absolute', bottom: -3, left: -3,
-    color: '#ffffff', fontSize: 8, fontWeight: '900',
+    position: 'absolute', bottom: -1, left: 2,
+    color: '#ffffff', fontSize: 9, lineHeight: 14, fontWeight: '900',
   },
   gridLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
   legendItem: { flexDirection: 'row', alignItems: 'center' },
