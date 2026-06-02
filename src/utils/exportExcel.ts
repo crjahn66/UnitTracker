@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { format } from 'date-fns';
-import { Unit, STAGES, COMPONENTS, GeneralIssue, Issue, MiscIssue, normalizeStageStatus, isUnitComplete } from '../types';
+import { Unit, STAGES, COMPONENTS, OPTIMO_MODE_LABELS, GeneralIssue, Issue, MiscIssue, normalizeStageStatus, isUnitComplete } from '../types';
 import { readResizedBase64 } from './imageStorage';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -135,7 +135,7 @@ function buildOverview(wb: any, sorted: Unit[]) {
       return [base, date, stuckReason, note].filter(Boolean).join('\n');
     };
     const commDate = u.stagesDates?.commissioning ? fmtDate(u.stagesDates.commissioning) : '';
-    const rowData = [u.id, u.side, u.unitNumber, u.optimoMode ?? '', ...STAGES.map(stageLabel), `${done} / ${STAGES.length}`, open, status, commDate];
+    const rowData = [u.id, u.side, u.unitNumber, u.optimoMode ? OPTIMO_MODE_LABELS[u.optimoMode] : '', ...STAGES.map(stageLabel), `${done} / ${STAGES.length}`, open, status, commDate];
     const r = ws.addRow(rowData);
     const hasNote = STAGES.some((s) => !!u.stagesNotes?.[s.key]);
     r.eachCell((cell: any, col: number) => {
@@ -172,7 +172,7 @@ function buildComponents(wb: any, sorted: Unit[]) {
       currentSide = u.side;
       addSectionHeader(ws, u.side.toUpperCase(), headers.length);
     }
-    const rowData: (string | number)[] = [u.id, u.side, u.unitNumber, u.optimoMode ?? ''];
+    const rowData: (string | number)[] = [u.id, u.side, u.unitNumber, u.optimoMode ? OPTIMO_MODE_LABELS[u.optimoMode] : ''];
     const compClrs: Clr[] = [];
     for (const comp of COMPONENTS) {
       const cd = u.components[comp.key];

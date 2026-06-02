@@ -1,2 +1,2 @@
-- Adjusted dashboard Optimo mode badge alignment on chiller icons.
-- Optimo badge now sits inline with the snowflake and mirrors its spacing.
+- Excel exports now show full Optimo mode words: Off, Local, or Remote.
+- Dashboard badges still use the compact O/L/R indicator.
