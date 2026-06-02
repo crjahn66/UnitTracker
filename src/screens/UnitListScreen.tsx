@@ -76,6 +76,7 @@ const UnitCard = React.memo(function UnitCard({ unit, onPress }: { unit: Unit; o
         {unit.chillerAvailable === true && (
           <View style={s.chillerWrap}>
             <Text style={s.chillerBadge}>❄</Text>
+            {unit.optimoMode && <Text style={s.optimoBadge}>{unit.optimoMode}</Text>}
           </View>
         )}
         {completeWithIssues ? (
@@ -291,8 +292,9 @@ const s = StyleSheet.create({
     paddingVertical: 8,
   },
   unitId: { color: '#e6edf3', fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
-  chillerWrap: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 4, overflow: 'hidden' },
+  chillerWrap: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 4, position: 'relative' },
   chillerBadge: { color: '#58a6ff', fontSize: 22, lineHeight: 22 },
+  optimoBadge: { position: 'absolute', left: 0, bottom: 1, color: '#ffffff', fontSize: 11, lineHeight: 12, fontWeight: '900' },
   dot: { width: 10, height: 10, borderRadius: 5 },
   splitDot: { width: 10, height: 10, borderRadius: 5, overflow: 'hidden', flexDirection: 'row' },
   splitDotHalf: { flex: 1 },

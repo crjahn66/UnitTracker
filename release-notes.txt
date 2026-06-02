@@ -1,2 +1,2 @@
-- Excel exports now show full Optimo mode words: Off, Local, or Remote.
-- Dashboard badges still use the compact O/L/R indicator.
+- North and South unit cards now show the compact Optimo O/L/R badge on chiller units.
+- Dashboard and unit-list Optimo indicators now match.
