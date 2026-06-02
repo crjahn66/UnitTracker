@@ -322,7 +322,10 @@ function FleetGrid({
               )}
               <Text style={s.gridCellText}>{unit.unitNumber}</Text>
               {unit.chillerAvailable === true && (
-                <Text style={s.gridCellChiller}>❄</Text>
+                <View style={s.gridCellChillerWrap}>
+                  <Text style={s.gridCellChiller}>❄</Text>
+                  {unit.optimoMode && <Text style={s.gridCellOptimo}>{unit.optimoMode}</Text>}
+                </View>
               )}
             </TouchableOpacity>
           );
@@ -403,7 +406,12 @@ function CompactUnitRow({ unit, onPress, lastInColumn }: { unit: Unit; onPress: 
         <View style={[s.sideDotSm, { backgroundColor: color }]} />
       )}
       <Text style={[s.compactId, { color }]}>{unit.unitNumber}</Text>
-      {unit.chillerAvailable === true && <Text style={s.compactChiller}>❄</Text>}
+      {unit.chillerAvailable === true && (
+        <View style={s.compactChillerWrap}>
+          <Text style={s.compactChiller}>❄</Text>
+          {unit.optimoMode && <Text style={s.compactOptimoBadge}>{unit.optimoMode}</Text>}
+        </View>
+      )}
       <StageSegmentBar unit={unit} />
       <Text style={s.compactPct}>{pct}%</Text>
       {allIssues > 0 && (
@@ -493,9 +501,17 @@ const s = StyleSheet.create({
   gridSplitBg: { ...StyleSheet.absoluteFillObject, flexDirection: 'row' },
   gridSplitHalf: { flex: 1 },
   gridCellText: { fontSize: 12, fontWeight: '700', color: '#ffffff' },
-  gridCellChiller: {
+  gridCellChillerWrap: {
     position: 'absolute', bottom: -1, right: 2,
+    width: 14, height: 14,
+  },
+  gridCellChiller: {
     color: '#cfe1ff', fontSize: 9,
+    lineHeight: 14, textAlign: 'center',
+  },
+  gridCellOptimo: {
+    position: 'absolute', bottom: -3, left: -3,
+    color: '#ffffff', fontSize: 8, fontWeight: '900',
   },
   gridLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
   legendItem: { flexDirection: 'row', alignItems: 'center' },
@@ -528,7 +544,9 @@ const s = StyleSheet.create({
   sideSplitDotSm: { width: 6, height: 6, borderRadius: 3, overflow: 'hidden', flexDirection: 'row' },
   sideSplitDotHalfSm: { flex: 1 },
   compactId: { fontSize: 12, fontWeight: '700', minWidth: 18 },
-  compactChiller: { color: '#58a6ff', fontSize: 11, marginRight: -2 },
+  compactChillerWrap: { position: 'relative', width: 14, height: 14, marginRight: -2 },
+  compactChiller: { color: '#58a6ff', fontSize: 11, lineHeight: 14, textAlign: 'center' },
+  compactOptimoBadge: { position: 'absolute', left: -2, bottom: -3, color: '#ffffff', fontSize: 8, fontWeight: '900' },
   segBar: { flex: 1, flexDirection: 'row', gap: 2, alignItems: 'center' },
   segCell: { flex: 1, height: 6, borderRadius: 1.5 },
   compactPct: { color: '#c9d1d9', fontSize: 11, fontWeight: '600', minWidth: 28, textAlign: 'right' },

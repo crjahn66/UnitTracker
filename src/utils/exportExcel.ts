@@ -102,8 +102,8 @@ function rowClr(unit: Unit): Clr {
 // ─── Sheet 1: Overview ────────────────────────────────────────────────────────
 function buildOverview(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Overview');
-  const colWidths = [9, 7, 7, 24, 18, 24, 18, 14, 18, 10, 20];
-  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Stages Done', 'Open Constraints', 'Status', 'RED Group Tested On'];
+  const colWidths = [9, 7, 7, 12, 24, 18, 24, 18, 14, 18, 10, 20];
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Optimo Mode', ...STAGES.map((s) => s.label), 'Stages Done', 'Open Constraints', 'Status', 'RED Group Tested On'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 45;
@@ -135,14 +135,14 @@ function buildOverview(wb: any, sorted: Unit[]) {
       return [base, date, stuckReason, note].filter(Boolean).join('\n');
     };
     const commDate = u.stagesDates?.commissioning ? fmtDate(u.stagesDates.commissioning) : '';
-    const rowData = [u.id, u.side, u.unitNumber, ...STAGES.map(stageLabel), `${done} / ${STAGES.length}`, open, status, commDate];
+    const rowData = [u.id, u.side, u.unitNumber, u.optimoMode ?? '', ...STAGES.map(stageLabel), `${done} / ${STAGES.length}`, open, status, commDate];
     const r = ws.addRow(rowData);
     const hasNote = STAGES.some((s) => !!u.stagesNotes?.[s.key]);
     r.eachCell((cell: any, col: number) => {
-      const isStageCol = col >= 4 && col <= 3 + STAGES.length;
+      const isStageCol = col >= 5 && col <= 4 + STAGES.length;
       const rawVal = typeof cell.value === 'string' ? cell.value.split('\n')[0] : cell.value;
       const stageClr = isStageCol ? (rawVal === '✓ Done' ? GRN : rawVal?.startsWith?.('⚠') ? RED : rawVal?.startsWith?.('⏳') ? AMB : GRY) : null;
-      const c = isStageCol ? stageClr! : (col === 3 + STAGES.length + 2 && open > 0 ? RED : clr);
+      const c = isStageCol ? stageClr! : (col === 4 + STAGES.length + 2 && open > 0 ? RED : clr);
       applyCell(cell, cell.value, c, col === 1 || isStageCol, col >= 3);
     });
     r.height = autoRowHeight(r, colWidths);
@@ -153,8 +153,8 @@ function buildOverview(wb: any, sorted: Unit[]) {
 // ─── Sheet 2: Component Status ────────────────────────────────────────────────
 function buildComponents(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Component Status');
-  const colWidths = [9, 7, 7, ...COMPONENTS.map(() => 20), 40];
-  const headers = ['Unit ID', 'Side', 'Unit #', ...COMPONENTS.map((c) => c.label), 'Misc Equipment'];
+  const colWidths = [9, 7, 7, 12, ...COMPONENTS.map(() => 20), 40];
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Optimo Mode', ...COMPONENTS.map((c) => c.label), 'Misc Equipment'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = autoRowHeight(row1, colWidths);
@@ -172,7 +172,7 @@ function buildComponents(wb: any, sorted: Unit[]) {
       currentSide = u.side;
       addSectionHeader(ws, u.side.toUpperCase(), headers.length);
     }
-    const rowData: (string | number)[] = [u.id, u.side, u.unitNumber];
+    const rowData: (string | number)[] = [u.id, u.side, u.unitNumber, u.optimoMode ?? ''];
     const compClrs: Clr[] = [];
     for (const comp of COMPONENTS) {
       const cd = u.components[comp.key];
@@ -187,7 +187,7 @@ function buildComponents(wb: any, sorted: Unit[]) {
 
     const r = ws.addRow(rowData);
     r.eachCell((cell: any, col: number) => {
-      const c = col === 1 ? clr : col === 2 || col === 3 ? clr : col <= 3 + COMPONENTS.length ? compClrs[col - 4] : miscClr;
+      const c = col <= 4 ? clr : col <= 4 + COMPONENTS.length ? compClrs[col - 5] : miscClr;
       applyCell(cell, cell.value, c, col === 1, col >= 3);
     });
     r.height = autoRowHeight(r, colWidths);

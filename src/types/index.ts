@@ -10,6 +10,14 @@ export const STAGES = [
 export type StageKey = (typeof STAGES)[number]['key'];
 export type StageStatus = 'pending' | 'inProgress' | 'complete' | 'stuck';
 
+export type OptimoMode = 'O' | 'L' | 'R';
+
+export const OPTIMO_MODE_LABELS: Record<OptimoMode, string> = {
+  O: 'Off',
+  L: 'Local',
+  R: 'Remote',
+};
+
 // Converts legacy boolean stage values (true=complete, false=pending) to StageStatus
 export function normalizeStageStatus(v: unknown): StageStatus {
   if (v === true)  return 'complete';
@@ -130,6 +138,7 @@ export interface Unit {
   miscEquipment?: MiscEquipItem[];
   customComponentLabels?: Partial<Record<ComponentKey, string>>;
   chillerAvailable?: boolean;
+  optimoMode?: OptimoMode;
 }
 
 export function isUnitComplete(unit: Pick<Unit, 'stages'>): boolean {

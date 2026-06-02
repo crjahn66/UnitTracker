@@ -8,6 +8,7 @@ import {
   StageStatus,
   ComponentKey,
   ComponentStatus,
+  OptimoMode,
   Issue,
   IssueUpdate,
   GeneralIssue,
@@ -105,6 +106,7 @@ interface StoreState {
   deleteGeneralIssueUpdate: (issueId: string, updateId: string) => void;
   deleteGeneralIssue: (issueId: string) => void;
   setChillerAvailable: (unitId: string, available: boolean) => void;
+  setOptimoMode: (unitId: string, mode: OptimoMode) => void;
   mergeImport: (importUnits: UnitsStore, importGeneralIssues: GeneralIssue[]) => void;
   mergeAdditive: (importUnits: UnitsStore, importGeneralIssues: GeneralIssue[]) => void;
   loadBackup: (units: UnitsStore, generalIssues?: GeneralIssue[]) => void;
@@ -500,6 +502,17 @@ export const useStore = create<StoreState>()(
           },
         })),
 
+      setOptimoMode: (unitId, mode) =>
+        set((state) => ({
+          units: {
+            ...state.units,
+            [unitId]: {
+              ...state.units[unitId],
+              optimoMode: mode,
+            },
+          },
+        })),
+
       addIssueUpdate: (unitId, componentKey, issueId, update) =>
         set((state) => {
           const comp = state.units[unitId].components[componentKey];
@@ -843,6 +856,7 @@ export const useStore = create<StoreState>()(
               miscEquipment: existingMisc,
               customComponentLabels: Object.keys(mergedLabels).length ? mergedLabels : undefined,
               ...('chillerAvailable' in imp && { chillerAvailable: imp.chillerAvailable }),
+              ...('optimoMode' in imp && { optimoMode: imp.optimoMode }),
             };
           }
 
@@ -921,7 +935,12 @@ export const useStore = create<StoreState>()(
               }
             }
 
-            merged[uid] = { ...existing, components: mergedComponents, miscEquipment: existingMisc };
+            merged[uid] = {
+              ...existing,
+              components: mergedComponents,
+              miscEquipment: existingMisc,
+              ...(!existing.optimoMode && 'optimoMode' in imp && { optimoMode: imp.optimoMode }),
+            };
           }
 
           // General issues: add missing only.

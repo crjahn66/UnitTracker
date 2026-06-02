@@ -8,7 +8,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, ComponentKey, StageKey, StageStatus, normalizeStageStatus } from '../types';
+import { STAGES, COMPONENTS, ComponentKey, StageKey, StageStatus, OptimoMode, OPTIMO_MODE_LABELS, normalizeStageStatus } from '../types';
 import ComponentModal from '../components/ComponentModal';
 import MiscEquipModal from '../components/MiscEquipModal';
 import PhotoGalleryModal from '../components/PhotoGalleryModal';
@@ -54,6 +54,7 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
   const setStageNote = useStore((state) => state.setStageNote);
   const setStageDate = useStore((state) => state.setStageDate);
   const setStageStuckReason = useStore((state) => state.setStageStuckReason);
+  const setOptimoMode = useStore((state) => state.setOptimoMode);
 
   const [selectedComponent, setSelectedComponent] = useState<ComponentKey | null>(null);
   const [selectedMiscItem, setSelectedMiscItem] = useState<string | null>(null);
@@ -227,6 +228,35 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
             <View style={s.card}>
               <NetRow label="BMS Path (MSG AOI)"    value={networkEntry.bmsPath} first />
               <NetRow label="BMS Source (MSG AOI)"  value={networkEntry.bmsSourceElement} last />
+            </View>
+            <View style={s.optimoCard}>
+              <View style={s.optimoHeaderRow}>
+                <View>
+                  <Text style={s.optimoTitle}>Optimo Mode</Text>
+                  <Text style={s.optimoSubtitle}>{unit.optimoMode ? OPTIMO_MODE_LABELS[unit.optimoMode] : 'Not set'}</Text>
+                </View>
+                <View style={s.optimoCurrentBadge}>
+                  <Text style={s.optimoCurrentBadgeText}>{unit.optimoMode ?? '—'}</Text>
+                </View>
+              </View>
+              <View style={s.optimoButtonRow}>
+                {(['O', 'L', 'R'] as OptimoMode[]).map((mode) => {
+                  const active = unit.optimoMode === mode;
+                  return (
+                    <TouchableOpacity
+                      key={mode}
+                      style={[s.optimoButton, active && s.optimoButtonActive, !isEditMode && s.optimoButtonDisabled]}
+                      disabled={!isEditMode}
+                      onPress={() => { setOptimoMode(unitId, mode); pushToCloud().catch(() => {}); }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[s.optimoButtonLetter, active && s.optimoButtonLetterActive]}>{mode}</Text>
+                      <Text style={[s.optimoButtonLabel, active && s.optimoButtonLabelActive]}>{OPTIMO_MODE_LABELS[mode]}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {!isEditMode && <Text style={s.optimoHint}>Enable Edit Mode to change Optimo mode.</Text>}
             </View>
           </>
         )}
@@ -739,6 +769,30 @@ const s = StyleSheet.create({
   chevron: { marginLeft: 2 },
   pskBanner: { marginBottom: 6, paddingHorizontal: 4 },
   pskText: { color: '#58a6ff', fontSize: 12, fontWeight: '600', letterSpacing: 0.3 },
+  optimoCard: {
+    backgroundColor: '#161b22', borderRadius: 10, borderWidth: 1, borderColor: '#21262d',
+    marginTop: 10, padding: 12,
+  },
+  optimoHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  optimoTitle: { color: '#e6edf3', fontSize: 14, fontWeight: '700' },
+  optimoSubtitle: { color: '#8b949e', fontSize: 12, marginTop: 2 },
+  optimoCurrentBadge: {
+    minWidth: 30, height: 30, borderRadius: 15, backgroundColor: '#58a6ff22', borderWidth: 1, borderColor: '#58a6ff',
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8,
+  },
+  optimoCurrentBadgeText: { color: '#58a6ff', fontSize: 14, fontWeight: '900' },
+  optimoButtonRow: { flexDirection: 'row', gap: 8 },
+  optimoButton: {
+    flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 8,
+    borderWidth: 1, borderColor: '#30363d', backgroundColor: '#0d1117',
+  },
+  optimoButtonActive: { borderColor: '#58a6ff', backgroundColor: '#58a6ff22' },
+  optimoButtonDisabled: { opacity: 0.65 },
+  optimoButtonLetter: { color: '#8b949e', fontSize: 15, fontWeight: '900' },
+  optimoButtonLetterActive: { color: '#58a6ff' },
+  optimoButtonLabel: { color: '#6e7681', fontSize: 10, marginTop: 2, fontWeight: '600' },
+  optimoButtonLabelActive: { color: '#c9d1d9' },
+  optimoHint: { color: '#6e7681', fontSize: 11, marginTop: 8 },
   netRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 14 },
   netRowBorder: { borderBottomWidth: 1, borderBottomColor: '#21262d' },
   netLabel: { color: '#8b949e', fontSize: 13, fontWeight: '500' },
