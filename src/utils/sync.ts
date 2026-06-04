@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
 import { useStore } from '../store/useStore';
-import { UnitsStore, GeneralIssue, STAGES, normalizeStageStatus } from '../types';
+import { UnitsStore, GeneralIssue, STAGES, COMPONENTS, normalizeStageStatus } from '../types';
 import { uploadLocalPhotos, downloadPhotosToDevice } from './imageStorage';
 
 export interface SyncResult {
@@ -59,6 +59,13 @@ type ProgressSummary = {
   componentStatusesSet: number;
 };
 
+// Only count statuses under component keys that still exist in COMPONENTS.
+// Remote rows can carry orphaned keys from renamed/removed components (e.g. a
+// legacy `pskFieldServer` duplicated into `fieldServer`). mergeImport drops
+// those keys, so counting them here would make remote look permanently "ahead"
+// of any merged local state and deadlock the stale-push guard on every device.
+const VALID_COMPONENT_KEYS = new Set(COMPONENTS.map((c) => c.key));
+
 function summarizeProgress(units: UnitsStore): ProgressSummary {
   let unitCount = 0;
   let completedStageFields = 0;
@@ -70,7 +77,8 @@ function summarizeProgress(units: UnitsStore): ProgressSummary {
     const stageStatuses = STAGES.map((stage) => normalizeStageStatus(unit.stages[stage.key]));
     completedStageFields += stageStatuses.filter((status) => status === 'complete').length;
     if (stageStatuses.some((status) => status !== 'pending')) anyStageWork++;
-    componentStatusesSet += Object.values(unit.components).filter((component) => component.status !== 'unchecked').length;
+    componentStatusesSet += Object.entries(unit.components)
+      .filter(([key, component]) => VALID_COMPONENT_KEYS.has(key as any) && component.status !== 'unchecked').length;
   }
 
   return { unitCount, completedStageFields, anyStageWork, componentStatusesSet };

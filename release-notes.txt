@@ -1,2 +1,4 @@
-- Improved North/South unit card Optimo badge placement and size.
-- The O/L/R badge now sits larger and inline to the left of the snowflake.
+- Fixed a sync deadlock that blocked "Sync with Cloud" on every device.
+- The stale-data guard no longer miscounts leftover keys from renamed components.
+- Syncing now self-heals the cloud record by removing the orphaned data.
+- Stale-data protection against progress-wipe pushes remains fully in place.
