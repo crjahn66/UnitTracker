@@ -350,7 +350,7 @@ function WorkingUnitsPanel({
   return (
     <View style={s.workingCard}>
       <View style={s.workingHeaderRow}>
-        <Text style={s.workingTitle}>Working Units</Text>
+        <Text style={s.workingTitle}>Active Work</Text>
         <Text style={s.workingCount}>{total} active</Text>
       </View>
       {total === 0 ? (
@@ -466,16 +466,16 @@ const s = StyleSheet.create({
   content: { paddingBottom: 50 },
   summaryBar: {
     flexDirection: 'row', backgroundColor: '#161b22',
-    borderBottomWidth: 1, borderBottomColor: '#21262d', paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: '#21262d', paddingVertical: 8,
   },
   sumStat: { flex: 1, alignItems: 'center' },
-  sumStatValue: { fontSize: 22, fontWeight: '700' },
-  sumStatLabel: { color: '#8b949e', fontSize: 11, marginTop: 2 },
+  sumStatValue: { fontSize: 19, fontWeight: '700' },
+  sumStatLabel: { color: '#8b949e', fontSize: 10, marginTop: 1 },
   overallCard: {
-    margin: 14, marginBottom: 4, backgroundColor: '#161b22',
-    borderRadius: 10, borderWidth: 1, borderColor: '#21262d', padding: 14,
+    marginHorizontal: 14, marginTop: 10, marginBottom: 2, backgroundColor: '#161b22',
+    borderRadius: 10, borderWidth: 1, borderColor: '#21262d', padding: 10,
   },
-  overallRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  overallRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   overallLabel: { color: '#8b949e', fontSize: 13, fontWeight: '600' },
   overallPct: { color: '#58a6ff', fontSize: 18, fontWeight: '700' },
   overallBarBg: { height: 6, backgroundColor: '#21262d', borderRadius: 3, overflow: 'hidden' },
@@ -504,7 +504,7 @@ const s = StyleSheet.create({
   emptyText: { color: '#3fb950', fontSize: 14, fontWeight: '600' },
 
   gridCard: {
-    margin: 14, marginTop: 8, marginBottom: 0, padding: 12,
+    margin: 14, marginTop: 6, marginBottom: 0, padding: 10,
     backgroundColor: '#161b22', borderRadius: 10, borderWidth: 1, borderColor: '#21262d',
   },
   gridHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 },
@@ -539,7 +539,7 @@ const s = StyleSheet.create({
   legendText: { color: '#6e7681', fontSize: 10, fontWeight: '600' },
 
   workingCard: {
-    margin: 14, marginTop: 8, marginBottom: 0, padding: 12,
+    margin: 14, marginTop: 6, marginBottom: 0, padding: 10,
     backgroundColor: '#161b22', borderRadius: 10, borderWidth: 1, borderColor: '#21262d',
   },
   workingHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 },

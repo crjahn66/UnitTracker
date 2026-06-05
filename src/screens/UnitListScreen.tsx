@@ -119,6 +119,7 @@ const UnitCard = React.memo(function UnitCard({
                   !isEditMode && s.workingToggleDisabled,
                 ]}
                 disabled={!isEditMode}
+                hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
                 onPress={(event) => {
                   event.stopPropagation();
                   onWorkingPartyChange(unit.id, party);
@@ -351,9 +352,9 @@ const s = StyleSheet.create({
   splitDot: { width: 10, height: 10, borderRadius: 5, overflow: 'hidden', flexDirection: 'row' },
   splitDotHalf: { flex: 1 },
   cardBody: { padding: 10 },
-  workingToggleRow: { flexDirection: 'row', gap: 6, marginBottom: 10 },
+  workingToggleRow: { flexDirection: 'row', gap: 6, marginBottom: 11 },
   workingToggleChip: {
-    flex: 1, borderWidth: 1, borderRadius: 7, paddingVertical: 5,
+    flex: 1, borderWidth: 1, borderRadius: 8, paddingVertical: 7,
     alignItems: 'center', justifyContent: 'center', backgroundColor: '#0d1117',
   },
   workingToggleRed: { borderColor: '#f85149' },
@@ -361,7 +362,7 @@ const s = StyleSheet.create({
   workingToggleNa: { borderColor: '#30363d' },
   workingToggleActive: { backgroundColor: '#30363d' },
   workingToggleDisabled: { opacity: 0.65 },
-  workingToggleText: { color: '#8b949e', fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
+  workingToggleText: { color: '#8b949e', fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
   workingToggleTextActive: { color: '#ffffff' },
   stageLabel: { color: '#8b949e', fontSize: 12, marginBottom: 4 },
   stageCount: { fontWeight: '700' },
