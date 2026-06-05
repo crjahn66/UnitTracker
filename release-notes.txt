@@ -1,4 +1,3 @@
-- Fixed a sync deadlock that blocked "Sync with Cloud" on every device.
-- The stale-data guard no longer miscounts leftover keys from renamed components.
-- Syncing now self-heals the cloud record by removing the orphaned data.
-- Stale-data protection against progress-wipe pushes remains fully in place.
+- Added Red Group / ACS / N/A working-party tracking per unit.
+- Dashboard now shows a compact Working Units panel grouped by Red Group and ACS.
+- North and South unit cards now include a working-party toggle in edit mode.

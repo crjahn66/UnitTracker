@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput } from 
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, Unit, normalizeStageStatus, isUnitComplete } from '../types';
+import { STAGES, COMPONENTS, Unit, WorkingParty, WORKING_PARTY_LABELS, normalizeStageStatus, isUnitComplete } from '../types';
 import CopyrightFooter from '../components/CopyrightFooter';
 
 type UnitStatus = 'issues' | 'completeWithIssues' | 'complete' | 'inProgress' | 'notStarted';
@@ -66,7 +66,6 @@ export default function DashboardScreen() {
 
   const [searchText, setSearchText] = useState('');
   const [sideFilter, setSideFilter] = useState<'all' | 'North' | 'South'>('all');
-  const [showAllUnits, setShowAllUnits] = useState(false);
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearchChange = useCallback((text: string) => {
@@ -84,7 +83,7 @@ export default function DashboardScreen() {
 
   useEffect(() => () => { if (clearTimerRef.current) clearTimeout(clearTimerRef.current); }, []);
 
-  const { sortedUnits, northUnits, southUnits, stats, openIssues, overallPct, sidePcts, sideDone } = useMemo(() => {
+  const { northUnits, southUnits, workingUnits, stats, openIssues, overallPct, sidePcts, sideDone } = useMemo(() => {
     const all = Object.values(units).sort((a, b) =>
       a.side !== b.side ? a.side.localeCompare(b.side) : a.unitNumber - b.unitNumber
     );
@@ -102,6 +101,10 @@ export default function DashboardScreen() {
     const sideDoneCount = (arr: Unit[]) => arr.filter(isUnitComplete).length;
     const sidePcts = { N: sidePct(northUnits), S: sidePct(southUnits) };
     const sideDone = { N: sideDoneCount(northUnits), S: sideDoneCount(southUnits) };
+    const workingUnits = {
+      redGroup: all.filter((u) => u.workingParty === 'redGroup'),
+      acs: all.filter((u) => u.workingParty === 'acs'),
+    };
 
     const openIssues: { key: string; unitId: string; unit: Unit; compLabel: string; notes: string; foundBy: string; ageDays: number; componentKey?: string; miscItemId?: string }[] = [];
     for (const unit of all) {
@@ -119,16 +122,8 @@ export default function DashboardScreen() {
     }
     openIssues.sort((a, b) => b.ageDays - a.ageDays);
 
-    return { sortedUnits: all, northUnits, southUnits, stats: { total: all.length, complete, inProgress, totalIssues, chillerReady }, openIssues, overallPct, sidePcts, sideDone };
+    return { northUnits, southUnits, workingUnits, stats: { total: all.length, complete, inProgress, totalIssues, chillerReady }, openIssues, overallPct, sidePcts, sideDone };
   }, [units, generalIssues]);
-
-  // Detail list: when not showing all, hide complete units. Order is numerical (by side, then unit number).
-  const detailUnits = useMemo(
-    () => showAllUnits ? sortedUnits : sortedUnits.filter((u) => !isUnitComplete(u)),
-    [sortedUnits, showAllUnits],
-  );
-  const detailNorth = useMemo(() => detailUnits.filter((u) => u.side === 'North'), [detailUnits]);
-  const detailSouth = useMemo(() => detailUnits.filter((u) => u.side === 'South'), [detailUnits]);
 
   const filteredIssues = useMemo(() => {
     let result = openIssues;
@@ -184,75 +179,47 @@ export default function DashboardScreen() {
       <FleetGrid title="North" units={northUnits} doneCount={sideDone.N} onUnitPress={goToUnit} />
       <FleetGrid title="South" units={southUnits} doneCount={sideDone.S} onUnitPress={goToUnit} />
 
-      {/* Issue search + side filter — only shown when there are open issues */}
-      {openIssues.length > 0 && (
-        <View style={s.searchBlock}>
-          <View style={s.searchWrap}>
-            <Ionicons name="search-outline" size={16} color="#6e7681" style={{ marginRight: 8 }} />
-            <TextInput
-              style={s.searchInput}
-              value={searchText}
-              onChangeText={handleSearchChange}
-              placeholder="Search issues…"
-              placeholderTextColor="#6e7681"
-              autoCorrect={false}
-              autoCapitalize="none"
-            />
-            {!!searchText && (
-              <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close-circle" size={18} color="#6e7681" />
-              </TouchableOpacity>
-            )}
-          </View>
-          <View style={s.sideFilterRow}>
-            {(['all', 'North', 'South'] as const).map((opt) => {
-              const active = sideFilter === opt;
-              return (
-                <TouchableOpacity
-                  key={opt}
-                  style={[s.sideChip, active && s.sideChipActive]}
-                  onPress={() => setSideFilter(opt)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[s.sideChipText, active && s.sideChipTextActive]}>
-                    {opt === 'all' ? 'All' : opt}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-      )}
-
-      {/* Per-unit list — hidden while filtering issues */}
-      {!isFiltering && (
-        <View style={s.unitsHeaderRow}>
-          <Text style={s.sectionLabelInline}>
-            {showAllUnits ? `All Units (${sortedUnits.length})` : `In Progress (${detailUnits.length})`}
-          </Text>
-          <TouchableOpacity onPress={() => setShowAllUnits((v) => !v)} hitSlop={8} activeOpacity={0.7}>
-            <Text style={s.toggleLink}>
-              {showAllUnits ? 'Hide complete' : 'Show all units'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      {!isFiltering && detailUnits.length === 0 && (
-        <View style={s.emptyCard}>
-          <Ionicons name="checkmark-circle" size={20} color="#3fb950" style={{ marginRight: 8 }} />
-          <Text style={s.emptyText}>All units complete 🎉</Text>
-        </View>
-      )}
-      {!isFiltering && detailUnits.length > 0 && (
-        <View style={s.twoColRow}>
-          <DetailColumn title="North" units={detailNorth} onUnitPress={goToUnit} />
-          <DetailColumn title="South" units={detailSouth} onUnitPress={goToUnit} />
-        </View>
-      )}
+      <WorkingUnitsPanel workingUnits={workingUnits} onUnitPress={goToUnit} />
 
       {/* Open issues */}
       {openIssues.length > 0 && (
         <>
+          <View style={s.searchBlock}>
+            <View style={s.searchWrap}>
+              <Ionicons name="search-outline" size={16} color="#6e7681" style={{ marginRight: 8 }} />
+              <TextInput
+                style={s.searchInput}
+                value={searchText}
+                onChangeText={handleSearchChange}
+                placeholder="Search issues…"
+                placeholderTextColor="#6e7681"
+                autoCorrect={false}
+                autoCapitalize="none"
+              />
+              {!!searchText && (
+                <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close-circle" size={18} color="#6e7681" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={s.sideFilterRow}>
+              {(['all', 'North', 'South'] as const).map((opt) => {
+                const active = sideFilter === opt;
+                return (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[s.sideChip, active && s.sideChipActive]}
+                    onPress={() => setSideFilter(opt)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.sideChipText, active && s.sideChipTextActive]}>
+                      {opt === 'all' ? 'All' : opt}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
           <SectionLabel title={isFiltering ? `Issues (${filteredIssues.length} of ${openIssues.length})` : `Open Issues (${openIssues.length})`} />
           {filteredIssues.map((item) => (
             <TouchableOpacity key={item.key} style={s.issueCard} onPress={() => goToUnit(item.unit, item.componentKey, item.miscItemId)} activeOpacity={0.7}>
@@ -371,6 +338,55 @@ const STAGE_SEG_COLOR: Record<string, string> = {
   stuck: '#f85149',
   pending: '#30363d',
 };
+
+function WorkingUnitsPanel({
+  workingUnits,
+  onUnitPress,
+}: {
+  workingUnits: Record<'redGroup' | 'acs', Unit[]>;
+  onUnitPress: (unit: Unit) => void;
+}) {
+  const total = workingUnits.redGroup.length + workingUnits.acs.length;
+  return (
+    <View style={s.workingCard}>
+      <View style={s.workingHeaderRow}>
+        <Text style={s.workingTitle}>Working Units</Text>
+        <Text style={s.workingCount}>{total} active</Text>
+      </View>
+      {total === 0 ? (
+        <Text style={s.workingEmpty}>No units currently assigned to Red Group or ACS.</Text>
+      ) : (
+        <View style={s.workingColumns}>
+          <WorkingColumn party="redGroup" units={workingUnits.redGroup} onUnitPress={onUnitPress} />
+          <WorkingColumn party="acs" units={workingUnits.acs} onUnitPress={onUnitPress} />
+        </View>
+      )}
+    </View>
+  );
+}
+
+function WorkingColumn({ party, units, onUnitPress }: { party: Exclude<WorkingParty, 'na'>; units: Unit[]; onUnitPress: (unit: Unit) => void }) {
+  const color = party === 'redGroup' ? '#f85149' : '#58a6ff';
+  return (
+    <View style={s.workingColumn}>
+      <View style={s.workingColumnHeader}>
+        <View style={[s.workingDot, { backgroundColor: color }]} />
+        <Text style={s.workingColumnTitle}>{WORKING_PARTY_LABELS[party]} ({units.length})</Text>
+      </View>
+      {units.length === 0 ? (
+        <Text style={s.workingColumnEmpty}>None</Text>
+      ) : (
+        <View style={s.workingChipWrap}>
+          {units.map((unit) => (
+            <TouchableOpacity key={unit.id} style={[s.workingUnitChip, { borderColor: color }]} onPress={() => onUnitPress(unit)} activeOpacity={0.7}>
+              <Text style={s.workingUnitText}>{unit.id}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
 
 function StageSegmentBar({ unit }: { unit: Unit }) {
   return (
@@ -521,6 +537,24 @@ const s = StyleSheet.create({
   legendSplitSwatch: { width: 10, height: 10, borderRadius: 2, marginRight: 4, overflow: 'hidden', flexDirection: 'row' },
   legendSplitHalf: { flex: 1 },
   legendText: { color: '#6e7681', fontSize: 10, fontWeight: '600' },
+
+  workingCard: {
+    margin: 14, marginTop: 8, marginBottom: 0, padding: 12,
+    backgroundColor: '#161b22', borderRadius: 10, borderWidth: 1, borderColor: '#21262d',
+  },
+  workingHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 },
+  workingTitle: { color: '#e6edf3', fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
+  workingCount: { color: '#8b949e', fontSize: 11, fontWeight: '600' },
+  workingEmpty: { color: '#6e7681', fontSize: 12, fontWeight: '600' },
+  workingColumns: { flexDirection: 'row', gap: 10 },
+  workingColumn: { flex: 1, minWidth: 0 },
+  workingColumnHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 7 },
+  workingDot: { width: 7, height: 7, borderRadius: 4, marginRight: 6 },
+  workingColumnTitle: { color: '#8b949e', fontSize: 10, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
+  workingColumnEmpty: { color: '#6e7681', fontSize: 11, fontWeight: '600', paddingVertical: 6 },
+  workingChipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  workingUnitChip: { borderWidth: 1, borderRadius: 7, paddingVertical: 4, paddingHorizontal: 7, backgroundColor: '#0d1117' },
+  workingUnitText: { color: '#e6edf3', fontSize: 11, fontWeight: '800' },
 
   twoColRow: { flexDirection: 'row', paddingHorizontal: 10, gap: 8 },
   detailCol: { flex: 1 },

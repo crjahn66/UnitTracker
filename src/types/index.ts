@@ -18,6 +18,14 @@ export const OPTIMO_MODE_LABELS: Record<OptimoMode, string> = {
   R: 'Remote',
 };
 
+export type WorkingParty = 'redGroup' | 'acs' | 'na';
+
+export const WORKING_PARTY_LABELS: Record<WorkingParty, string> = {
+  redGroup: 'Red Group',
+  acs: 'ACS',
+  na: 'N/A',
+};
+
 // Converts legacy boolean stage values (true=complete, false=pending) to StageStatus
 export function normalizeStageStatus(v: unknown): StageStatus {
   if (v === true)  return 'complete';
@@ -139,6 +147,7 @@ export interface Unit {
   customComponentLabels?: Partial<Record<ComponentKey, string>>;
   chillerAvailable?: boolean;
   optimoMode?: OptimoMode;
+  workingParty?: WorkingParty;
 }
 
 export function isUnitComplete(unit: Pick<Unit, 'stages'>): boolean {

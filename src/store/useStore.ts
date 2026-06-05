@@ -9,6 +9,7 @@ import {
   ComponentKey,
   ComponentStatus,
   OptimoMode,
+  WorkingParty,
   Issue,
   IssueUpdate,
   GeneralIssue,
@@ -107,6 +108,7 @@ interface StoreState {
   deleteGeneralIssue: (issueId: string) => void;
   setChillerAvailable: (unitId: string, available: boolean) => void;
   setOptimoMode: (unitId: string, mode: OptimoMode) => void;
+  setWorkingParty: (unitId: string, party: WorkingParty) => void;
   mergeImport: (importUnits: UnitsStore, importGeneralIssues: GeneralIssue[]) => void;
   mergeAdditive: (importUnits: UnitsStore, importGeneralIssues: GeneralIssue[]) => void;
   loadBackup: (units: UnitsStore, generalIssues?: GeneralIssue[]) => void;
@@ -513,6 +515,17 @@ export const useStore = create<StoreState>()(
           },
         })),
 
+      setWorkingParty: (unitId, party) =>
+        set((state) => ({
+          units: {
+            ...state.units,
+            [unitId]: {
+              ...state.units[unitId],
+              workingParty: party,
+            },
+          },
+        })),
+
       addIssueUpdate: (unitId, componentKey, issueId, update) =>
         set((state) => {
           const comp = state.units[unitId].components[componentKey];
@@ -857,6 +870,7 @@ export const useStore = create<StoreState>()(
               customComponentLabels: Object.keys(mergedLabels).length ? mergedLabels : undefined,
               ...('chillerAvailable' in imp && { chillerAvailable: imp.chillerAvailable }),
               ...('optimoMode' in imp && { optimoMode: imp.optimoMode }),
+              ...('workingParty' in imp && { workingParty: imp.workingParty }),
             };
           }
 
@@ -940,6 +954,7 @@ export const useStore = create<StoreState>()(
               components: mergedComponents,
               miscEquipment: existingMisc,
               ...(!existing.optimoMode && 'optimoMode' in imp && { optimoMode: imp.optimoMode }),
+              ...(!existing.workingParty && 'workingParty' in imp && { workingParty: imp.workingParty }),
             };
           }
 

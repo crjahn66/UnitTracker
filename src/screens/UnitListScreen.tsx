@@ -6,8 +6,10 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { format } from 'date-fns';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
-import { Unit, STAGES, COMPONENTS, normalizeStageStatus, isUnitComplete } from '../types';
+import { Unit, STAGES, COMPONENTS, WorkingParty, WORKING_PARTY_LABELS, normalizeStageStatus, isUnitComplete } from '../types';
 import CopyrightFooter from '../components/CopyrightFooter';
+import { useEditMode } from '../context/EditModeContext';
+import { pushToCloud } from '../utils/sync';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitList'>;
 type Filter = 'issues' | 'inProgress' | 'complete' | 'chiller';
@@ -46,7 +48,19 @@ function isInProgress(unit: Unit): boolean {
     || (unit.miscEquipment ?? []).some((m) => m.status !== 'unchecked');
 }
 
-const UnitCard = React.memo(function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
+const WORKING_PARTY_OPTIONS: WorkingParty[] = ['redGroup', 'acs', 'na'];
+
+const UnitCard = React.memo(function UnitCard({
+  unit,
+  onPress,
+  isEditMode,
+  onWorkingPartyChange,
+}: {
+  unit: Unit;
+  onPress: () => void;
+  isEditMode: boolean;
+  onWorkingPartyChange: (unitId: string, party: WorkingParty) => void;
+}) {
   const comps = Object.values(unit.components);
   const stagesComplete = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
   const good = comps.filter((c) => c.status === 'good').length;
@@ -62,6 +76,7 @@ const UnitCard = React.memo(function UnitCard({ unit, onPress }: { unit: Unit; o
   const commDateStr = normalizeStageStatus(unit.stages.commissioning) === 'complete' && unit.stagesDates?.commissioning
     ? (() => { try { return format(new Date(unit.stagesDates!.commissioning!), 'MMM d, yyyy'); } catch { return null; } })()
     : null;
+  const currentWorkingParty = unit.workingParty ?? 'na';
 
   return (
     <TouchableOpacity style={[s.card, { borderColor: color }]} onPress={onPress} activeOpacity={0.75}>
@@ -89,6 +104,34 @@ const UnitCard = React.memo(function UnitCard({ unit, onPress }: { unit: Unit; o
         )}
       </View>
       <View style={s.cardBody}>
+        <View style={s.workingToggleRow}>
+          {WORKING_PARTY_OPTIONS.map((party) => {
+            const active = currentWorkingParty === party;
+            return (
+              <TouchableOpacity
+                key={party}
+                style={[
+                  s.workingToggleChip,
+                  party === 'redGroup' && s.workingToggleRed,
+                  party === 'acs' && s.workingToggleAcs,
+                  party === 'na' && s.workingToggleNa,
+                  active && s.workingToggleActive,
+                  !isEditMode && s.workingToggleDisabled,
+                ]}
+                disabled={!isEditMode}
+                onPress={(event) => {
+                  event.stopPropagation();
+                  onWorkingPartyChange(unit.id, party);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[s.workingToggleText, active && s.workingToggleTextActive]}>
+                  {party === 'redGroup' ? 'RED' : WORKING_PARTY_LABELS[party]}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
         <Text style={s.stageLabel}>
           Stages <Text style={[s.stageCount, { color }]}>{stagesComplete}/{STAGES.length}</Text>
         </Text>
@@ -121,7 +164,14 @@ const UnitCard = React.memo(function UnitCard({ unit, onPress }: { unit: Unit; o
 export default function UnitListScreen({ navigation, route }: Props) {
   const { side } = route.params;
   const units = useStore((state) => state.units);
+  const setWorkingParty = useStore((state) => state.setWorkingParty);
+  const { isEditMode } = useEditMode();
   const [activeFilters, setActiveFilters] = useState<Set<Filter>>(new Set());
+
+  const handleWorkingPartyChange = useCallback((unitId: string, party: WorkingParty) => {
+    setWorkingParty(unitId, party);
+    pushToCloud().catch(() => {});
+  }, [setWorkingParty]);
 
   const sideUnits = useMemo(
     () =>
@@ -167,8 +217,10 @@ export default function UnitListScreen({ navigation, route }: Props) {
     <UnitCard
       unit={item}
       onPress={() => navigation.navigate('UnitDetail', { unitId: item.id })}
+      isEditMode={isEditMode}
+      onWorkingPartyChange={handleWorkingPartyChange}
     />
-  ), [navigation]);
+  ), [handleWorkingPartyChange, isEditMode, navigation]);
 
   const FILTERS: { key: Filter; label: string; color: string; count: number }[] = [
     { key: 'issues',     label: 'Issues',      color: '#f85149', count: stats.hasIssue     },
@@ -299,6 +351,18 @@ const s = StyleSheet.create({
   splitDot: { width: 10, height: 10, borderRadius: 5, overflow: 'hidden', flexDirection: 'row' },
   splitDotHalf: { flex: 1 },
   cardBody: { padding: 10 },
+  workingToggleRow: { flexDirection: 'row', gap: 6, marginBottom: 10 },
+  workingToggleChip: {
+    flex: 1, borderWidth: 1, borderRadius: 7, paddingVertical: 5,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#0d1117',
+  },
+  workingToggleRed: { borderColor: '#f85149' },
+  workingToggleAcs: { borderColor: '#58a6ff' },
+  workingToggleNa: { borderColor: '#30363d' },
+  workingToggleActive: { backgroundColor: '#30363d' },
+  workingToggleDisabled: { opacity: 0.65 },
+  workingToggleText: { color: '#8b949e', fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
+  workingToggleTextActive: { color: '#ffffff' },
   stageLabel: { color: '#8b949e', fontSize: 12, marginBottom: 4 },
   stageCount: { fontWeight: '700' },
   compRow: { fontSize: 12, marginBottom: 2 },
