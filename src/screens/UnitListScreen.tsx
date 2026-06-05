@@ -267,6 +267,7 @@ export default function UnitListScreen({ navigation, route }: Props) {
       </View>
 
       <FlatList
+        key={isEditMode ? 'edit-mode-list' : 'view-mode-list'}
         data={filteredUnits}
         keyExtractor={(item) => item.id}
         numColumns={2}

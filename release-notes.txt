@@ -1,2 +1,2 @@
-- Fixed unit-card working-party buttons becoming editable immediately after enabling Edit Mode.
-- Working-party changes now reset the Edit Mode timeout timer.
+- Forced North/South unit cards to remount when Edit Mode changes.
+- Working-party buttons should now become editable immediately after tapping to edit.
