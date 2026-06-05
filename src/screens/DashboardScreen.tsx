@@ -66,6 +66,7 @@ export default function DashboardScreen() {
 
   const [searchText, setSearchText] = useState('');
   const [sideFilter, setSideFilter] = useState<'all' | 'North' | 'South'>('all');
+  const [showAllUnits, setShowAllUnits] = useState(false);
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearchChange = useCallback((text: string) => {
@@ -83,7 +84,7 @@ export default function DashboardScreen() {
 
   useEffect(() => () => { if (clearTimerRef.current) clearTimeout(clearTimerRef.current); }, []);
 
-  const { northUnits, southUnits, workingUnits, stats, openIssues, overallPct, sidePcts, sideDone } = useMemo(() => {
+  const { sortedUnits, northUnits, southUnits, workingUnits, stats, openIssues, overallPct, sidePcts, sideDone } = useMemo(() => {
     const all = Object.values(units).sort((a, b) =>
       a.side !== b.side ? a.side.localeCompare(b.side) : a.unitNumber - b.unitNumber
     );
@@ -122,8 +123,16 @@ export default function DashboardScreen() {
     }
     openIssues.sort((a, b) => b.ageDays - a.ageDays);
 
-    return { northUnits, southUnits, workingUnits, stats: { total: all.length, complete, inProgress, totalIssues, chillerReady }, openIssues, overallPct, sidePcts, sideDone };
+    return { sortedUnits: all, northUnits, southUnits, workingUnits, stats: { total: all.length, complete, inProgress, totalIssues, chillerReady }, openIssues, overallPct, sidePcts, sideDone };
   }, [units, generalIssues]);
+
+  // Detail list: when not showing all, hide complete units. Order is numerical (by side, then unit number).
+  const detailUnits = useMemo(
+    () => showAllUnits ? sortedUnits : sortedUnits.filter((u) => !isUnitComplete(u)),
+    [sortedUnits, showAllUnits],
+  );
+  const detailNorth = useMemo(() => detailUnits.filter((u) => u.side === 'North'), [detailUnits]);
+  const detailSouth = useMemo(() => detailUnits.filter((u) => u.side === 'South'), [detailUnits]);
 
   const filteredIssues = useMemo(() => {
     let result = openIssues;
@@ -180,6 +189,32 @@ export default function DashboardScreen() {
       <FleetGrid title="South" units={southUnits} doneCount={sideDone.S} onUnitPress={goToUnit} />
 
       <WorkingUnitsPanel workingUnits={workingUnits} onUnitPress={goToUnit} />
+
+      {/* Per-unit list — hidden while filtering issues */}
+      {!isFiltering && (
+        <View style={s.unitsHeaderRow}>
+          <Text style={s.sectionLabelInline}>
+            {showAllUnits ? `All Units (${sortedUnits.length})` : `In Progress (${detailUnits.length})`}
+          </Text>
+          <TouchableOpacity onPress={() => setShowAllUnits((v) => !v)} hitSlop={8} activeOpacity={0.7}>
+            <Text style={s.toggleLink}>
+              {showAllUnits ? 'Hide complete' : 'Show all units'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {!isFiltering && detailUnits.length === 0 && (
+        <View style={s.emptyCard}>
+          <Ionicons name="checkmark-circle" size={20} color="#3fb950" style={{ marginRight: 8 }} />
+          <Text style={s.emptyText}>All units complete 🎉</Text>
+        </View>
+      )}
+      {!isFiltering && detailUnits.length > 0 && (
+        <View style={s.twoColRow}>
+          <DetailColumn title="North" units={detailNorth} onUnitPress={goToUnit} />
+          <DetailColumn title="South" units={detailSouth} onUnitPress={goToUnit} />
+        </View>
+      )}
 
       {/* Open issues */}
       {openIssues.length > 0 && (

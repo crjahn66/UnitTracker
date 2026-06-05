@@ -1,2 +1,2 @@
-- Active Work now groups units by North and South.
-- Active Work chips now show RG-## or ACS-## with Red Group / ACS colors.
+- Restored the In Progress unit list below Active Work.
+- Issue search now stays below Active Work and In Progress.
