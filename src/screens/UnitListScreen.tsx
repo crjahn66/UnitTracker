@@ -166,13 +166,14 @@ export default function UnitListScreen({ navigation, route }: Props) {
   const { side } = route.params;
   const units = useStore((state) => state.units);
   const setWorkingParty = useStore((state) => state.setWorkingParty);
-  const { isEditMode } = useEditMode();
+  const { isEditMode, resetTimer } = useEditMode();
   const [activeFilters, setActiveFilters] = useState<Set<Filter>>(new Set());
 
   const handleWorkingPartyChange = useCallback((unitId: string, party: WorkingParty) => {
+    resetTimer();
     setWorkingParty(unitId, party);
     pushToCloud().catch(() => {});
-  }, [setWorkingParty]);
+  }, [resetTimer, setWorkingParty]);
 
   const sideUnits = useMemo(
     () =>
@@ -274,6 +275,7 @@ export default function UnitListScreen({ navigation, route }: Props) {
           <Text style={s.emptyText}>No units match this filter.</Text>
         }
         ListFooterComponent={CopyrightFooter}
+        extraData={isEditMode}
         renderItem={renderItem}
       />
     </View>

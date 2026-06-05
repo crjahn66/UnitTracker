@@ -1,3 +1,2 @@
-- Enlarged the Red Group / ACS / N/A buttons on unit cards.
-- Renamed the dashboard working-party section to Active Work.
-- Tightened dashboard top spacing so Active Work appears higher on the screen.
+- Fixed unit-card working-party buttons becoming editable immediately after enabling Edit Mode.
+- Working-party changes now reset the Edit Mode timeout timer.
