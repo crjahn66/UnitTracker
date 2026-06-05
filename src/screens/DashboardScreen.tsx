@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput } from 
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, Unit, WorkingParty, WORKING_PARTY_LABELS, normalizeStageStatus, isUnitComplete } from '../types';
+import { STAGES, COMPONENTS, Unit, normalizeStageStatus, isUnitComplete } from '../types';
 import CopyrightFooter from '../components/CopyrightFooter';
 
 type UnitStatus = 'issues' | 'completeWithIssues' | 'complete' | 'inProgress' | 'notStarted';
@@ -102,8 +102,8 @@ export default function DashboardScreen() {
     const sidePcts = { N: sidePct(northUnits), S: sidePct(southUnits) };
     const sideDone = { N: sideDoneCount(northUnits), S: sideDoneCount(southUnits) };
     const workingUnits = {
-      redGroup: all.filter((u) => u.workingParty === 'redGroup'),
-      acs: all.filter((u) => u.workingParty === 'acs'),
+      North: northUnits.filter((u) => u.workingParty === 'redGroup' || u.workingParty === 'acs'),
+      South: southUnits.filter((u) => u.workingParty === 'redGroup' || u.workingParty === 'acs'),
     };
 
     const openIssues: { key: string; unitId: string; unit: Unit; compLabel: string; notes: string; foundBy: string; ageDays: number; componentKey?: string; miscItemId?: string }[] = [];
@@ -343,10 +343,10 @@ function WorkingUnitsPanel({
   workingUnits,
   onUnitPress,
 }: {
-  workingUnits: Record<'redGroup' | 'acs', Unit[]>;
+  workingUnits: Record<'North' | 'South', Unit[]>;
   onUnitPress: (unit: Unit) => void;
 }) {
-  const total = workingUnits.redGroup.length + workingUnits.acs.length;
+  const total = workingUnits.North.length + workingUnits.South.length;
   return (
     <View style={s.workingCard}>
       <View style={s.workingHeaderRow}>
@@ -357,31 +357,35 @@ function WorkingUnitsPanel({
         <Text style={s.workingEmpty}>No units currently assigned to Red Group or ACS.</Text>
       ) : (
         <View style={s.workingColumns}>
-          <WorkingColumn party="redGroup" units={workingUnits.redGroup} onUnitPress={onUnitPress} />
-          <WorkingColumn party="acs" units={workingUnits.acs} onUnitPress={onUnitPress} />
+          <WorkingColumn title="North" units={workingUnits.North} onUnitPress={onUnitPress} />
+          <WorkingColumn title="South" units={workingUnits.South} onUnitPress={onUnitPress} />
         </View>
       )}
     </View>
   );
 }
 
-function WorkingColumn({ party, units, onUnitPress }: { party: Exclude<WorkingParty, 'na'>; units: Unit[]; onUnitPress: (unit: Unit) => void }) {
-  const color = party === 'redGroup' ? '#f85149' : '#58a6ff';
+function WorkingColumn({ title, units, onUnitPress }: { title: 'North' | 'South'; units: Unit[]; onUnitPress: (unit: Unit) => void }) {
   return (
     <View style={s.workingColumn}>
       <View style={s.workingColumnHeader}>
-        <View style={[s.workingDot, { backgroundColor: color }]} />
-        <Text style={s.workingColumnTitle}>{WORKING_PARTY_LABELS[party]} ({units.length})</Text>
+        <Text style={s.workingColumnTitle}>{title} ({units.length})</Text>
       </View>
       {units.length === 0 ? (
         <Text style={s.workingColumnEmpty}>None</Text>
       ) : (
         <View style={s.workingChipWrap}>
-          {units.map((unit) => (
-            <TouchableOpacity key={unit.id} style={[s.workingUnitChip, { borderColor: color }]} onPress={() => onUnitPress(unit)} activeOpacity={0.7}>
-              <Text style={s.workingUnitText}>{unit.id}</Text>
-            </TouchableOpacity>
-          ))}
+          {units.map((unit) => {
+            const isRedGroup = unit.workingParty === 'redGroup';
+            const color = isRedGroup ? '#f85149' : '#58a6ff';
+            const prefix = isRedGroup ? 'RG' : 'ACS';
+            const label = `${prefix}-${String(unit.unitNumber).padStart(2, '0')}`;
+            return (
+              <TouchableOpacity key={unit.id} style={[s.workingUnitChip, { borderColor: color }]} onPress={() => onUnitPress(unit)} activeOpacity={0.7}>
+                <Text style={[s.workingUnitText, { color }]}>{label}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
     </View>
@@ -549,7 +553,6 @@ const s = StyleSheet.create({
   workingColumns: { flexDirection: 'row', gap: 10 },
   workingColumn: { flex: 1, minWidth: 0 },
   workingColumnHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 7 },
-  workingDot: { width: 7, height: 7, borderRadius: 4, marginRight: 6 },
   workingColumnTitle: { color: '#8b949e', fontSize: 10, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
   workingColumnEmpty: { color: '#6e7681', fontSize: 11, fontWeight: '600', paddingVertical: 6 },
   workingChipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },

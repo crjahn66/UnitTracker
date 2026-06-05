@@ -1,2 +1,2 @@
-- Forced North/South unit cards to remount when Edit Mode changes.
-- Working-party buttons should now become editable immediately after tapping to edit.
+- Active Work now groups units by North and South.
+- Active Work chips now show RG-## or ACS-## with Red Group / ACS colors.
