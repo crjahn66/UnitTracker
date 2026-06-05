@@ -1,2 +1,1 @@
-- Restored the In Progress unit list below Active Work.
-- Issue search now stays below Active Work and In Progress.
+- Tightened Active Work spacing so each North/South column can fit three ACS/RG chips per row.
