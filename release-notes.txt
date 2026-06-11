@@ -1,2 +1,2 @@
-- Unchecked component or misc statuses no longer trigger the dashboard Post C issue indicator.
-- Post C Health still displays unchecked counts as informational text on the unit detail and Excel exports.
+- Added Post C issue ! badges to North and South unit cards.
+- The card badges use the same Post C logic as the dashboard, unit detail, and Excel exports.

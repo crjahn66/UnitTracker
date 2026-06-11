@@ -10,6 +10,7 @@ import { Unit, STAGES, COMPONENTS, WorkingParty, WORKING_PARTY_LABELS, normalize
 import CopyrightFooter from '../components/CopyrightFooter';
 import { useEditMode } from '../context/EditModeContext';
 import { pushToCloud } from '../utils/sync';
+import { getPostCommissionHealth } from '../utils/postCommissionHealth';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitList'>;
 type Filter = 'issues' | 'inProgress' | 'complete' | 'chiller';
@@ -77,6 +78,7 @@ const UnitCard = React.memo(function UnitCard({
     ? (() => { try { return format(new Date(unit.stagesDates!.commissioning!), 'MMM d, yyyy'); } catch { return null; } })()
     : null;
   const currentWorkingParty = unit.workingParty ?? 'na';
+  const postCommissionHealth = getPostCommissionHealth(unit);
 
   return (
     <TouchableOpacity style={[s.card, { borderColor: color }]} onPress={onPress} activeOpacity={0.75}>
@@ -88,20 +90,27 @@ const UnitCard = React.memo(function UnitCard({
       )}
       <View style={[s.cardTop, { backgroundColor: completeWithIssues ? 'transparent' : color + '28' }]}>
         <Text style={s.unitId}>{unit.id}</Text>
-        {unit.chillerAvailable === true && (
-          <View style={s.chillerWrap}>
-            <Text style={s.chillerBadge}>❄</Text>
-            {unit.optimoMode && <Text style={s.optimoBadge}>{unit.optimoMode}</Text>}
-          </View>
-        )}
-        {completeWithIssues ? (
-          <View style={s.splitDot}>
-            <View style={[s.splitDotHalf, { backgroundColor: '#3fb950' }]} />
-            <View style={[s.splitDotHalf, { backgroundColor: '#f85149' }]} />
-          </View>
-        ) : (
-          <View style={[s.dot, { backgroundColor: color }]} />
-        )}
+        <View style={s.cardTopIcons}>
+          {unit.chillerAvailable === true && (
+            <View style={s.chillerWrap}>
+              <Text style={s.chillerBadge}>❄</Text>
+              {unit.optimoMode && <Text style={s.optimoBadge}>{unit.optimoMode}</Text>}
+            </View>
+          )}
+          {postCommissionHealth.needsAttention && (
+            <View style={s.postCommissionBadge}>
+              <Text style={s.postCommissionBadgeText}>!</Text>
+            </View>
+          )}
+          {completeWithIssues ? (
+            <View style={s.splitDot}>
+              <View style={[s.splitDotHalf, { backgroundColor: '#3fb950' }]} />
+              <View style={[s.splitDotHalf, { backgroundColor: '#f85149' }]} />
+            </View>
+          ) : (
+            <View style={[s.dot, { backgroundColor: color }]} />
+          )}
+        </View>
       </View>
       <View style={s.cardBody}>
         <View style={s.workingToggleRow}>
@@ -348,9 +357,16 @@ const s = StyleSheet.create({
     paddingVertical: 8,
   },
   unitId: { color: '#e6edf3', fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
+  cardTopIcons: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   chillerWrap: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 4, position: 'relative' },
   chillerBadge: { color: '#58a6ff', fontSize: 22, lineHeight: 22 },
   optimoBadge: { position: 'absolute', left: -16, top: 4, color: '#ffffff', fontSize: 16, lineHeight: 18, fontWeight: '900' },
+  postCommissionBadge: {
+    width: 17, height: 17, borderRadius: 8.5,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#f85149',
+  },
+  postCommissionBadgeText: { color: '#f85149', fontSize: 12, lineHeight: 15, fontWeight: '900' },
   dot: { width: 10, height: 10, borderRadius: 5 },
   splitDot: { width: 10, height: 10, borderRadius: 5, overflow: 'hidden', flexDirection: 'row' },
   splitDotHalf: { flex: 1 },
