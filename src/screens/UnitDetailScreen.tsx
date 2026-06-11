@@ -8,83 +8,16 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
-import { Unit, STAGES, COMPONENTS, ComponentKey, StageKey, StageStatus, OptimoMode, OPTIMO_MODE_LABELS, normalizeStageStatus } from '../types';
+import { STAGES, ComponentKey, StageKey, StageStatus, OptimoMode, OPTIMO_MODE_LABELS, normalizeStageStatus } from '../types';
 import ComponentModal from '../components/ComponentModal';
 import MiscEquipModal from '../components/MiscEquipModal';
 import PhotoGalleryModal from '../components/PhotoGalleryModal';
 import { getNetworkEntry } from '../data/networkData';
 import { pushToCloud, forceDeleteStageNote } from '../utils/sync';
 import { useEditMode } from '../context/EditModeContext';
+import { getPostCommissionHealth } from '../utils/postCommissionHealth';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitDetail'>;
-
-type PostCommissionHealth = {
-  segmentColors: string[];
-  badCount: number;
-  inProgressCount: number;
-  openIssueCount: number;
-  statusText: string;
-  statusColor: string;
-};
-
-function dateTime(iso?: string): number | null {
-  if (!iso) return null;
-  const t = new Date(iso).getTime();
-  return Number.isFinite(t) ? t : null;
-}
-
-function isOnOrAfter(value: string | undefined, threshold: number | null): boolean {
-  if (!threshold) return true;
-  const t = dateTime(value);
-  return t === null || t >= threshold;
-}
-
-function getPostCommissionHealth(unit: Unit): PostCommissionHealth {
-  const commissionedAt = dateTime(unit.stagesDates?.commissioning);
-  let badCount = 0;
-  let inProgressCount = 0;
-  let openIssueCount = 0;
-
-  const segmentColors = COMPONENTS.map((comp) => {
-    const data = unit.components[comp.key];
-    const postOpenIssues = data.issues.filter((i) => !i.deleted && !i.resolved && isOnOrAfter(i.dateFound, commissionedAt)).length;
-    const isBad = data.status === 'bad' && isOnOrAfter(data.badDate, commissionedAt);
-    const isInProgress = data.status === 'inProgress' && isOnOrAfter(data.inProgressDate, commissionedAt);
-
-    openIssueCount += postOpenIssues;
-    if (isBad) badCount++;
-    if (isInProgress) inProgressCount++;
-
-    if (isBad || postOpenIssues > 0) return '#f85149';
-    if (isInProgress) return '#d29922';
-    if (data.status === 'good') return '#3fb950';
-    return '#30363d';
-  });
-
-  for (const item of (unit.miscEquipment ?? []).filter((m) => !m.deleted)) {
-    const postOpenIssues = (item.issues ?? []).filter((i) => !i.deleted && !i.resolved && isOnOrAfter(i.dateFound, commissionedAt)).length;
-    const isBad = item.status === 'bad' && isOnOrAfter(item.badDate, commissionedAt);
-    const isInProgress = item.status === 'inProgress' && isOnOrAfter(item.inProgressDate, commissionedAt);
-    openIssueCount += postOpenIssues;
-    if (isBad) badCount++;
-    if (isInProgress) inProgressCount++;
-  }
-
-  if (badCount > 0 || openIssueCount > 0) {
-    const parts = [
-      badCount > 0 ? `${badCount} bad` : null,
-      openIssueCount > 0 ? `${openIssueCount} open` : null,
-      inProgressCount > 0 ? `${inProgressCount} in progress` : null,
-    ].filter(Boolean);
-    return { segmentColors, badCount, inProgressCount, openIssueCount, statusText: `Failing: ${parts.join(' · ')}`, statusColor: '#f85149' };
-  }
-
-  if (inProgressCount > 0) {
-    return { segmentColors, badCount, inProgressCount, openIssueCount, statusText: `${inProgressCount} in progress`, statusColor: '#d29922' };
-  }
-
-  return { segmentColors, badCount, inProgressCount, openIssueCount, statusText: 'Healthy', statusColor: '#3fb950' };
-}
 
 // Session-scoped scroll position cache, keyed by unitId. Restored when the
 // same unit is reopened (typically via the prev/next sibling nav, or after

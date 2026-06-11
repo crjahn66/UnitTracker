@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
 import { STAGES, COMPONENTS, Unit, normalizeStageStatus, isUnitComplete } from '../types';
 import CopyrightFooter from '../components/CopyrightFooter';
+import { getPostCommissionHealth } from '../utils/postCommissionHealth';
 
 type UnitStatus = 'issues' | 'completeWithIssues' | 'complete' | 'inProgress' | 'notStarted';
 
@@ -94,6 +95,7 @@ export default function DashboardScreen() {
     const openGeneralCount = generalIssues.filter((i) => !i.resolved && !i.deleted).length;
     const totalIssues = all.reduce((n, u) => n + getOpenIssueCount(u), 0) + openGeneralCount;
     const chillerReady = all.filter((u) => u.chillerAvailable === true).length;
+    const postCommissionIssues = all.filter((u) => getPostCommissionHealth(u).needsAttention).length;
     const overallPct = all.length > 0 ? Math.round(all.reduce((n, u) => n + getUnitPct(u), 0) / all.length) : 0;
 
     const northUnits = all.filter((u) => u.side === 'North').sort((a, b) => a.unitNumber - b.unitNumber);
@@ -123,7 +125,7 @@ export default function DashboardScreen() {
     }
     openIssues.sort((a, b) => b.ageDays - a.ageDays);
 
-    return { sortedUnits: all, northUnits, southUnits, workingUnits, stats: { total: all.length, complete, inProgress, totalIssues, chillerReady }, openIssues, overallPct, sidePcts, sideDone };
+    return { sortedUnits: all, northUnits, southUnits, workingUnits, stats: { total: all.length, complete, inProgress, totalIssues, chillerReady, postCommissionIssues }, openIssues, overallPct, sidePcts, sideDone };
   }, [units, generalIssues]);
 
   // Detail list: when not showing all, hide complete units. Order is numerical (by side, then unit number).
@@ -166,6 +168,7 @@ export default function DashboardScreen() {
         <SumStat label="Complete"    value={stats.complete}      color="#3fb950" />
         <SumStat label="In Progress" value={stats.inProgress}    color="#d29922" />
         <SumStat label="Open Issues" value={stats.totalIssues}   color={stats.totalIssues > 0 ? '#f85149' : '#3fb950'} />
+        <SumStat label="RG Issues"   value={stats.postCommissionIssues} color={stats.postCommissionIssues > 0 ? '#f85149' : '#3fb950'} />
         <SumStat label="❄ Ready"    value={stats.chillerReady}  color="#58a6ff" />
       </View>
 
@@ -309,6 +312,7 @@ function FleetGrid({
           const status = getUnitStatus(unit);
           const color = STATUS_COLOR[status];
           const opacity = status === 'notStarted' ? 0.55 : 1;
+          const postCommissionHealth = getPostCommissionHealth(unit);
           return (
             <TouchableOpacity
               key={unit.id}
@@ -323,6 +327,11 @@ function FleetGrid({
                 </View>
               )}
               <Text style={s.gridCellText}>{unit.unitNumber}</Text>
+              {postCommissionHealth.needsAttention && (
+                <View style={s.gridHealthBadge}>
+                  <Text style={s.gridHealthBadgeText}>!</Text>
+                </View>
+              )}
               {unit.chillerAvailable === true && (
                 <>
                   {unit.optimoMode && <Text style={s.gridCellOptimo}>{unit.optimoMode}</Text>}
@@ -338,6 +347,7 @@ function FleetGrid({
       <View style={s.gridLegend}>
         <Legend color={STATUS_COLOR.complete}   text="Done" />
         <SplitLegend text="Done + Issues" />
+        <BadgeLegend text="RG Issue" />
         <Legend color={STATUS_COLOR.inProgress} text="In Prog" />
         <Legend color={STATUS_COLOR.issues}     text="Issues" />
         <Legend color={STATUS_COLOR.notStarted} text="Not Started" dim />
@@ -352,6 +362,17 @@ function SplitLegend({ text }: { text: string }) {
       <View style={s.legendSplitSwatch}>
         <View style={[s.legendSplitHalf, { backgroundColor: STATUS_COLOR.complete }]} />
         <View style={[s.legendSplitHalf, { backgroundColor: STATUS_COLOR.issues }]} />
+      </View>
+      <Text style={s.legendText}>{text}</Text>
+    </View>
+  );
+}
+
+function BadgeLegend({ text }: { text: string }) {
+  return (
+    <View style={s.legendItem}>
+      <View style={s.legendBadgeSwatch}>
+        <Text style={s.legendBadgeText}>!</Text>
       </View>
       <Text style={s.legendText}>{text}</Text>
     </View>
@@ -448,6 +469,7 @@ function CompactUnitRow({ unit, onPress, lastInColumn }: { unit: Unit; onPress: 
   const allIssues = getOpenIssueCount(unit);
   const color = unitColor(unit);
   const completeWithIssues = getUnitStatus(unit) === 'completeWithIssues';
+  const postCommissionHealth = getPostCommissionHealth(unit);
   return (
     <TouchableOpacity
       style={[s.compactRow, !lastInColumn && s.rowBorder]}
@@ -474,6 +496,11 @@ function CompactUnitRow({ unit, onPress, lastInColumn }: { unit: Unit; onPress: 
       {allIssues > 0 && (
         <View style={s.compactIssueBadge}>
           <Text style={s.compactIssueText}>{allIssues}</Text>
+        </View>
+      )}
+      {postCommissionHealth.needsAttention && (
+        <View style={s.compactHealthBadge}>
+          <Text style={s.compactHealthText}>RG</Text>
         </View>
       )}
     </TouchableOpacity>
@@ -570,11 +597,20 @@ const s = StyleSheet.create({
     position: 'absolute', bottom: -1, left: 2,
     color: '#ffffff', fontSize: 9, lineHeight: 14, fontWeight: '900',
   },
+  gridHealthBadge: {
+    position: 'absolute', top: 1, right: 1,
+    minWidth: 10, height: 10, borderRadius: 5,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#f85149',
+  },
+  gridHealthBadgeText: { color: '#f85149', fontSize: 8, lineHeight: 9, fontWeight: '900' },
   gridLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
   legendItem: { flexDirection: 'row', alignItems: 'center' },
   legendSwatch: { width: 10, height: 10, borderRadius: 2, marginRight: 4 },
   legendSplitSwatch: { width: 10, height: 10, borderRadius: 2, marginRight: 4, overflow: 'hidden', flexDirection: 'row' },
   legendSplitHalf: { flex: 1 },
+  legendBadgeSwatch: { width: 10, height: 10, borderRadius: 5, marginRight: 4, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#f85149' },
+  legendBadgeText: { color: '#f85149', fontSize: 7, lineHeight: 8, fontWeight: '900' },
   legendText: { color: '#6e7681', fontSize: 10, fontWeight: '600' },
 
   workingCard: {
@@ -626,6 +662,8 @@ const s = StyleSheet.create({
   compactPct: { color: '#c9d1d9', fontSize: 11, fontWeight: '600', minWidth: 28, textAlign: 'right' },
   compactIssueBadge: { backgroundColor: '#f85149', borderRadius: 7, paddingHorizontal: 5, paddingVertical: 1 },
   compactIssueText: { color: '#fff', fontSize: 9, fontWeight: '800' },
+  compactHealthBadge: { borderRadius: 7, paddingHorizontal: 4, paddingVertical: 1, borderWidth: 1, borderColor: '#f85149' },
+  compactHealthText: { color: '#f85149', fontSize: 8, fontWeight: '900' },
   listCard: { backgroundColor: '#161b22', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#21262d' },
   unitRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: '#21262d' },

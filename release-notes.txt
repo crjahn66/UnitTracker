@@ -1,2 +1,2 @@
-- Added a Post-Commission Health indicator under RED Group Tested.
-- Commissioned units now show a component health bar and failing/open counts after commissioning.
+- Simplified Post-Commission Health to current status counts only, including component and misc equipment statuses.
+- Added RED Group issue indicators to the dashboard and Post-Commission Health columns to Overview, Completed Units, and Component Status exports.
