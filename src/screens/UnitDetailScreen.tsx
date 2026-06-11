@@ -8,7 +8,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, ComponentKey, StageKey, StageStatus, OptimoMode, OPTIMO_MODE_LABELS, normalizeStageStatus } from '../types';
+import { Unit, STAGES, COMPONENTS, ComponentKey, StageKey, StageStatus, OptimoMode, OPTIMO_MODE_LABELS, normalizeStageStatus } from '../types';
 import ComponentModal from '../components/ComponentModal';
 import MiscEquipModal from '../components/MiscEquipModal';
 import PhotoGalleryModal from '../components/PhotoGalleryModal';
@@ -17,6 +17,74 @@ import { pushToCloud, forceDeleteStageNote } from '../utils/sync';
 import { useEditMode } from '../context/EditModeContext';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitDetail'>;
+
+type PostCommissionHealth = {
+  segmentColors: string[];
+  badCount: number;
+  inProgressCount: number;
+  openIssueCount: number;
+  statusText: string;
+  statusColor: string;
+};
+
+function dateTime(iso?: string): number | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+
+function isOnOrAfter(value: string | undefined, threshold: number | null): boolean {
+  if (!threshold) return true;
+  const t = dateTime(value);
+  return t === null || t >= threshold;
+}
+
+function getPostCommissionHealth(unit: Unit): PostCommissionHealth {
+  const commissionedAt = dateTime(unit.stagesDates?.commissioning);
+  let badCount = 0;
+  let inProgressCount = 0;
+  let openIssueCount = 0;
+
+  const segmentColors = COMPONENTS.map((comp) => {
+    const data = unit.components[comp.key];
+    const postOpenIssues = data.issues.filter((i) => !i.deleted && !i.resolved && isOnOrAfter(i.dateFound, commissionedAt)).length;
+    const isBad = data.status === 'bad' && isOnOrAfter(data.badDate, commissionedAt);
+    const isInProgress = data.status === 'inProgress' && isOnOrAfter(data.inProgressDate, commissionedAt);
+
+    openIssueCount += postOpenIssues;
+    if (isBad) badCount++;
+    if (isInProgress) inProgressCount++;
+
+    if (isBad || postOpenIssues > 0) return '#f85149';
+    if (isInProgress) return '#d29922';
+    if (data.status === 'good') return '#3fb950';
+    return '#30363d';
+  });
+
+  for (const item of (unit.miscEquipment ?? []).filter((m) => !m.deleted)) {
+    const postOpenIssues = (item.issues ?? []).filter((i) => !i.deleted && !i.resolved && isOnOrAfter(i.dateFound, commissionedAt)).length;
+    const isBad = item.status === 'bad' && isOnOrAfter(item.badDate, commissionedAt);
+    const isInProgress = item.status === 'inProgress' && isOnOrAfter(item.inProgressDate, commissionedAt);
+    openIssueCount += postOpenIssues;
+    if (isBad) badCount++;
+    if (isInProgress) inProgressCount++;
+  }
+
+  if (badCount > 0 || openIssueCount > 0) {
+    const parts = [
+      badCount > 0 ? `${badCount} bad` : null,
+      openIssueCount > 0 ? `${openIssueCount} open` : null,
+      inProgressCount > 0 ? `${inProgressCount} in progress` : null,
+    ].filter(Boolean);
+    return { segmentColors, badCount, inProgressCount, openIssueCount, statusText: `Failing: ${parts.join(' · ')}`, statusColor: '#f85149' };
+  }
+
+  if (inProgressCount > 0) {
+    return { segmentColors, badCount, inProgressCount, openIssueCount, statusText: `${inProgressCount} in progress`, statusColor: '#d29922' };
+  }
+
+  return { segmentColors, badCount, inProgressCount, openIssueCount, statusText: 'Healthy', statusColor: '#3fb950' };
+}
 
 // Session-scoped scroll position cache, keyed by unitId. Restored when the
 // same unit is reopened (typically via the prev/next sibling nav, or after
@@ -162,6 +230,7 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
   const badCount = allComps.filter((c) => c.status === 'bad').length + miscItems.filter((m) => m.status === 'bad').length;
   const openIssues = allComps.flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted).length
     + miscItems.flatMap((m) => m.issues).filter((i) => !i.resolved && !i.deleted).length;
+  const postCommissionHealth = useMemo(() => getPostCommissionHealth(unit), [unit]);
 
   return (
     <View style={s.container}>
@@ -317,6 +386,19 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
                     </View>
                   )}
                 </View>
+                {stage.key === 'commissioning' && stageStatus === 'complete' && (
+                  <View style={s.postCommissionBox}>
+                    <View style={s.postCommissionHeader}>
+                      <Text style={s.postCommissionLabel}>Post-Commission Health</Text>
+                      <Text style={[s.postCommissionStatus, { color: postCommissionHealth.statusColor }]}>{postCommissionHealth.statusText}</Text>
+                    </View>
+                    <View style={s.postCommissionBar}>
+                      {postCommissionHealth.segmentColors.map((color, segIdx) => (
+                        <View key={`${stage.key}-${segIdx}`} style={[s.postCommissionSeg, { backgroundColor: color }]} />
+                      ))}
+                    </View>
+                  </View>
+                )}
                 {isEditingDate && (
                   <View style={s.stageNoteEditArea}>
                     <TextInput
@@ -733,6 +815,12 @@ const s = StyleSheet.create({
   stageNoteRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, paddingLeft: 34 },
   stageNoteText: { color: '#8b949e', fontSize: 12, flex: 1 },
   stageNotePlaceholder: { color: '#484f58', fontSize: 12 },
+  postCommissionBox: { marginTop: 8, paddingLeft: 34 },
+  postCommissionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 },
+  postCommissionLabel: { color: '#8b949e', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  postCommissionStatus: { fontSize: 11, fontWeight: '800' },
+  postCommissionBar: { flexDirection: 'row', gap: 2 },
+  postCommissionSeg: { flex: 1, height: 6, borderRadius: 2 },
   stuckReasonRow: { marginTop: 4 },
   stuckReasonText: { color: '#f85149', fontSize: 12, flex: 1, opacity: 0.85 },
   stageNoteEditArea: { marginTop: 8, paddingLeft: 34 },

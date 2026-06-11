@@ -1,1 +1,2 @@
-- Tightened Active Work spacing so each North/South column can fit three ACS/RG chips per row.
+- Added a Post-Commission Health indicator under RED Group Tested.
+- Commissioned units now show a component health bar and failing/open counts after commissioning.
