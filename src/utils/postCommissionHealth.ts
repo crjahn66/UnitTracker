@@ -84,7 +84,7 @@ export function getPostCommissionHealth(unit: Unit): PostCommissionHealth {
     inProgressCount > 0 ? `${inProgressCount} in progress` : null,
     uncheckedCount > 0 ? `${uncheckedCount} unchecked` : null,
   ].filter(Boolean);
-  const needsAttention = parts.length > 0;
+  const needsAttention = postCommissionIssueCount > 0 || badCount > 0 || inProgressCount > 0;
 
   return {
     commissioned,
@@ -93,7 +93,7 @@ export function getPostCommissionHealth(unit: Unit): PostCommissionHealth {
     inProgressCount,
     postCommissionIssueCount,
     needsAttention,
-    statusText: needsAttention ? parts.join(' · ') : 'Healthy',
+    statusText: parts.length > 0 ? parts.join(' · ') : 'Healthy',
     statusColor: postCommissionIssueCount > 0 || badCount > 0 ? BAD : needsAttention ? IN_PROGRESS : GOOD,
     segmentColors,
   };

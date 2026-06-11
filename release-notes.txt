@@ -1,2 +1,2 @@
-- Post C Issues now include unresolved component or misc issues opened after the RED Group Tested date.
-- The unit detail Post-Commission Health, dashboard indicators, and Excel exports all use the same Post C logic.
+- Unchecked component or misc statuses no longer trigger the dashboard Post C issue indicator.
+- Post C Health still displays unchecked counts as informational text on the unit detail and Excel exports.
