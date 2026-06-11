@@ -8,7 +8,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
-import { STAGES, ComponentKey, StageKey, StageStatus, OptimoMode, OPTIMO_MODE_LABELS, normalizeStageStatus } from '../types';
+import { STAGES, COMPONENTS, ComponentKey, StageKey, StageStatus, OptimoMode, OPTIMO_MODE_LABELS, normalizeStageStatus } from '../types';
 import ComponentModal from '../components/ComponentModal';
 import MiscEquipModal from '../components/MiscEquipModal';
 import PhotoGalleryModal from '../components/PhotoGalleryModal';

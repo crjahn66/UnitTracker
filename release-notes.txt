@@ -1,2 +1,2 @@
-- Simplified Post-Commission Health to current status counts only, including component and misc equipment statuses.
-- Added RED Group issue indicators to the dashboard and Post-Commission Health columns to Overview, Completed Units, and Component Status exports.
+- Fixed Android crash when opening a unit after the Post-Commission Health refactor.
+- Keeps the simplified status-only Post-Commission Health dashboard and Excel indicators.
