@@ -101,7 +101,7 @@ function rowClr(unit: Unit): Clr {
 function postCommissionClr(unit: Unit): Clr {
   const health = getPostCommissionHealth(unit);
   if (!health.commissioned) return GRY;
-  if (health.postCommissionIssueCount > 0 || health.badCount > 0) return RED;
+  if (health.postCommissionBadCount > 0) return RED;
   if (health.needsAttention) return AMB;
   return GRN;
 }

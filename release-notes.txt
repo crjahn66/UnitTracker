@@ -1,2 +1,2 @@
-- Added Post C issue ! badges to North and South unit cards.
-- The card badges use the same Post C logic as the dashboard, unit detail, and Excel exports.
+- Post C bad indicators now only watch the approved component list and ignore UPS Modbus COMMS, Panduit, and Panel Integrity.
+- The RED Group Tested Post-Commission Health bar now only shows watched components, and Excel uses the same Post C count.
