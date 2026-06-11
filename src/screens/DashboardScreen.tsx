@@ -168,7 +168,7 @@ export default function DashboardScreen() {
         <SumStat label="Complete"    value={stats.complete}      color="#3fb950" />
         <SumStat label="In Progress" value={stats.inProgress}    color="#d29922" />
         <SumStat label="Open Issues" value={stats.totalIssues}   color={stats.totalIssues > 0 ? '#f85149' : '#3fb950'} />
-        <SumStat label="RG Issues"   value={stats.postCommissionIssues} color={stats.postCommissionIssues > 0 ? '#f85149' : '#3fb950'} />
+        <SumStat label="Post C Issues" value={stats.postCommissionIssues} color={stats.postCommissionIssues > 0 ? '#f85149' : '#3fb950'} />
         <SumStat label="❄ Ready"    value={stats.chillerReady}  color="#58a6ff" />
       </View>
 
@@ -347,7 +347,7 @@ function FleetGrid({
       <View style={s.gridLegend}>
         <Legend color={STATUS_COLOR.complete}   text="Done" />
         <SplitLegend text="Done + Issues" />
-        <BadgeLegend text="RG Issue" />
+        <BadgeLegend text="Post C Issue" />
         <Legend color={STATUS_COLOR.inProgress} text="In Prog" />
         <Legend color={STATUS_COLOR.issues}     text="Issues" />
         <Legend color={STATUS_COLOR.notStarted} text="Not Started" dim />
@@ -500,7 +500,7 @@ function CompactUnitRow({ unit, onPress, lastInColumn }: { unit: Unit; onPress: 
       )}
       {postCommissionHealth.needsAttention && (
         <View style={s.compactHealthBadge}>
-          <Text style={s.compactHealthText}>RG</Text>
+          <Text style={s.compactHealthText}>PC</Text>
         </View>
       )}
     </TouchableOpacity>

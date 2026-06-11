@@ -1,2 +1,2 @@
-- Fixed Android crash when opening a unit after the Post-Commission Health refactor.
-- Keeps the simplified status-only Post-Commission Health dashboard and Excel indicators.
+- Renamed dashboard post-commission indicators from RG Issues to Post C Issues.
+- Keeps the Android unit detail crash fix from the previous test build.
