@@ -1,2 +1,2 @@
-- Renamed dashboard post-commission indicators from RG Issues to Post C Issues.
-- Keeps the Android unit detail crash fix from the previous test build.
+- Post C Issues now include unresolved component or misc issues opened after the RED Group Tested date.
+- The unit detail Post-Commission Health, dashboard indicators, and Excel exports all use the same Post C logic.
