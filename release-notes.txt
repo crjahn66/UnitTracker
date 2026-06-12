@@ -1,4 +1,4 @@
-- Fixed stale-sync blocking when Ready for Master differs from Supabase.
-- Ready for Master remains fully manual and can be set back to unchecked.
-- Stale protection now only blocks large stage/component rollbacks.
-- Users should sync/update, then retry Ready for Master edits.
+- App now sends its UnitTracker version with every Supabase request.
+- This supports a Supabase-side minimum-version write block for stale clients.
+- Older clients without the version header can be blocked from overwriting sync_state.
+- Ready for Master remains manual; stale overwrite protection remains active.

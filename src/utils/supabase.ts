@@ -5,8 +5,14 @@ import { Platform } from 'react-native';
 const SUPABASE_URL = 'https://kizqpjitayvlezcjvdeo.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_HfhY_YliSPzpT7HQgSu9xw_1lQZu04n';
 const isWeb = Platform.OS === 'web';
+const APP_VERSION = (require('../../app.json') as { expo: { version: string } }).expo.version;
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  global: {
+    headers: {
+      'x-unittracker-version': APP_VERSION,
+    },
+  },
   auth: {
     persistSession: true,
     autoRefreshToken: true,
