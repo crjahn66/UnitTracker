@@ -1,2 +1,5 @@
-- Post C bad indicators now only watch the approved component list and ignore UPS Modbus COMMS, Panduit, and Panel Integrity.
-- The RED Group Tested Post-Commission Health bar now only shows watched components, and Excel uses the same Post C count.
+- Added Post-Commission Health tracking under RED Group Tested.
+- Post C bad indicators now only watch the approved component list: valves, transmitters, pumps, flow meter/GFCI/switch, chiller interlocks, field server, PLC, chiller modbus gateway, and chiller.
+- UPS Modbus COMMS, Panduit, Panel Integrity, unchecked statuses, and misc equipment do not trigger Post C bad indicators.
+- Dashboard, North/South unit cards, RED Group Tested health bar, and Excel exports now use the same Post C bad count.
+- Added Post C issue badges to overview grids and North/South cards, and added Post-Commission Health columns to Overview, Completed Units, and Component Status exports.
