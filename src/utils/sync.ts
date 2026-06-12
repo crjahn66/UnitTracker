@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { supabase } from './supabase';
+import { ensureFreshSession, supabase } from './supabase';
 import { useStore } from '../store/useStore';
 import { UnitsStore, GeneralIssue, STAGES, COMPONENTS, normalizeStageStatus } from '../types';
 import { uploadLocalPhotos, downloadPhotosToDevice } from './imageStorage';
@@ -57,6 +57,8 @@ type ProgressSummary = {
   completedStageFields: number;
   anyStageWork: number;
   componentStatusesSet: number;
+  readyForMasterStatusesSet: number;
+  readyForMasterTransitionEntries: number;
 };
 
 // Only count statuses under component keys that still exist in COMPONENTS.
@@ -71,6 +73,8 @@ function summarizeProgress(units: UnitsStore): ProgressSummary {
   let completedStageFields = 0;
   let anyStageWork = 0;
   let componentStatusesSet = 0;
+  let readyForMasterStatusesSet = 0;
+  let readyForMasterTransitionEntries = 0;
 
   for (const unit of Object.values(units)) {
     unitCount++;
@@ -79,9 +83,11 @@ function summarizeProgress(units: UnitsStore): ProgressSummary {
     if (stageStatuses.some((status) => status !== 'pending')) anyStageWork++;
     componentStatusesSet += Object.entries(unit.components)
       .filter(([key, component]) => VALID_COMPONENT_KEYS.has(key as any) && component.status !== 'unchecked').length;
+    if (unit.readyForMaster?.status && unit.readyForMaster.status !== 'unchecked') readyForMasterStatusesSet++;
+    readyForMasterTransitionEntries += unit.readyForMaster?.transitionLog?.length ?? 0;
   }
 
-  return { unitCount, completedStageFields, anyStageWork, componentStatusesSet };
+  return { unitCount, completedStageFields, anyStageWork, componentStatusesSet, readyForMasterStatusesSet, readyForMasterTransitionEntries };
 }
 
 function stalePushReason(localUnits: UnitsStore, remoteUnits: UnitsStore): string | null {
@@ -93,12 +99,15 @@ function stalePushReason(localUnits: UnitsStore, remoteUnits: UnitsStore): strin
   const lostStageFields = remote.completedStageFields - local.completedStageFields;
   const lostComponentStatuses = remote.componentStatusesSet - local.componentStatusesSet;
   const lostStageWorkUnits = remote.anyStageWork - local.anyStageWork;
+  const lostReadyForMasterStatuses = remote.readyForMasterStatusesSet - local.readyForMasterStatusesSet;
+  const lostReadyForMasterTransitions = remote.readyForMasterTransitionEntries - local.readyForMasterTransitionEntries;
 
-  if (lostStageFields >= 5 || lostComponentStatuses >= 20 || lostStageWorkUnits >= 5) {
+  if (lostStageFields >= 5 || lostComponentStatuses >= 20 || lostStageWorkUnits >= 5 || lostReadyForMasterStatuses >= 1 || lostReadyForMasterTransitions >= 1) {
     return [
       'Blocked stale local data from overwriting newer Supabase progress.',
       `Local progress: ${local.completedStageFields} completed stage fields, ${local.componentStatusesSet} component statuses set.`,
       `Remote progress: ${remote.completedStageFields} completed stage fields, ${remote.componentStatusesSet} component statuses set.`,
+      `Ready for Master: local ${local.readyForMasterStatusesSet} set / ${local.readyForMasterTransitionEntries} log entries, remote ${remote.readyForMasterStatusesSet} set / ${remote.readyForMasterTransitionEntries} log entries.`,
       'Sync first, then retry the edit.',
     ].join(' ');
   }
@@ -211,6 +220,8 @@ async function _syncBody(): Promise<SyncResult> {
   const elapsed = () => `${Date.now() - t0}ms`;
   const { units: localUnits, generalIssues: localGeneralIssues } = useStore.getState();
   let uploadStatus = '';
+
+  await ensureFreshSession();
 
   // 1. Upload any local file-path photos to Supabase Storage (30s timeout)
   try {
@@ -403,10 +414,14 @@ let _suppressDepth = 0;
 export function isSuppressingAutoPush(): boolean { return _suppressDepth > 0; }
 
 // Lightweight push — merges remote state into local then writes back to sync_state.
-// On web: uploads any base64 URIs, then mergeImports the full remote state so APK
-// changes (new issues, status updates, etc.) are preserved rather than overwritten.
+// Fetches and merges the remote row first so stale local state cannot overwrite
+// newer Supabase JSON fields. This is especially important for Ready for Master:
+// older/stale clients can carry unchecked/missing local values, while the cloud
+// row has already been backfilled.
 export async function pushToCloud(): Promise<void> {
   let { units: localUnits, generalIssues } = useStore.getState();
+
+  await ensureFreshSession();
 
   if (Platform.OS === 'web') {
     // Upload any base64 data: URIs before they reach the DB row.
@@ -420,19 +435,26 @@ export async function pushToCloud(): Promise<void> {
       }
     } catch {}
 
-    // Additive merge: pull in any items the cloud has that local doesn't (new
-    // APK issues, misc items, photos), but never overwrite local fields. Local
-    // is the freshest source for status/notes/dates because the user just
-    // edited — using mergeImport here would let cloud's pre-edit values clobber
-    // the user's change before the push lands.
-    try {
-      const { data } = await supabase.from('sync_state').select('units, general_issues').eq('id', 1).single();
-      if (data?.units && typeof data.units === 'object') {
-        _suppressDepth++;
-        useStore.getState().mergeAdditive(data.units as UnitsStore, (data.general_issues ?? []) as GeneralIssue[]);
-        _suppressDepth--;
-      }
-    } catch {}
+  }
+
+  let remoteUnits: UnitsStore;
+  let remoteGeneralIssues: GeneralIssue[];
+  try {
+    const { data, error } = await supabase.from('sync_state').select('units, general_issues').eq('id', 1).single();
+    if (error || !data?.units || typeof data.units !== 'object') throw error ?? new Error('Unable to read remote sync state');
+    remoteUnits = data.units as UnitsStore;
+    remoteGeneralIssues = (data.general_issues ?? []) as GeneralIssue[];
+  } catch (err) {
+    markFailure();
+    throw err;
+  }
+
+  _suppressDepth++;
+  try {
+    useStore.getState().mergeAdditive(remoteUnits, remoteGeneralIssues);
+    useStore.getState().backfillReadyForMaster();
+  } finally {
+    _suppressDepth--;
   }
 
   // Read the final merged state and push it
@@ -440,7 +462,7 @@ export async function pushToCloud(): Promise<void> {
   const now = new Date().toISOString();
   _lastKnownRemoteAt = new Date(now).getTime(); // optimistic — prevents Realtime echo self-triggering
   try {
-    await guardAgainstStalePush(finalUnits);
+    await guardAgainstStalePush(finalUnits, remoteUnits);
   } catch (err) {
     markFailure();
     throw err;
@@ -502,6 +524,7 @@ export function subscribeRealtimeSync(): () => void {
 // local copy via mergeImport's timestamp-based resolution.
 export async function forceDeleteStageNote(unitId: string, stageKey: string): Promise<void> {
   try {
+    await ensureFreshSession();
     const { data } = await supabase.from('sync_state').select('units').eq('id', 1).single();
     if (!data?.units) return;
     const units = JSON.parse(JSON.stringify(data.units)) as Record<string, any>;
@@ -519,6 +542,7 @@ export async function forceDeleteStageNote(unitId: string, stageKey: string): Pr
 // cleaned state to sync_state so other devices don't restore the URLs on next sync.
 export async function wipeAllPhotos(): Promise<{ success: boolean; error?: string }> {
   try {
+    await ensureFreshSession();
     const { units, generalIssues } = useStore.getState();
 
     // Batch-delete all bucket files referenced in the store

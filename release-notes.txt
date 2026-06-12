@@ -1,6 +1,4 @@
-- Ready for Master is now auto-set for units that are already RED Group Tested.
-  - Good if the unit passed with no post-test failures.
-  - Bad if a non-exception component issue was found after the RED Group Tested date.
-  - Left unchecked when a key component is bad but no post-test failure exists.
-- This runs automatically on sync and stays in sync across all devices.
-- Card colors continue to follow Ready for Master: good = green, bad = red, with "!" for failures after testing.
+- Fixed expired Supabase JWT sessions by enabling token persistence and auto-refresh.
+- Pushes now read and merge the latest Supabase row before writing, preventing stale local data from rolling back Ready for Master.
+- Ready for Master backfill now runs before every cloud push, not only during full sync.
+- Stale-push protection now includes Ready for Master status and transition history.

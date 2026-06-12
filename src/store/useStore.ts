@@ -1170,13 +1170,26 @@ export const useStore = create<StoreState>()(
             const importRfm = normalizeReadyForMaster(imp.readyForMaster);
             const existingRfmIds = new Set(existingRfm.issues.map((i) => i.id));
             const newRfmIssues = importRfm.issues.filter((i: any) => !existingRfmIds.has(i.id));
+            const rfmLog = [...new Map([...(existingRfm.transitionLog ?? []), ...(importRfm.transitionLog ?? [])].map((t) => [t.id, t])).values()];
+            const localHasReadyStatus = existingRfm.status !== 'unchecked';
+            const sortedRfmLog = [...rfmLog].sort((a, b) => a.date.localeCompare(b.date));
+            const latestRfmLog = sortedRfmLog[sortedRfmLog.length - 1];
+            const latestLoggedStatus = latestRfmLog && (latestRfmLog.status === existingRfm.status || latestRfmLog.status === importRfm.status)
+              ? latestRfmLog.status
+              : undefined;
+            const mergedRfmStatus = latestLoggedStatus ?? (localHasReadyStatus ? existingRfm.status : importRfm.status);
+            const localStatusIsCurrent = mergedRfmStatus === existingRfm.status;
             const readyForMaster: ReadyForMasterData = {
               ...existingRfm,
+              status: mergedRfmStatus,
+              goodDate: localStatusIsCurrent ? existingRfm.goodDate : (importRfm.goodDate ?? existingRfm.goodDate),
+              inProgressDate: localStatusIsCurrent ? existingRfm.inProgressDate : (importRfm.inProgressDate ?? existingRfm.inProgressDate),
+              badDate: localStatusIsCurrent ? existingRfm.badDate : (importRfm.badDate ?? existingRfm.badDate),
               issues: newRfmIssues.length ? [...existingRfm.issues, ...newRfmIssues] : existingRfm.issues,
               progressImages: unionPhotos(existingRfm.progressImages, importRfm.progressImages),
               goodImages: unionPhotos(existingRfm.goodImages, importRfm.goodImages),
-              transitionLog: [...new Map([...(existingRfm.transitionLog ?? []), ...(importRfm.transitionLog ?? [])].map((t) => [t.id, t])).values()],
-              failCount: Math.max(existingRfm.failCount ?? 0, importRfm.failCount ?? 0),
+              transitionLog: rfmLog,
+              failCount: Math.max(existingRfm.failCount ?? 0, importRfm.failCount ?? 0, rfmLog.filter((t) => t.status === 'bad').length),
             };
 
             merged[uid] = {
