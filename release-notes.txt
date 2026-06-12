@@ -1,4 +1,4 @@
-- Completed Units Log export now labels the event column as Issue.
-- Completed Units Log now shows Commissioned and Decommissioned events from Ready for Master history.
-- Decommissioned rows include the Post RGT fail count for easier Excel cleanup.
-- Export behavior is matched between APK and web downloads.
+- Ready for Master is now fully manual after the one-time Supabase migration.
+- Sync no longer auto-sets Ready for Master back to good when all stages are complete.
+- Manual unchecked, good, in-progress, or bad selections now stay as selected.
+- Stale-sync overwrite protection remains in place for user edits.
