@@ -329,21 +329,6 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
                     </View>
                   )}
                 </View>
-                {stage.key === 'commissioning' && stageStatus === 'complete' && (
-                  <TouchableOpacity style={s.readyForMasterRow} onPress={() => setReadyForMasterOpen(true)} activeOpacity={0.75}>
-                    <StatusIcon status={readyForMaster.status} />
-                    <View style={s.compInfo}>
-                      <Text style={s.compLabel}>Ready for Master</Text>
-                      {readyOpenIssues > 0 && (
-                        <Text style={[s.issueMeta, { color: '#f85149' }]}>{readyOpenIssues} open issue{readyOpenIssues !== 1 ? 's' : ''}</Text>
-                      )}
-                    </View>
-                    <View style={s.compRight}>
-                      <Text style={[s.compStatusText, { color: postCommissionHealth.statusColor }]}>{postCommissionHealth.statusText}</Text>
-                      <Ionicons name="chevron-forward" size={14} color="#6e7681" style={s.chevron} />
-                    </View>
-                  </TouchableOpacity>
-                )}
                 {isEditingDate && (
                   <View style={s.stageNoteEditArea}>
                     <TextInput
@@ -473,6 +458,21 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
                       {isEditMode && <Ionicons name="pencil-outline" size={11} color="#f85149" style={{ marginLeft: 4 }} />}
                     </TouchableOpacity>
                   )
+                )}
+                {stage.key === 'commissioning' && stageStatus === 'complete' && (
+                  <TouchableOpacity style={s.readyForMasterRow} onPress={() => setReadyForMasterOpen(true)} activeOpacity={0.75}>
+                    <StatusIcon status={readyForMaster.status} />
+                    <View style={s.compInfo}>
+                      <Text style={s.compLabel}>Ready for Master</Text>
+                      {readyOpenIssues > 0 && (
+                        <Text style={[s.issueMeta, { color: '#f85149' }]}>{readyOpenIssues} open issue{readyOpenIssues !== 1 ? 's' : ''}</Text>
+                      )}
+                    </View>
+                    <View style={s.compRight}>
+                      <Text style={[s.compStatusText, { color: postCommissionHealth.statusColor }]}>{postCommissionHealth.statusText}</Text>
+                      <Ionicons name="chevron-forward" size={14} color="#6e7681" style={s.chevron} />
+                    </View>
+                  </TouchableOpacity>
                 )}
               </View>
             );

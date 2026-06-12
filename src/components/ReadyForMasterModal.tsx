@@ -24,7 +24,7 @@ interface Props {
 type ModalView = 'detail' | 'addIssue' | 'resolveIssue' | 'editIssue' | 'progressNote' | 'goodNote';
 
 const today = () => format(new Date(), 'MM/dd/yyyy');
-const EMPTY_ISSUE = () => ({ dateFound: today(), foundBy: '', signOff: false, notes: '' });
+const EMPTY_ISSUE = () => ({ dateFound: today(), foundBy: '', notes: '' });
 const EMPTY_RESOLVE = () => ({ dateFixed: today(), fixedBy: '', howFixed: '' });
 
 function genId() { return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`; }
@@ -82,16 +82,16 @@ function ImageStrip({ images, onAdd, onRemove, onView = () => {} }: {
 // ─── Add Issue Form ────────────────────────────────────────────────────────────
 
 function AddIssueForm({ onSave, onCancel, currentStatus, initialImages }: {
-  onSave: (d: { dateFound: string; foundBy: string; signOff: boolean; notes: string; suggestedResolution: string; images: string[]; status: ComponentStatus }) => void;
+  onSave: (d: { dateFound: string; foundBy: string; notes: string; images: string[]; status: ComponentStatus }) => void;
   onCancel: () => void;
   currentStatus: ComponentStatus;
   /** Pre-attach photos (e.g. from the "Photo-first issue" camera button). */
   initialImages?: string[];
 }) {
-  const [form, setForm] = useState({ ...EMPTY_ISSUE(), suggestedResolution: '' });
+  const [form, setForm] = useState(EMPTY_ISSUE());
   const [images, setImages] = useState<string[]>(initialImages ?? []);
   const [status, setStatus] = useState<ComponentStatus>(currentStatus === 'unchecked' ? 'bad' : currentStatus);
-  const set = (key: 'dateFound' | 'foundBy' | 'notes' | 'suggestedResolution', val: string) =>
+  const set = (key: 'dateFound' | 'foundBy' | 'notes', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
   const notesRef = React.useRef<TextInput>(null);
 
@@ -105,7 +105,7 @@ function AddIssueForm({ onSave, onCancel, currentStatus, initialImages }: {
   };
 
   const handleSave = () => {
-    if (!form.foundBy.trim()) { showAlert('Required', 'Please enter who found the issue.'); return; }
+    if (!form.foundBy.trim()) { showAlert('Required', 'Please enter who signed off.'); return; }
     if (!form.notes.trim()) { showAlert('Required', 'Please enter issue notes.'); return; }
     onSave({ ...form, images, status });
   };
@@ -127,13 +127,8 @@ function AddIssueForm({ onSave, onCancel, currentStatus, initialImages }: {
         ))}
       </View>
       <FormField label="Date Found" value={form.dateFound} onChangeText={(v) => set('dateFound', v)} placeholder="MM/DD/YYYY" />
-      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => { set('foundBy', v); if (v) setTimeout(() => notesRef.current?.focus(), 50); }} rememberLastUsed />
-      <TouchableOpacity style={f.signOffRow} onPress={() => setForm((prev) => ({ ...prev, signOff: !prev.signOff }))} activeOpacity={0.75}>
-        <Ionicons name={form.signOff ? 'checkbox' : 'square-outline'} size={20} color={form.signOff ? '#3fb950' : '#8b949e'} />
-        <Text style={f.signOffText}>Ready for Master sign-off complete</Text>
-      </TouchableOpacity>
+      <NameSelectField label="Sign-off By" value={form.foundBy} onChange={(v) => { set('foundBy', v); if (v) setTimeout(() => notesRef.current?.focus(), 50); }} rememberLastUsed />
       <FormField label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} placeholder="Describe the issue…" multiline inputRef={notesRef} />
-      <FormField label="Suggested Resolution" value={form.suggestedResolution} onChangeText={(v) => set('suggestedResolution', v)} placeholder="Proposed fix or next steps…" multiline />
       <Text style={f.label}>Photos</Text>
       <ImageStrip images={images} onAdd={pickImages} onRemove={(u) => setImages((p) => p.filter((i) => i !== u))} />
       <View style={f.buttonRow}>
@@ -252,8 +247,6 @@ function IssueCard({ issue, onResolve, onUnresolve, onDelete, onEdit, onAddUpdat
       {expanded && (
         <View style={ic.body}>
           {!!issue.notes && <View style={ic.detailRow}><Text style={ic.detailLabel}>Notes:</Text><Text style={ic.detailValue}>{issue.notes}</Text></View>}
-          <View style={ic.detailRow}><Text style={ic.detailLabel}>Sign-off:</Text><Text style={ic.detailValue}>{issue.signOff ? 'Yes' : 'No'}</Text></View>
-          {!!issue.suggestedResolution && <View style={ic.detailRow}><Text style={ic.detailLabel}>Suggested:</Text><Text style={ic.detailValue}>{issue.suggestedResolution}</Text></View>}
           {issue.resolved && (
             <>
               <View style={ic.detailRow}><Text style={ic.detailLabel}>Fixed:</Text><Text style={ic.detailValue}>{fmtDate(issue.dateFixed)}</Text></View>
@@ -352,21 +345,19 @@ function EditIssueForm({ issue, onSave, onCancel }: {
   const fmt = (iso?: string) => { try { return iso ? format(new Date(iso), 'MM/dd/yyyy') : ''; } catch { return iso ?? ''; } };
   const [form, setForm] = useState({
     dateFound: fmt(issue.dateFound), dateUpdated: fmt(issue.dateUpdated), foundBy: issue.foundBy,
-    signOff: !!issue.signOff, notes: issue.notes,
-    suggestedResolution: issue.suggestedResolution ?? '',
+    notes: issue.notes,
     dateFixed: fmt(issue.dateFixed), fixedBy: issue.fixedBy ?? '', howFixed: issue.howFixed ?? '',
   });
   const set = (key: keyof typeof form, val: string) => setForm((p) => ({ ...p, [key]: val }));
   const parseDate = (s: string, fallback: string) => { const p = parse(s, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : fallback; };
 
   const handleSave = () => {
-    if (!form.foundBy.trim()) { showAlert('Required', 'Please enter who found the issue.'); return; }
+    if (!form.foundBy.trim()) { showAlert('Required', 'Please enter who signed off.'); return; }
     if (!form.notes.trim()) { showAlert('Required', 'Please enter issue notes.'); return; }
     const updates: Partial<ReadyForMasterIssue> = {
       dateFound: parseDate(form.dateFound, issue.dateFound),
       dateUpdated: parseDate(form.dateUpdated, issue.dateUpdated ?? new Date().toISOString()),
-      foundBy: form.foundBy, signOff: form.signOff, notes: form.notes,
-      suggestedResolution: form.suggestedResolution || undefined,
+      foundBy: form.foundBy, notes: form.notes,
     };
     if (issue.resolved) {
       updates.dateFixed = parseDate(form.dateFixed, issue.dateFixed ?? new Date().toISOString());
@@ -381,13 +372,8 @@ function EditIssueForm({ issue, onSave, onCancel }: {
       <Text style={f.formTitle}>Edit Issue</Text>
       <FormField label="Date Found"        value={form.dateFound}        onChangeText={(v) => set('dateFound', v)}        placeholder="MM/DD/YYYY" />
       <FormField label="Last Updated"      value={form.dateUpdated}      onChangeText={(v) => set('dateUpdated', v)}      placeholder="MM/DD/YYYY" />
-      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => set('foundBy', v)} rememberLastUsed />
-      <TouchableOpacity style={f.signOffRow} onPress={() => setForm((prev) => ({ ...prev, signOff: !prev.signOff }))} activeOpacity={0.75}>
-        <Ionicons name={form.signOff ? 'checkbox' : 'square-outline'} size={20} color={form.signOff ? '#3fb950' : '#8b949e'} />
-        <Text style={f.signOffText}>Ready for Master sign-off complete</Text>
-      </TouchableOpacity>
+      <NameSelectField label="Sign-off By" value={form.foundBy} onChange={(v) => set('foundBy', v)} rememberLastUsed />
       <FormField label="Notes"             value={form.notes}            onChangeText={(v) => set('notes', v)}            placeholder="Describe the issue…" multiline />
-      <FormField label="Suggested Resolution" value={form.suggestedResolution} onChangeText={(v) => set('suggestedResolution', v)} placeholder="Proposed fix or next steps…" multiline />
       {issue.resolved && (
         <>
           <FormField label="Date Fixed" value={form.dateFixed} onChangeText={(v) => set('dateFixed', v)} placeholder="MM/DD/YYYY" />
@@ -528,7 +514,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
     updateReadyForMaster(unitId, { progressNote: '', goodNote: '' }); pushToCloud().catch(() => {});
   }, [unitId, updateReadyForMaster, onClose]);
 
-  const handleAddIssue = useCallback((data: { dateFound: string; foundBy: string; signOff: boolean; notes: string; suggestedResolution: string; images: string[]; status: ComponentStatus }) => {
+  const handleAddIssue = useCallback((data: { dateFound: string; foundBy: string; notes: string; images: string[]; status: ComponentStatus }) => {
     const id = genId();
     const now = new Date().toISOString();
     const issue: ReadyForMasterIssue = {
@@ -536,9 +522,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
       dateFound: (() => { const p = parse(data.dateFound, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : now; })(),
       dateUpdated: now,
       foundBy: data.foundBy,
-      signOff: data.signOff,
       notes: data.notes,
-      suggestedResolution: data.suggestedResolution || undefined,
       resolved: false,
       images: data.images.length > 0 ? data.images : undefined,
     };
@@ -945,8 +929,6 @@ const f = StyleSheet.create({
   input: { backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#30363d', borderRadius: 8, padding: 10, color: '#e6edf3', fontSize: 14 },
   inputMulti: { minHeight: 90 },
   statusRow: { flexDirection: 'row', marginBottom: 14 },
-  signOffRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, paddingVertical: 8 },
-  signOffText: { color: '#e6edf3', fontSize: 13, fontWeight: '600', marginLeft: 8 },
   statusBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#30363d', alignItems: 'center', marginRight: 8 },
   statusBtnText: { fontSize: 13, fontWeight: '700' },
   buttonRow: { flexDirection: 'row', marginTop: 6 },
