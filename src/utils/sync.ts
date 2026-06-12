@@ -57,8 +57,6 @@ type ProgressSummary = {
   completedStageFields: number;
   anyStageWork: number;
   componentStatusesSet: number;
-  readyForMasterStatusesSet: number;
-  readyForMasterTransitionEntries: number;
 };
 
 // Only count statuses under component keys that still exist in COMPONENTS.
@@ -73,8 +71,6 @@ function summarizeProgress(units: UnitsStore): ProgressSummary {
   let completedStageFields = 0;
   let anyStageWork = 0;
   let componentStatusesSet = 0;
-  let readyForMasterStatusesSet = 0;
-  let readyForMasterTransitionEntries = 0;
 
   for (const unit of Object.values(units)) {
     unitCount++;
@@ -83,11 +79,9 @@ function summarizeProgress(units: UnitsStore): ProgressSummary {
     if (stageStatuses.some((status) => status !== 'pending')) anyStageWork++;
     componentStatusesSet += Object.entries(unit.components)
       .filter(([key, component]) => VALID_COMPONENT_KEYS.has(key as any) && component.status !== 'unchecked').length;
-    if (unit.readyForMaster?.status && unit.readyForMaster.status !== 'unchecked') readyForMasterStatusesSet++;
-    readyForMasterTransitionEntries += unit.readyForMaster?.transitionLog?.length ?? 0;
   }
 
-  return { unitCount, completedStageFields, anyStageWork, componentStatusesSet, readyForMasterStatusesSet, readyForMasterTransitionEntries };
+  return { unitCount, completedStageFields, anyStageWork, componentStatusesSet };
 }
 
 function stalePushReason(localUnits: UnitsStore, remoteUnits: UnitsStore): string | null {
@@ -99,15 +93,12 @@ function stalePushReason(localUnits: UnitsStore, remoteUnits: UnitsStore): strin
   const lostStageFields = remote.completedStageFields - local.completedStageFields;
   const lostComponentStatuses = remote.componentStatusesSet - local.componentStatusesSet;
   const lostStageWorkUnits = remote.anyStageWork - local.anyStageWork;
-  const lostReadyForMasterStatuses = remote.readyForMasterStatusesSet - local.readyForMasterStatusesSet;
-  const lostReadyForMasterTransitions = remote.readyForMasterTransitionEntries - local.readyForMasterTransitionEntries;
 
-  if (lostStageFields >= 5 || lostComponentStatuses >= 20 || lostStageWorkUnits >= 5 || lostReadyForMasterStatuses >= 1 || lostReadyForMasterTransitions >= 1) {
+  if (lostStageFields >= 5 || lostComponentStatuses >= 20 || lostStageWorkUnits >= 5) {
     return [
       'Blocked stale local data from overwriting newer Supabase progress.',
       `Local progress: ${local.completedStageFields} completed stage fields, ${local.componentStatusesSet} component statuses set.`,
       `Remote progress: ${remote.completedStageFields} completed stage fields, ${remote.componentStatusesSet} component statuses set.`,
-      `Ready for Master: local ${local.readyForMasterStatusesSet} set / ${local.readyForMasterTransitionEntries} log entries, remote ${remote.readyForMasterStatusesSet} set / ${remote.readyForMasterTransitionEntries} log entries.`,
       'Sync first, then retry the edit.',
     ].join(' ');
   }
