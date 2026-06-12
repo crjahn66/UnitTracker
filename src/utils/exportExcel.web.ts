@@ -363,16 +363,16 @@ function buildCompleted(wb: any, sorted: Unit[]) {
 
 // ??? Sheet 5: Completed Units Log ?????????????????????????????????????????????
 function readyForMasterLogText(status: string, failCount: number): string {
-  if (status === 'good') return 'Red Group Tested';
-  if (status === 'bad') return `${Math.max(failCount, 1)} Post RGT Fail`;
+  if (status === 'good') return 'Commissioned';
+  if (status === 'bad') return `Decommissioned${failCount > 0 ? ` (${failCount} Post RGT Fail${failCount !== 1 ? 's' : ''})` : ''}`;
   if (status === 'inProgress') return 'In Progress';
   return 'Not Set';
 }
 
 function buildCompletedLog(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Completed Units Log');
-  const colWidths = [9, 7, 7, 14, 22, 18];
-  const headers = ['Unit ID', 'Side', 'Unit #', 'Date', 'Post Red Group Tested', 'Event #'];
+  const colWidths = [9, 7, 7, 14, 34, 18];
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Date', 'Issue', 'Event #'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 34;

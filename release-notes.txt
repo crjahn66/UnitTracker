@@ -1,4 +1,4 @@
-- Fixed updates disappearing when stale clients pushed older local data over newer Supabase data.
-- Cloud pushes now perform a full timestamp-aware merge before writing.
-- Supabase writes now abort if another device changes the row between fetch and push.
-- Component, misc, Ready for Master, and general issue merges now keep the newest dated edit.
+- Completed Units Log export now labels the event column as Issue.
+- Completed Units Log now shows Commissioned and Decommissioned events from Ready for Master history.
+- Decommissioned rows include the Post RGT fail count for easier Excel cleanup.
+- Export behavior is matched between APK and web downloads.
