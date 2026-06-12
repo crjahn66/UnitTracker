@@ -163,35 +163,42 @@ export const useStore = create<StoreState>()(
           return anyChanged ? { units: newUnits } : state;
         }),
 
-      // One-time backfill: derive Ready for Master from RED Group Tested state for
-      // any RGT-complete unit still 'unchecked'. Idempotent and residue-safe — it
-      // never overrides a manually-set good/bad, recomputes failCount from the log
-      // (so it can't double-count), and re-applies after a stale-client revert.
+      // Derive Ready for Master from stage completion and post-RED Group Tested
+      // issues. Idempotent and residue-safe — recomputes failCount from the log
+      // so it can't double-count and re-applies after stale-client reverts.
       backfillReadyForMaster: () =>
         set((state) => {
           let changed = false;
           const newUnits: UnitsStore = { ...state.units };
           for (const [uid, unit] of Object.entries(state.units)) {
             const current = normalizeReadyForMaster(unit.readyForMaster);
-            if (current.status !== 'unchecked') continue;
             const res = deriveReadyForMasterBackfill(unit);
             if (!res) continue;
             let log = current.transitionLog ?? [];
-            if (!log.some((t) => t.status === res.status)) {
+            const sortedLog = [...log].sort((a, b) => a.date.localeCompare(b.date));
+            const latestLog = sortedLog[sortedLog.length - 1];
+            if (latestLog?.status !== res.status) {
               log = [...log, { id: `rfm-mig-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, status: res.status, date: res.date }];
             }
-            const failCount = log.filter((t) => t.status === 'bad').length;
+            const failCount = new Set(log.filter((t) => t.status === 'bad').map((t) => t.date)).size;
+            const nextReadyForMaster = {
+              ...current,
+              status: res.status,
+              goodDate: res.status === 'good' ? (current.goodDate ?? res.date) : undefined,
+              inProgressDate: undefined,
+              badDate: res.status === 'bad' ? (current.badDate ?? res.date) : undefined,
+              failCount,
+              transitionLog: log,
+            };
+            const changedReady = current.status !== nextReadyForMaster.status
+              || current.goodDate !== nextReadyForMaster.goodDate
+              || current.badDate !== nextReadyForMaster.badDate
+              || current.failCount !== nextReadyForMaster.failCount
+              || current.transitionLog !== nextReadyForMaster.transitionLog;
+            if (!changedReady) continue;
             newUnits[uid] = {
               ...unit,
-              readyForMaster: {
-                ...current,
-                status: res.status,
-                goodDate: res.status === 'good' ? (current.goodDate ?? res.date) : undefined,
-                inProgressDate: undefined,
-                badDate: res.status === 'bad' ? (current.badDate ?? res.date) : undefined,
-                failCount,
-                transitionLog: log,
-              },
+              readyForMaster: nextReadyForMaster,
             };
             changed = true;
           }
@@ -1189,7 +1196,7 @@ export const useStore = create<StoreState>()(
               progressImages: unionPhotos(existingRfm.progressImages, importRfm.progressImages),
               goodImages: unionPhotos(existingRfm.goodImages, importRfm.goodImages),
               transitionLog: rfmLog,
-              failCount: Math.max(existingRfm.failCount ?? 0, importRfm.failCount ?? 0, rfmLog.filter((t) => t.status === 'bad').length),
+              failCount: Math.max(existingRfm.failCount ?? 0, importRfm.failCount ?? 0, new Set(rfmLog.filter((t) => t.status === 'bad').map((t) => t.date)).size),
             };
 
             merged[uid] = {

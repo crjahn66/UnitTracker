@@ -1,4 +1,4 @@
-- Fixed expired Supabase JWT sessions by enabling token persistence and auto-refresh.
-- Pushes now read and merge the latest Supabase row before writing, preventing stale local data from rolling back Ready for Master.
-- Ready for Master backfill now runs before every cloud push, not only during full sync.
-- Stale-push protection now includes Ready for Master status and transition history.
+- Ready for Master is now derived from all four stages and post-RED Group Tested issues.
+- Units with all four stages complete are marked Ready for Master good unless a post-RED Group Tested issue exists.
+- Any non-exception component issue logged after the RED Group Tested date marks Ready for Master bad.
+- UPS Modbus COMMS, Panduit, and Panel Integrity are ignored for this post-test issue rule.
