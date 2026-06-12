@@ -15,7 +15,10 @@ import {
   GeneralIssue,
   MiscEquipItem,
   MiscIssue,
+  ReadyForMasterData,
+  ReadyForMasterIssue,
   COMPONENTS,
+  createDefaultReadyForMaster,
   normalizeStageStatus,
 } from '../types';
 import { createInitialUnits } from '../utils/initialData';
@@ -51,9 +54,24 @@ function normalizeUnitComponents<T extends Unit>(unit: T): T {
   return { ...unit, components: normalizeComponents(unit.components) };
 }
 
+function normalizeReadyForMaster(data?: Partial<ReadyForMasterData>): ReadyForMasterData {
+  return {
+    ...createDefaultReadyForMaster(),
+    ...(data ?? {}),
+    status: data?.status ?? 'unchecked',
+    issues: data?.issues ?? [],
+    failCount: data?.failCount ?? 0,
+    transitionLog: data?.transitionLog ?? [],
+  };
+}
+
+function normalizeUnit<T extends Unit>(unit: T): T {
+  return { ...normalizeUnitComponents(unit), readyForMaster: normalizeReadyForMaster(unit.readyForMaster) };
+}
+
 function normalizeUnitsComponents(units: UnitsStore): UnitsStore {
   return Object.fromEntries(
-    Object.entries(units).map(([uid, unit]) => [uid, normalizeUnitComponents(unit)])
+    Object.entries(units).map(([uid, unit]) => [uid, normalizeUnit(unit)])
   ) as UnitsStore;
 }
 
@@ -90,6 +108,10 @@ interface StoreState {
   addMiscIssue: (unitId: string, itemId: string, issue: MiscIssue) => void;
   updateMiscIssue: (unitId: string, itemId: string, issueId: string, updates: Partial<MiscIssue>) => void;
   deleteMiscIssue: (unitId: string, itemId: string, issueId: string) => void;
+  updateReadyForMaster: (unitId: string, updates: Partial<ReadyForMasterData>) => void;
+  addReadyForMasterIssue: (unitId: string, issue: ReadyForMasterIssue) => void;
+  updateReadyForMasterIssue: (unitId: string, issueId: string, updates: Partial<ReadyForMasterIssue>) => void;
+  deleteReadyForMasterIssue: (unitId: string, issueId: string) => void;
   setStageStuckReason: (unitId: string, stage: StageKey, reason: string) => void;
   setStageDate: (unitId: string, stage: StageKey, date: string) => void;
   setComponentStatusDate: (unitId: string, component: ComponentKey, date: string) => void;
@@ -100,6 +122,9 @@ interface StoreState {
   addMiscIssueUpdate: (unitId: string, itemId: string, issueId: string, update: IssueUpdate) => void;
   editMiscIssueUpdate: (unitId: string, itemId: string, issueId: string, updateId: string, changes: Pick<IssueUpdate, 'note' | 'updatedBy'>) => void;
   deleteMiscIssueUpdate: (unitId: string, itemId: string, issueId: string, updateId: string) => void;
+  addReadyForMasterIssueUpdate: (unitId: string, issueId: string, update: IssueUpdate) => void;
+  editReadyForMasterIssueUpdate: (unitId: string, issueId: string, updateId: string, changes: Pick<IssueUpdate, 'note' | 'updatedBy'>) => void;
+  deleteReadyForMasterIssueUpdate: (unitId: string, issueId: string, updateId: string) => void;
   addGeneralIssue: (issue: GeneralIssue) => void;
   updateGeneralIssue: (issueId: string, updates: Partial<GeneralIssue>) => void;
   addGeneralIssueUpdate: (issueId: string, update: IssueUpdate) => void;
@@ -441,6 +466,75 @@ export const useStore = create<StoreState>()(
           };
         }),
 
+      updateReadyForMaster: (unitId, updates) =>
+        set((state) => {
+          const u = state.units[unitId];
+          const current = normalizeReadyForMaster(u.readyForMaster);
+          const nextStatus = updates.status ?? current.status;
+          const now = new Date().toISOString();
+          const statusChanged = 'status' in updates && nextStatus !== current.status;
+          const extraUpdates: Partial<ReadyForMasterData> = {};
+          if (statusChanged) {
+            extraUpdates.goodDate = nextStatus === 'good' ? now : undefined;
+            extraUpdates.inProgressDate = nextStatus === 'inProgress' ? now : undefined;
+            extraUpdates.badDate = nextStatus === 'bad' ? now : undefined;
+            extraUpdates.failCount = nextStatus === 'bad' ? (current.failCount ?? 0) + 1 : current.failCount ?? 0;
+            extraUpdates.transitionLog = [
+              ...(current.transitionLog ?? []),
+              { id: `rfm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, status: nextStatus, date: now },
+            ];
+          }
+          return {
+            units: {
+              ...state.units,
+              [unitId]: { ...u, readyForMaster: { ...current, ...updates, ...extraUpdates, status: nextStatus } },
+            },
+          };
+        }),
+
+      addReadyForMasterIssue: (unitId, issue) =>
+        set((state) => {
+          const u = state.units[unitId];
+          const current = normalizeReadyForMaster(u.readyForMaster);
+          return { units: { ...state.units, [unitId]: { ...u, readyForMaster: { ...current, issues: [...current.issues, issue] } } } };
+        }),
+
+      updateReadyForMasterIssue: (unitId, issueId, updates) =>
+        set((state) => {
+          const u = state.units[unitId];
+          const current = normalizeReadyForMaster(u.readyForMaster);
+          return {
+            units: {
+              ...state.units,
+              [unitId]: {
+                ...u,
+                readyForMaster: {
+                  ...current,
+                  issues: current.issues.map((i) => i.id === issueId ? { ...i, dateUpdated: new Date().toISOString(), ...updates } : i),
+                },
+              },
+            },
+          };
+        }),
+
+      deleteReadyForMasterIssue: (unitId, issueId) =>
+        set((state) => {
+          const u = state.units[unitId];
+          const current = normalizeReadyForMaster(u.readyForMaster);
+          return {
+            units: {
+              ...state.units,
+              [unitId]: {
+                ...u,
+                readyForMaster: {
+                  ...current,
+                  issues: current.issues.map((i) => i.id === issueId ? { ...i, deleted: true, deletedAt: new Date().toISOString() } : i),
+                },
+              },
+            },
+          };
+        }),
+
       setStageStuckReason: (unitId, stage, reason) =>
         set((state) => {
           const u = state.units[unitId];
@@ -604,6 +698,60 @@ export const useStore = create<StoreState>()(
           const u = state.units[unitId];
           return {
             units: { ...state.units, [unitId]: { ...u, miscEquipment: (u.miscEquipment ?? []).map((item) => item.id === itemId ? { ...item, issues: item.issues.map((i) => i.id === issueId ? { ...i, updates: (i.updates ?? []).filter((upd) => upd.id !== updateId) } : i) } : item) } },
+          };
+        }),
+
+      addReadyForMasterIssueUpdate: (unitId, issueId, update) =>
+        set((state) => {
+          const u = state.units[unitId];
+          const current = normalizeReadyForMaster(u.readyForMaster);
+          return {
+            units: {
+              ...state.units,
+              [unitId]: {
+                ...u,
+                readyForMaster: {
+                  ...current,
+                  issues: current.issues.map((i) => i.id === issueId ? { ...i, dateUpdated: update.date, updates: [...(i.updates ?? []), update] } : i),
+                },
+              },
+            },
+          };
+        }),
+
+      editReadyForMasterIssueUpdate: (unitId, issueId, updateId, changes) =>
+        set((state) => {
+          const u = state.units[unitId];
+          const current = normalizeReadyForMaster(u.readyForMaster);
+          return {
+            units: {
+              ...state.units,
+              [unitId]: {
+                ...u,
+                readyForMaster: {
+                  ...current,
+                  issues: current.issues.map((i) => i.id === issueId ? { ...i, updates: (i.updates ?? []).map((upd) => upd.id === updateId ? { ...upd, ...changes } : upd) } : i),
+                },
+              },
+            },
+          };
+        }),
+
+      deleteReadyForMasterIssueUpdate: (unitId, issueId, updateId) =>
+        set((state) => {
+          const u = state.units[unitId];
+          const current = normalizeReadyForMaster(u.readyForMaster);
+          return {
+            units: {
+              ...state.units,
+              [unitId]: {
+                ...u,
+                readyForMaster: {
+                  ...current,
+                  issues: current.issues.map((i) => i.id === issueId ? { ...i, updates: (i.updates ?? []).filter((upd) => upd.id !== updateId) } : i),
+                },
+              },
+            },
           };
         }),
 
@@ -805,6 +953,37 @@ export const useStore = create<StoreState>()(
               }
             }
 
+            const existingRfm = normalizeReadyForMaster(existing.readyForMaster);
+            const importRfm = imp.readyForMaster ? normalizeReadyForMaster(imp.readyForMaster) : existingRfm;
+            const impRfmIssueMap = new Map<string, any>((importRfm.issues ?? []).map((i: any) => [i.id, i]));
+            const mergedRfmIssues = existingRfm.issues.map((existIssue: any) => {
+              const impIssue = impRfmIssueMap.get(existIssue.id);
+              if (!impIssue) return existIssue;
+              const { deleted: _d, deletedAt: _dA, images: _i, updates: _u, ...rest } = { ...existIssue, ...impIssue };
+              const dateUpdated = (existIssue.dateUpdated && impIssue.dateUpdated)
+                ? (existIssue.dateUpdated > impIssue.dateUpdated ? existIssue.dateUpdated : impIssue.dateUpdated)
+                : (existIssue.dateUpdated ?? impIssue.dateUpdated);
+              const delResult = resolveDeletion(existIssue, impIssue, dateUpdated);
+              const mergedUpdates = mergeIssueUpdates(existIssue.updates, impIssue.updates);
+              return { ...rest, images: mergeImages(existIssue.images, impIssue.images) ?? [], ...delResult, ...(dateUpdated ? { dateUpdated } : {}), ...(mergedUpdates ? { updates: mergedUpdates } : {}) };
+            });
+            const existingRfmIds = new Set(existingRfm.issues.map((i) => i.id));
+            const newRfmIssues = importRfm.issues.filter((i: any) => !existingRfmIds.has(i.id));
+            const mergedRfmStatus = imp.readyForMaster ? (importRfm.status ?? existingRfm.status) : existingRfm.status;
+            const mergedReadyForMaster: ReadyForMasterData = {
+              ...existingRfm,
+              ...importRfm,
+              status: mergedRfmStatus,
+              issues: [...mergedRfmIssues, ...newRfmIssues],
+              progressImages: mergeImages(existingRfm.progressImages, importRfm.progressImages),
+              goodImages: mergeImages(existingRfm.goodImages, importRfm.goodImages),
+              transitionLog: [...new Map([...(existingRfm.transitionLog ?? []), ...(importRfm.transitionLog ?? [])].map((t) => [t.id, t])).values()],
+              failCount: Math.max(existingRfm.failCount ?? 0, importRfm.failCount ?? 0),
+              goodDate: mergedRfmStatus === 'good' ? (importRfm.goodDate ?? existingRfm.goodDate) : undefined,
+              inProgressDate: mergedRfmStatus === 'inProgress' ? (importRfm.inProgressDate ?? existingRfm.inProgressDate) : undefined,
+              badDate: mergedRfmStatus === 'bad' ? (importRfm.badDate ?? existingRfm.badDate) : undefined,
+            };
+
             // Merge custom labels — remote wins
             const mergedLabels = { ...(existing.customComponentLabels ?? {}), ...(imp.customComponentLabels ?? {}) };
 
@@ -868,6 +1047,7 @@ export const useStore = create<StoreState>()(
               components: mergedComponents,
               miscEquipment: existingMisc,
               customComponentLabels: Object.keys(mergedLabels).length ? mergedLabels : undefined,
+              readyForMaster: mergedReadyForMaster,
               ...('chillerAvailable' in imp && { chillerAvailable: imp.chillerAvailable }),
               ...('optimoMode' in imp && { optimoMode: imp.optimoMode }),
               ...('workingParty' in imp && { workingParty: imp.workingParty }),
@@ -949,10 +1129,24 @@ export const useStore = create<StoreState>()(
               }
             }
 
+            const existingRfm = normalizeReadyForMaster(existing.readyForMaster);
+            const importRfm = normalizeReadyForMaster(imp.readyForMaster);
+            const existingRfmIds = new Set(existingRfm.issues.map((i) => i.id));
+            const newRfmIssues = importRfm.issues.filter((i: any) => !existingRfmIds.has(i.id));
+            const readyForMaster: ReadyForMasterData = {
+              ...existingRfm,
+              issues: newRfmIssues.length ? [...existingRfm.issues, ...newRfmIssues] : existingRfm.issues,
+              progressImages: unionPhotos(existingRfm.progressImages, importRfm.progressImages),
+              goodImages: unionPhotos(existingRfm.goodImages, importRfm.goodImages),
+              transitionLog: [...new Map([...(existingRfm.transitionLog ?? []), ...(importRfm.transitionLog ?? [])].map((t) => [t.id, t])).values()],
+              failCount: Math.max(existingRfm.failCount ?? 0, importRfm.failCount ?? 0),
+            };
+
             merged[uid] = {
               ...existing,
               components: mergedComponents,
               miscEquipment: existingMisc,
+              readyForMaster,
               ...(!existing.optimoMode && 'optimoMode' in imp && { optimoMode: imp.optimoMode }),
               ...(!existing.workingParty && 'workingParty' in imp && { workingParty: imp.workingParty }),
             };
@@ -981,6 +1175,11 @@ export const useStore = create<StoreState>()(
               item.progressImages = undefined;
               item.goodImages = undefined;
               for (const issue of (item.issues ?? [])) issue.images = undefined;
+            }
+            if (unit.readyForMaster) {
+              unit.readyForMaster.progressImages = undefined;
+              unit.readyForMaster.goodImages = undefined;
+              for (const issue of (unit.readyForMaster.issues ?? [])) issue.images = undefined;
             }
           }
           return { units };
@@ -1033,6 +1232,12 @@ export const useStore = create<StoreState>()(
                   goodImages: undefined,
                   issues: item.issues.map((iss) => ({ ...iss, images: undefined })),
                 })),
+                readyForMaster: unit.readyForMaster ? {
+                  ...unit.readyForMaster,
+                  progressImages: undefined,
+                  goodImages: undefined,
+                  issues: unit.readyForMaster.issues.map((iss) => ({ ...iss, images: undefined })),
+                } : undefined,
               },
             ])
           ),

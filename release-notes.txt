@@ -1,5 +1,5 @@
-- Added Post-Commission Health tracking under RED Group Tested.
-- Post C bad indicators now only watch the approved component list: valves, transmitters, pumps, flow meter/GFCI/switch, chiller interlocks, field server, PLC, chiller modbus gateway, and chiller.
-- UPS Modbus COMMS, Panduit, Panel Integrity, unchecked statuses, and misc equipment do not trigger Post C bad indicators.
-- Dashboard, North/South unit cards, RED Group Tested health bar, and Excel exports now use the same Post C bad count.
-- Added Post C issue badges to overview grids and North/South cards, and added Post-Commission Health columns to Overview, Completed Units, and Component Status exports.
+- Added Ready for Master tracking under RED Group Tested.
+- Ready for Master now persists status, notes, photos, issues, and transition history.
+- Dashboard and North/South unit cards now show Ready for Master issue indicators.
+- Completed unit counts and exports now require Ready for Master to be good.
+- Ready for Master issue logging uses Sign-off By and Notes fields only.

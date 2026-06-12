@@ -1,4 +1,4 @@
-import { Unit, UnitsStore, ComponentsData, StagesData, COMPONENTS, STAGES } from '../types';
+import { UnitsStore, ComponentsData, StagesData, COMPONENTS, STAGES, createDefaultReadyForMaster } from '../types';
 
 const createDefaultComponents = (): ComponentsData => {
   const components = {} as ComponentsData;
@@ -28,6 +28,7 @@ export const createInitialUnits = (): UnitsStore => {
       stages: createDefaultStages(),
       components: createDefaultComponents(),
       miscEquipment: [],
+      readyForMaster: createDefaultReadyForMaster(),
     };
   }
 
@@ -40,6 +41,7 @@ export const createInitialUnits = (): UnitsStore => {
       stages: createDefaultStages(),
       components: createDefaultComponents(),
       miscEquipment: [],
+      readyForMaster: createDefaultReadyForMaster(),
     };
   }
 

@@ -132,6 +132,35 @@ export interface MiscEquipItem {
   deletedAt?: string;
 }
 
+export interface ReadyForMasterIssue extends Omit<MiscIssue, 'responsibleParty'> {
+  signOff?: boolean;
+  responsibleParty?: string;
+}
+
+export interface ReadyForMasterTransition {
+  id: string;
+  status: ComponentStatus;
+  date: string;
+}
+
+export interface ReadyForMasterData {
+  status: ComponentStatus;
+  issues: ReadyForMasterIssue[];
+  progressNote?: string;
+  progressImages?: string[];
+  goodNote?: string;
+  goodImages?: string[];
+  goodDate?: string;
+  inProgressDate?: string;
+  badDate?: string;
+  failCount?: number;
+  transitionLog?: ReadyForMasterTransition[];
+}
+
+export function createDefaultReadyForMaster(): ReadyForMasterData {
+  return { status: 'unchecked', issues: [], failCount: 0, transitionLog: [] };
+}
+
 export interface Unit {
   id: string;
   side: Side;
@@ -145,13 +174,29 @@ export interface Unit {
   components: ComponentsData;
   miscEquipment?: MiscEquipItem[];
   customComponentLabels?: Partial<Record<ComponentKey, string>>;
+  readyForMaster?: ReadyForMasterData;
   chillerAvailable?: boolean;
   optimoMode?: OptimoMode;
   workingParty?: WorkingParty;
 }
 
+export function getReadyForMaster(unit: Pick<Unit, 'readyForMaster'>): ReadyForMasterData {
+  return unit.readyForMaster ?? createDefaultReadyForMaster();
+}
+
+export function hasOpenReadyForMasterIssues(unit: Pick<Unit, 'readyForMaster'>): boolean {
+  return getReadyForMaster(unit).issues.some((i) => !i.resolved && !i.deleted);
+}
+
 export function isUnitComplete(unit: Pick<Unit, 'stages'>): boolean {
   return STAGES.every((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete');
+}
+
+export function isUnitFullyGreen(unit: Pick<Unit, 'stages' | 'components' | 'readyForMaster'>): boolean {
+  return isUnitComplete(unit)
+    && Object.values(unit.components).every((c) => c.status === 'good')
+    && getReadyForMaster(unit).status === 'good'
+    && !hasOpenReadyForMasterIssues(unit);
 }
 
 export type UnitsStore = Record<string, Unit>;

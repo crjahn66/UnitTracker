@@ -6,7 +6,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { format } from 'date-fns';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
-import { Unit, STAGES, COMPONENTS, WorkingParty, WORKING_PARTY_LABELS, normalizeStageStatus, isUnitComplete } from '../types';
+import { Unit, STAGES, COMPONENTS, WorkingParty, WORKING_PARTY_LABELS, getReadyForMaster, hasOpenReadyForMasterIssues, normalizeStageStatus, isUnitComplete, isUnitFullyGreen } from '../types';
 import CopyrightFooter from '../components/CopyrightFooter';
 import { useEditMode } from '../context/EditModeContext';
 import { pushToCloud } from '../utils/sync';
@@ -18,16 +18,17 @@ type Filter = 'issues' | 'inProgress' | 'complete' | 'chiller';
 function unitStatusColor(unit: Unit): string {
   const comps = Object.values(unit.components);
   const miscItems = (unit.miscEquipment ?? []).filter((m) => !m.deleted);
+  const ready = getReadyForMaster(unit);
   const openIssues = [
     ...comps.flatMap((c) => c.issues),
     ...miscItems.flatMap((m) => m.issues ?? []),
+    ...ready.issues,
   ].filter((i) => !i.resolved && !i.deleted).length;
   const hasBad = comps.some((c) => c.status === 'bad') || miscItems.some((m) => m.status === 'bad');
   const hasStuck = STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) === 'stuck');
-  if (hasBad || openIssues > 0 || hasStuck) return '#f85149';
+  if ((ready.status === 'bad' && hasOpenReadyForMasterIssues(unit)) || hasBad || openIssues > 0 || hasStuck) return '#f85149';
 
-  const stagesComplete = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
-  if (stagesComplete === STAGES.length) return '#3fb950';
+  if (isUnitFullyGreen(unit)) return '#3fb950';
 
   const hasWork = STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) !== 'pending')
     || comps.some((c) => c.status !== 'unchecked')
@@ -39,11 +40,12 @@ function unitStatusColor(unit: Unit): string {
 function hasOpenIssues(unit: Unit): boolean {
   const compIssues = Object.values(unit.components).flatMap((c) => c.issues);
   const miscIssues = (unit.miscEquipment ?? []).flatMap((m) => m.issues ?? []);
-  return [...compIssues, ...miscIssues].some((i) => !i.resolved && !i.deleted);
+  const readyIssues = getReadyForMaster(unit).issues;
+  return [...compIssues, ...miscIssues, ...readyIssues].some((i) => !i.resolved && !i.deleted);
 }
 
 function isInProgress(unit: Unit): boolean {
-  if (isUnitComplete(unit)) return false;
+  if (isUnitFullyGreen(unit)) return false;
   return STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) !== 'pending')
     || Object.values(unit.components).some((c) => c.status !== 'unchecked')
     || (unit.miscEquipment ?? []).some((m) => m.status !== 'unchecked');
@@ -68,9 +70,10 @@ const UnitCard = React.memo(function UnitCard({
   const bad = comps.filter((c) => c.status === 'bad').length;
   const miscItems = (unit.miscEquipment ?? []).filter((m) => !m.deleted);
   const miscIssues = miscItems.flatMap((m) => m.issues ?? []);
-  const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
+  const ready = getReadyForMaster(unit);
+  const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues, ...ready.issues].filter((i) => !i.resolved && !i.deleted).length;
   const color = unitStatusColor(unit);
-  const completeWithIssues = isUnitComplete(unit) && (openIssues > 0 || bad > 0 || miscItems.some((m) => m.status === 'bad'));
+  const completeWithIssues = isUnitComplete(unit) && !hasOpenReadyForMasterIssues(unit) && (openIssues > 0 || bad > 0 || miscItems.some((m) => m.status === 'bad'));
   const pct = Math.round(
     (stagesComplete / STAGES.length) * 70 + (good / COMPONENTS.length) * 30
   );
@@ -193,13 +196,14 @@ export default function UnitListScreen({ navigation, route }: Props) {
   );
 
   const stats = useMemo(() => {
-    const complete = sideUnits.filter(isUnitComplete).length;
+    const complete = sideUnits.filter(isUnitFullyGreen).length;
     const hasIssue = sideUnits.filter(hasOpenIssues).length;
     const inProgress = sideUnits.filter(isInProgress).length;
     const openIssues = sideUnits.reduce((sum, u) => {
       const compIssues = Object.values(u.components).flatMap((c) => c.issues);
       const miscIssues = (u.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues ?? []);
-      return sum + [...compIssues, ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
+      const readyIssues = getReadyForMaster(u).issues;
+      return sum + [...compIssues, ...miscIssues, ...readyIssues].filter((i) => !i.resolved && !i.deleted).length;
     }, 0);
     const chillerReady = sideUnits.filter((u) => u.chillerAvailable === true).length;
     return { complete, hasIssue, inProgress, openIssues, chillerReady };
@@ -219,7 +223,7 @@ export default function UnitListScreen({ navigation, route }: Props) {
     return sideUnits.filter((u) =>
       (activeFilters.has('issues') && hasOpenIssues(u)) ||
       (activeFilters.has('inProgress') && isInProgress(u)) ||
-      (activeFilters.has('complete') && isUnitComplete(u)) ||
+      (activeFilters.has('complete') && isUnitFullyGreen(u)) ||
       (activeFilters.has('chiller') && u.chillerAvailable === true)
     );
   }, [sideUnits, activeFilters]);

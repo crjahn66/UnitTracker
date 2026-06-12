@@ -8,9 +8,10 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, ComponentKey, StageKey, StageStatus, OptimoMode, OPTIMO_MODE_LABELS, normalizeStageStatus } from '../types';
+import { STAGES, COMPONENTS, ComponentKey, StageKey, StageStatus, OptimoMode, OPTIMO_MODE_LABELS, getReadyForMaster, normalizeStageStatus } from '../types';
 import ComponentModal from '../components/ComponentModal';
 import MiscEquipModal from '../components/MiscEquipModal';
+import ReadyForMasterModal from '../components/ReadyForMasterModal';
 import PhotoGalleryModal from '../components/PhotoGalleryModal';
 import { getNetworkEntry } from '../data/networkData';
 import { pushToCloud, forceDeleteStageNote } from '../utils/sync';
@@ -59,6 +60,7 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
 
   const [selectedComponent, setSelectedComponent] = useState<ComponentKey | null>(null);
   const [selectedMiscItem, setSelectedMiscItem] = useState<string | null>(null);
+  const [readyForMasterOpen, setReadyForMasterOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [editingStageNote, setEditingStageNote] = useState<StageKey | null>(null);
   const [stageNoteValue, setStageNoteValue] = useState('');
@@ -157,12 +159,20 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
       for (const issue of item.issues.filter((i) => !i.deleted))
         n += (issue.images ?? []).filter((u) => u.startsWith('https://')).length;
     }
+    const ready = getReadyForMaster(unit);
+    n += (ready.progressImages ?? []).filter((u) => u.startsWith('https://')).length;
+    n += (ready.goodImages ?? []).filter((u) => u.startsWith('https://')).length;
+    for (const issue of ready.issues.filter((i) => !i.deleted))
+      n += (issue.images ?? []).filter((u) => u.startsWith('https://')).length;
     return n;
-  }, [allComps, miscItems]);
-  const goodCount = allComps.filter((c) => c.status === 'good').length + miscItems.filter((m) => m.status === 'good').length;
-  const badCount = allComps.filter((c) => c.status === 'bad').length + miscItems.filter((m) => m.status === 'bad').length;
+  }, [allComps, miscItems, unit]);
+  const readyForMaster = getReadyForMaster(unit);
+  const readyOpenIssues = readyForMaster.issues.filter((i) => !i.resolved && !i.deleted).length;
+  const goodCount = allComps.filter((c) => c.status === 'good').length + miscItems.filter((m) => m.status === 'good').length + (readyForMaster.status === 'good' ? 1 : 0);
+  const badCount = allComps.filter((c) => c.status === 'bad').length + miscItems.filter((m) => m.status === 'bad').length + (readyForMaster.status === 'bad' ? 1 : 0);
   const openIssues = allComps.flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted).length
-    + miscItems.flatMap((m) => m.issues).filter((i) => !i.resolved && !i.deleted).length;
+    + miscItems.flatMap((m) => m.issues).filter((i) => !i.resolved && !i.deleted).length
+    + readyOpenIssues;
   const postCommissionHealth = useMemo(() => getPostCommissionHealth(unit), [unit]);
 
   return (
@@ -319,19 +329,6 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
                     </View>
                   )}
                 </View>
-                {stage.key === 'commissioning' && stageStatus === 'complete' && (
-                  <View style={s.postCommissionBox}>
-                    <View style={s.postCommissionHeader}>
-                      <Text style={s.postCommissionLabel}>Post-Commission Health</Text>
-                      <Text style={[s.postCommissionStatus, { color: postCommissionHealth.statusColor }]}>{postCommissionHealth.statusText}</Text>
-                    </View>
-                    <View style={s.postCommissionBar}>
-                      {postCommissionHealth.segmentColors.map((color, segIdx) => (
-                        <View key={`${stage.key}-${segIdx}`} style={[s.postCommissionSeg, { backgroundColor: color }]} />
-                      ))}
-                    </View>
-                  </View>
-                )}
                 {isEditingDate && (
                   <View style={s.stageNoteEditArea}>
                     <TextInput
@@ -461,6 +458,21 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
                       {isEditMode && <Ionicons name="pencil-outline" size={11} color="#f85149" style={{ marginLeft: 4 }} />}
                     </TouchableOpacity>
                   )
+                )}
+                {stage.key === 'commissioning' && stageStatus === 'complete' && (
+                  <TouchableOpacity style={s.readyForMasterRow} onPress={() => setReadyForMasterOpen(true)} activeOpacity={0.75}>
+                    <StatusIcon status={readyForMaster.status} />
+                    <View style={s.compInfo}>
+                      <Text style={s.compLabel}>Ready for Master</Text>
+                      {readyOpenIssues > 0 && (
+                        <Text style={[s.issueMeta, { color: '#f85149' }]}>{readyOpenIssues} open issue{readyOpenIssues !== 1 ? 's' : ''}</Text>
+                      )}
+                    </View>
+                    <View style={s.compRight}>
+                      <Text style={[s.compStatusText, { color: postCommissionHealth.statusColor }]}>{postCommissionHealth.statusText}</Text>
+                      <Ionicons name="chevron-forward" size={14} color="#6e7681" style={s.chevron} />
+                    </View>
+                  </TouchableOpacity>
                 )}
               </View>
             );
@@ -599,6 +611,9 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
           itemId={selectedMiscItem}
           onClose={() => setSelectedMiscItem(null)}
         />
+      )}
+      {readyForMasterOpen && (
+        <ReadyForMasterModal unitId={unitId} onClose={() => setReadyForMasterOpen(false)} />
       )}
     </View>
   );
@@ -748,12 +763,7 @@ const s = StyleSheet.create({
   stageNoteRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, paddingLeft: 34 },
   stageNoteText: { color: '#8b949e', fontSize: 12, flex: 1 },
   stageNotePlaceholder: { color: '#484f58', fontSize: 12 },
-  postCommissionBox: { marginTop: 8, paddingLeft: 34 },
-  postCommissionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 },
-  postCommissionLabel: { color: '#8b949e', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  postCommissionStatus: { fontSize: 11, fontWeight: '800' },
-  postCommissionBar: { flexDirection: 'row', gap: 2 },
-  postCommissionSeg: { flex: 1, height: 6, borderRadius: 2 },
+  readyForMasterRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, marginLeft: 34, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#21262d' },
   stuckReasonRow: { marginTop: 4 },
   stuckReasonText: { color: '#f85149', fontSize: 12, flex: 1, opacity: 0.85 },
   stageNoteEditArea: { marginTop: 8, paddingLeft: 34 },

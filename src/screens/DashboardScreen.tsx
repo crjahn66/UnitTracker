@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput } from 
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, Unit, normalizeStageStatus, isUnitComplete } from '../types';
+import { STAGES, COMPONENTS, Unit, getReadyForMaster, hasOpenReadyForMasterIssues, normalizeStageStatus, isUnitComplete, isUnitFullyGreen } from '../types';
 import CopyrightFooter from '../components/CopyrightFooter';
 import { getPostCommissionHealth } from '../utils/postCommissionHealth';
 
@@ -18,7 +18,8 @@ function getUnitPct(unit: Unit): number {
 function getOpenIssueCount(unit: Unit): number {
   const compIssues = Object.values(unit.components).flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted);
   const miscIssues = (unit.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues ?? []).filter((i) => !i.resolved && !i.deleted);
-  return compIssues.length + miscIssues.length;
+  const readyIssues = getReadyForMaster(unit).issues.filter((i) => !i.resolved && !i.deleted);
+  return compIssues.length + miscIssues.length + readyIssues.length;
 }
 
 function hasBadComponentStatus(unit: Unit): boolean {
@@ -33,17 +34,24 @@ function hasStuckStage(unit: Unit): boolean {
   return STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) === 'stuck');
 }
 
+function hasBadReadyForMaster(unit: Unit): boolean {
+  const ready = getReadyForMaster(unit);
+  return ready.status === 'bad' && hasOpenReadyForMasterIssues(unit);
+}
+
 // A unit has "issues" if any of: open component/misc issues, bad component/misc status,
 // or any commissioning stage is stuck. These all roll into the same red state.
 function unitHasIssues(unit: Unit): boolean {
-  return getOpenIssueCount(unit) > 0 || hasBadComponentStatus(unit) || hasBadMiscStatus(unit) || hasStuckStage(unit);
+  return getOpenIssueCount(unit) > 0 || hasBadComponentStatus(unit) || hasBadMiscStatus(unit) || hasStuckStage(unit) || hasBadReadyForMaster(unit);
 }
 
 // Priority: complete-with-issues > issues > complete > in-progress > not-started
 function getUnitStatus(unit: Unit): UnitStatus {
+  if (hasBadReadyForMaster(unit)) return 'issues';
+  if (isUnitFullyGreen(unit)) return 'complete';
   if (isUnitComplete(unit) && unitHasIssues(unit)) return 'completeWithIssues';
   if (unitHasIssues(unit)) return 'issues';
-  if (isUnitComplete(unit)) return 'complete';
+  if (isUnitFullyGreen(unit)) return 'complete';
   if (getUnitPct(unit) > 0) return 'inProgress';
   return 'notStarted';
 }
@@ -90,8 +98,8 @@ export default function DashboardScreen() {
       a.side !== b.side ? a.side.localeCompare(b.side) : a.unitNumber - b.unitNumber
     );
 
-    const complete = all.filter(isUnitComplete).length;
-    const inProgress = all.filter((u) => { const p = getUnitPct(u); return p > 0 && !isUnitComplete(u); }).length;
+    const complete = all.filter(isUnitFullyGreen).length;
+    const inProgress = all.filter((u) => { const p = getUnitPct(u); return p > 0 && !isUnitFullyGreen(u); }).length;
     const openGeneralCount = generalIssues.filter((i) => !i.resolved && !i.deleted).length;
     const totalIssues = all.reduce((n, u) => n + getOpenIssueCount(u), 0) + openGeneralCount;
     const chillerReady = all.filter((u) => u.chillerAvailable === true).length;
@@ -101,7 +109,7 @@ export default function DashboardScreen() {
     const northUnits = all.filter((u) => u.side === 'North').sort((a, b) => a.unitNumber - b.unitNumber);
     const southUnits = all.filter((u) => u.side === 'South').sort((a, b) => a.unitNumber - b.unitNumber);
     const sidePct = (arr: Unit[]) => arr.length === 0 ? 0 : Math.round(arr.reduce((n, u) => n + getUnitPct(u), 0) / arr.length);
-    const sideDoneCount = (arr: Unit[]) => arr.filter(isUnitComplete).length;
+    const sideDoneCount = (arr: Unit[]) => arr.filter(isUnitFullyGreen).length;
     const sidePcts = { N: sidePct(northUnits), S: sidePct(southUnits) };
     const sideDone = { N: sideDoneCount(northUnits), S: sideDoneCount(southUnits) };
     const workingUnits = {
@@ -122,6 +130,9 @@ export default function DashboardScreen() {
           openIssues.push({ key: issue.id, unitId: unit.id, unit, compLabel: m.label || 'Misc Equipment', notes: issue.notes, foundBy: issue.foundBy, ageDays: Math.floor((Date.now() - new Date(issue.dateFound).getTime()) / 86400000), miscItemId: m.id });
         }
       }
+      for (const issue of getReadyForMaster(unit).issues.filter((i) => !i.resolved && !i.deleted)) {
+        openIssues.push({ key: issue.id, unitId: unit.id, unit, compLabel: 'Ready for Master', notes: issue.notes, foundBy: issue.foundBy, ageDays: Math.floor((Date.now() - new Date(issue.dateFound).getTime()) / 86400000) });
+      }
     }
     openIssues.sort((a, b) => b.ageDays - a.ageDays);
 
@@ -130,7 +141,7 @@ export default function DashboardScreen() {
 
   // Detail list: when not showing all, hide complete units. Order is numerical (by side, then unit number).
   const detailUnits = useMemo(
-    () => showAllUnits ? sortedUnits : sortedUnits.filter((u) => !isUnitComplete(u)),
+    () => showAllUnits ? sortedUnits : sortedUnits.filter((u) => !isUnitFullyGreen(u)),
     [sortedUnits, showAllUnits],
   );
   const detailNorth = useMemo(() => detailUnits.filter((u) => u.side === 'North'), [detailUnits]);
@@ -168,7 +179,7 @@ export default function DashboardScreen() {
         <SumStat label="Complete"    value={stats.complete}      color="#3fb950" />
         <SumStat label="In Progress" value={stats.inProgress}    color="#d29922" />
         <SumStat label="Open Issues" value={stats.totalIssues}   color={stats.totalIssues > 0 ? '#f85149' : '#3fb950'} />
-        <SumStat label="Post C Issues" value={stats.postCommissionIssues} color={stats.postCommissionIssues > 0 ? '#f85149' : '#3fb950'} />
+        <SumStat label="RFM Issues" value={stats.postCommissionIssues} color={stats.postCommissionIssues > 0 ? '#f85149' : '#3fb950'} />
         <SumStat label="❄ Ready"    value={stats.chillerReady}  color="#58a6ff" />
       </View>
 
@@ -347,7 +358,7 @@ function FleetGrid({
       <View style={s.gridLegend}>
         <Legend color={STATUS_COLOR.complete}   text="Done" />
         <SplitLegend text="Done + Issues" />
-        <BadgeLegend text="Post C Issue" />
+        <BadgeLegend text="Ready for Master Issue" />
         <Legend color={STATUS_COLOR.inProgress} text="In Prog" />
         <Legend color={STATUS_COLOR.issues}     text="Issues" />
         <Legend color={STATUS_COLOR.notStarted} text="Not Started" dim />
@@ -500,7 +511,7 @@ function CompactUnitRow({ unit, onPress, lastInColumn }: { unit: Unit; onPress: 
       )}
       {postCommissionHealth.needsAttention && (
         <View style={s.compactHealthBadge}>
-          <Text style={s.compactHealthText}>PC</Text>
+          <Text style={s.compactHealthText}>!</Text>
         </View>
       )}
     </TouchableOpacity>

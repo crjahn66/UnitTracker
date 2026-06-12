@@ -103,16 +103,17 @@ function rowClr(unit: Unit): Clr {
 function postCommissionClr(unit: Unit): Clr {
   const health = getPostCommissionHealth(unit);
   if (!health.commissioned) return GRY;
-  if (health.postCommissionBadCount > 0) return RED;
-  if (health.needsAttention) return AMB;
-  return GRN;
+  if (health.needsAttention || health.status === 'bad') return RED;
+  if (health.status === 'inProgress') return AMB;
+  if (health.status === 'good') return GRN;
+  return GRY;
 }
 
 // ─── Sheet 1: Overview ────────────────────────────────────────────────────────
 function buildOverview(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Overview');
   const colWidths = [9, 7, 7, 12, 24, 18, 24, 18, 14, 18, 10, 20, 22];
-  const headers = ['Unit ID', 'Side', 'Unit #', 'Optimo Mode', ...STAGES.map((s) => s.label), 'Stages Done', 'Open Constraints', 'Status', 'RED Group Tested On', 'Post-Commission Health'];
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Optimo Mode', ...STAGES.map((s) => s.label), 'Stages Done', 'Open Constraints', 'Status', 'RED Group Tested On', 'Post Red Group Tested'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 45;
@@ -164,7 +165,7 @@ function buildOverview(wb: any, sorted: Unit[]) {
 function buildComponents(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Component Status');
   const colWidths = [9, 7, 7, 12, ...COMPONENTS.map(() => 20), 40, 22];
-  const headers = ['Unit ID', 'Side', 'Unit #', 'Optimo Mode', ...COMPONENTS.map((c) => c.label), 'Misc Equipment', 'Post-Commission Health'];
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Optimo Mode', ...COMPONENTS.map((c) => c.label), 'Misc Equipment', 'Post Red Group Tested'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = autoRowHeight(row1, colWidths);
@@ -303,12 +304,12 @@ async function buildConstraints(wb: any, sorted: Unit[]) {
 function buildCompleted(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Completed Units');
   const colWidths = [9, 7, 7, 24, 18, 24, 18, 16, 16, 16, 18, 22, 14];
-  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Functional Components', 'Total Constraints', 'Active Constraints', 'RED Group Tested On', 'Post-Commission Health', 'Tested By'];
+  const headers = ['Unit ID', 'Side', 'Unit #', ...STAGES.map((s) => s.label), 'Functional Components', 'Total Constraints', 'Active Constraints', 'RED Group Tested On', 'Post Red Group Tested', 'Tested By'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 45;
 
-  const done = sorted.filter(isUnitComplete);
+  const done = sorted.filter((u) => { const h = getPostCommissionHealth(u); return isUnitComplete(u) && h.status !== 'bad'; });
 
   let currentSide = '';
   for (const u of done) {
@@ -358,6 +359,44 @@ function buildCompleted(wb: any, sorted: Unit[]) {
     right: { style: 'medium', color: { argb: 'FFD29922' } },
   };
 
+  freezeAndWidth(ws, colWidths);
+}
+
+
+// ??? Sheet 5: Completed Units Log ?????????????????????????????????????????????
+function readyForMasterLogText(status: string, failCount: number): string {
+  if (status === 'good') return 'Red Group Tested';
+  if (status === 'bad') return `${Math.max(failCount, 1)} Post RGT Fail`;
+  if (status === 'inProgress') return 'In Progress';
+  return 'Not Set';
+}
+
+function buildCompletedLog(wb: any, sorted: Unit[]) {
+  const ws = wb.addWorksheet('Completed Units Log');
+  const colWidths = [9, 7, 7, 14, 22, 18];
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Date', 'Post Red Group Tested', 'Event #'];
+  const row1 = ws.addRow(headers);
+  row1.eachCell((cell: any) => applyHeader(cell, cell.value));
+  row1.height = 34;
+
+  let rows = 0;
+  for (const u of sorted) {
+    const log = [...(u.readyForMaster?.transitionLog ?? [])].sort((a, b) => a.date.localeCompare(b.date));
+    let failCount = 0;
+    for (const entry of log) {
+      if (entry.status === 'bad') failCount++;
+      const text = readyForMasterLogText(entry.status, failCount);
+      const clr = entry.status === 'good' ? GRN : entry.status === 'bad' ? RED : entry.status === 'inProgress' ? AMB : GRY;
+      const r = ws.addRow([u.id, u.side, u.unitNumber, fmtDate(entry.date), text, rows + 1]);
+      r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, col === 5 ? clr : WHT, col === 1, col >= 3));
+      rows++;
+    }
+  }
+  if (rows === 0) {
+    const r = ws.addRow(['No Ready for Master transitions yet']);
+    applyCell(r.getCell(1), 'No Ready for Master transitions yet', WHT);
+    ws.mergeCells(r.number, 1, r.number, headers.length);
+  }
   freezeAndWidth(ws, colWidths);
 }
 
@@ -529,6 +568,7 @@ export const exportToExcel = async (units: Record<string, Unit>, generalIssues: 
 
   buildOverview(wb, sorted);
   buildCompleted(wb, sorted);
+  buildCompletedLog(wb, sorted);
   buildComponents(wb, sorted);
   buildReadiness(wb, sorted);
   await buildWithConstraints(wb, sorted);
