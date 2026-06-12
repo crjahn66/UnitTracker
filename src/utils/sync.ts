@@ -241,8 +241,8 @@ async function _syncBody(): Promise<SyncResult> {
   // 2. Fetch remote state (20s timeout, aborts the underlying request)
   let data: any;
   try {
-    const result = await withAbortTimeout(
-      (signal) => supabase.from('sync_state').select('units, general_issues').eq('id', 1).single().abortSignal(signal),
+    const result: any = await withAbortTimeout(
+      (signal) => (supabase.from('sync_state').select('units, general_issues, updated_at').eq('id', 1).single() as any).abortSignal(signal),
       20_000,
       'Fetch remote state'
     );
@@ -256,6 +256,7 @@ async function _syncBody(): Promise<SyncResult> {
   // 3. Merge remote into local
   const remoteUnits = (data.units ?? {}) as UnitsStore;
   const remoteGeneralIssues = (data.general_issues ?? []) as GeneralIssue[];
+  const remoteUpdatedAt = data.updated_at as string | undefined;
   if (Object.keys(remoteUnits).length > 0 || remoteGeneralIssues.length > 0) {
     useStore.getState().mergeImport(remoteUnits, remoteGeneralIssues);
   }
@@ -294,12 +295,17 @@ async function _syncBody(): Promise<SyncResult> {
   _lastKnownRemoteAt = new Date(now).getTime();
   try {
     await guardAgainstStalePush(finalUnits, remoteUnits);
-    const pushResult = await withAbortTimeout(
-      (signal) => supabase.from('sync_state').update({ units: finalUnits, general_issues: finalGeneralIssues, updated_at: now }).eq('id', 1).abortSignal(signal),
+    const pushResult: any = await withAbortTimeout(
+      (signal) => {
+        let q = supabase.from('sync_state').update({ units: finalUnits, general_issues: finalGeneralIssues, updated_at: now }).eq('id', 1);
+        if (remoteUpdatedAt) q = q.eq('updated_at', remoteUpdatedAt);
+        return (q.select('updated_at') as any).abortSignal(signal);
+      },
       25_000,
       'Push to cloud'
     );
     if (pushResult.error) return { success: false, error: pushResult.error.message ?? 'Failed to push to cloud' };
+    if (!pushResult.data?.length) return { success: false, error: 'Remote changed during sync; pull latest and retry.' };
   } catch (err: any) {
     return { success: false, error: err.message ?? 'Failed to push to cloud' };
   }
@@ -439,11 +445,13 @@ export async function pushToCloud(): Promise<void> {
 
   let remoteUnits: UnitsStore;
   let remoteGeneralIssues: GeneralIssue[];
+  let remoteUpdatedAt: string | undefined;
   try {
-    const { data, error } = await supabase.from('sync_state').select('units, general_issues').eq('id', 1).single();
+    const { data, error } = await supabase.from('sync_state').select('units, general_issues, updated_at').eq('id', 1).single();
     if (error || !data?.units || typeof data.units !== 'object') throw error ?? new Error('Unable to read remote sync state');
     remoteUnits = data.units as UnitsStore;
     remoteGeneralIssues = (data.general_issues ?? []) as GeneralIssue[];
+    remoteUpdatedAt = data.updated_at as string | undefined;
   } catch (err) {
     markFailure();
     throw err;
@@ -451,7 +459,7 @@ export async function pushToCloud(): Promise<void> {
 
   _suppressDepth++;
   try {
-    useStore.getState().mergeAdditive(remoteUnits, remoteGeneralIssues);
+    useStore.getState().mergeImport(remoteUnits, remoteGeneralIssues);
     useStore.getState().backfillReadyForMaster();
   } finally {
     _suppressDepth--;
@@ -467,11 +475,17 @@ export async function pushToCloud(): Promise<void> {
     markFailure();
     throw err;
   }
-  const { error } = await supabase
+  let q = supabase
     .from('sync_state')
     .update({ units: finalUnits, general_issues: finalGeneralIssues, updated_at: now })
     .eq('id', 1);
-  if (error) { markFailure(); } else { markSuccess(); }
+  if (remoteUpdatedAt) q = q.eq('updated_at', remoteUpdatedAt);
+  const { data, error } = await q.select('updated_at');
+  if (error || !data?.length) {
+    markFailure();
+    throw error ?? new Error('Remote changed during push; pull latest and retry.');
+  }
+  markSuccess();
 }
 
 /**

@@ -871,6 +871,26 @@ export const useStore = create<StoreState>()(
             return all.length ? all : undefined;
           };
 
+          const statusDate = (item: any, status: ComponentStatus | undefined): string | undefined => {
+            if (status === 'good') return item.goodDate;
+            if (status === 'inProgress') return item.inProgressDate;
+            if (status === 'bad') return item.badDate;
+            return undefined;
+          };
+
+          const mergeStatus = (local: any, remote: any): ComponentStatus => {
+            const localStatus = (local.status ?? 'unchecked') as ComponentStatus;
+            const remoteStatus = (remote.status ?? localStatus) as ComponentStatus;
+            const localAt = statusDate(local, localStatus);
+            const remoteAt = statusDate(remote, remoteStatus);
+            if (localAt && remoteAt) return remoteAt > localAt ? remoteStatus : localStatus;
+            if (remoteAt && !localAt) return remoteStatus;
+            if (localAt && !remoteAt) return localStatus;
+            return remote.status ?? localStatus;
+          };
+
+          const issueActivityAt = (issue: any): string => issue.dateUpdated ?? issue.dateFound ?? '';
+
           // Resolve deleted state by comparing each side's deletion timestamp against
           // the freshest live activity for the entity. Live activity newer than the
           // most recent deletion resurrects the entity; otherwise the latest tombstone
@@ -901,10 +921,17 @@ export const useStore = create<StoreState>()(
             const existing = normalizeUnitComponents(merged[uid]);
             const imp = normalizedImportUnit as any;
 
-            // Merge stages — remote wins so unchecking propagates
+            // Merge stages by status date where possible. This keeps a freshly
+            // completed local stage from being clobbered by an older remote row,
+            // while still allowing newer remote progress to land locally.
             const mergedStages = { ...existing.stages };
             for (const key of Object.keys(existing.stages) as StageKey[]) {
-              const raw = imp.stages?.[key] ?? existing.stages[key];
+              const localAt = existing.stagesDates?.[key];
+              const remoteAt = imp.stagesDates?.[key];
+              const remoteIsNewer = remoteAt && (!localAt || remoteAt > localAt);
+              const raw = remoteIsNewer || (!localAt && !remoteAt && key in (imp.stages ?? {}))
+                ? imp.stages?.[key]
+                : existing.stages[key];
               mergedStages[key] = normalizeStageStatus(raw);
             }
 
@@ -918,7 +945,8 @@ export const useStore = create<StoreState>()(
               const mergedIssues = existComp.issues.map((existIssue: any) => {
                 const impIssue = impIssueMap.get(existIssue.id);
                 if (!impIssue) return existIssue;
-                const { deleted: _d, deletedAt: _dA, images: _i, updates: _u, ...rest } = { ...existIssue, ...impIssue };
+                const localIsNewer = issueActivityAt(existIssue) > issueActivityAt(impIssue);
+                const { deleted: _d, deletedAt: _dA, images: _i, updates: _u, ...rest } = localIsNewer ? { ...impIssue, ...existIssue } : { ...existIssue, ...impIssue };
                 const dateUpdated = (existIssue.dateUpdated && impIssue.dateUpdated)
                   ? (existIssue.dateUpdated > impIssue.dateUpdated ? existIssue.dateUpdated : impIssue.dateUpdated)
                   : (existIssue.dateUpdated ?? impIssue.dateUpdated);
@@ -929,15 +957,15 @@ export const useStore = create<StoreState>()(
               const existIds = new Set(existComp.issues.map((i: any) => i.id));
               const newIssues = (impComp.issues ?? []).filter((i: any) => !existIds.has(i.id));
 
-              const mergedStatus = impComp.status ?? existComp.status;
+              const mergedStatus = mergeStatus(existComp, impComp);
               mergedComponents[comp] = {
                 status: mergedStatus,
                 issues: [...mergedIssues, ...newIssues],
-                progressNote: 'progressNote' in impComp ? impComp.progressNote : existComp.progressNote,
-                goodNote: 'goodNote' in impComp ? impComp.goodNote : existComp.goodNote,
-                goodDate:       mergedStatus === 'good'       ? (impComp.goodDate       ?? existComp.goodDate)       : undefined,
-                inProgressDate: mergedStatus === 'inProgress' ? (impComp.inProgressDate ?? existComp.inProgressDate) : undefined,
-                badDate:        mergedStatus === 'bad'        ? (impComp.badDate        ?? existComp.badDate)        : undefined,
+                progressNote: mergedStatus === impComp.status && 'progressNote' in impComp ? impComp.progressNote : existComp.progressNote,
+                goodNote: mergedStatus === impComp.status && 'goodNote' in impComp ? impComp.goodNote : existComp.goodNote,
+                goodDate:       mergedStatus === 'good'       ? (statusDate({ ...existComp, ...impComp }, 'good') ?? statusDate(existComp, 'good'))       : undefined,
+                inProgressDate: mergedStatus === 'inProgress' ? (statusDate({ ...existComp, ...impComp }, 'inProgress') ?? statusDate(existComp, 'inProgress')) : undefined,
+                badDate:        mergedStatus === 'bad'        ? (statusDate({ ...existComp, ...impComp }, 'bad') ?? statusDate(existComp, 'bad'))        : undefined,
                 progressImages: mergeImages(existComp.progressImages, impComp.progressImages),
                 goodImages: mergeImages(existComp.goodImages, impComp.goodImages),
               };
@@ -955,7 +983,8 @@ export const useStore = create<StoreState>()(
                 const mergedMiscIssues = existingMisc[idx].issues.map((existIssue: any) => {
                   const impIssue = impMiscIssueMap.get(existIssue.id);
                   if (!impIssue) return existIssue;
-                  const { deleted: _d, deletedAt: _dA, images: _i, updates: _u, ...rest } = { ...existIssue, ...impIssue };
+                  const localIsNewer = issueActivityAt(existIssue) > issueActivityAt(impIssue);
+                  const { deleted: _d, deletedAt: _dA, images: _i, updates: _u, ...rest } = localIsNewer ? { ...impIssue, ...existIssue } : { ...existIssue, ...impIssue };
                   const dateUpdated = (existIssue.dateUpdated && impIssue.dateUpdated)
                     ? (existIssue.dateUpdated > impIssue.dateUpdated ? existIssue.dateUpdated : impIssue.dateUpdated)
                     : (existIssue.dateUpdated ?? impIssue.dateUpdated);
@@ -977,7 +1006,7 @@ export const useStore = create<StoreState>()(
                   .sort()
                   .pop();
                 const miscDelResult = resolveDeletion(existingMisc[idx], importItem, liveActivityAt);
-                const mergedMiscStatus = importItem.status ?? existingMisc[idx].status;
+                const mergedMiscStatus = mergeStatus(existingMisc[idx], importItem);
                 // Strip deleted/deletedAt from the spread so resolveDeletion's outcome wins:
                 // if it returned {} (resurrected), neither field is set on the merged item.
                 const { deleted: _md, deletedAt: _mdA, ...miscRest } = existingMisc[idx];
@@ -986,11 +1015,11 @@ export const useStore = create<StoreState>()(
                   ...miscDelResult,
                   status: mergedMiscStatus,
                   issues: [...mergedMiscIssues, ...newIssues],
-                  progressNote: 'progressNote' in importItem ? importItem.progressNote : existingMisc[idx].progressNote,
-                  goodNote: 'goodNote' in importItem ? importItem.goodNote : existingMisc[idx].goodNote,
-                  goodDate:       mergedMiscStatus === 'good'       ? (importItem.goodDate       ?? existingMisc[idx].goodDate)       : undefined,
-                  inProgressDate: mergedMiscStatus === 'inProgress' ? (importItem.inProgressDate ?? existingMisc[idx].inProgressDate) : undefined,
-                  badDate:        mergedMiscStatus === 'bad'        ? (importItem.badDate        ?? existingMisc[idx].badDate)        : undefined,
+                  progressNote: mergedMiscStatus === importItem.status && 'progressNote' in importItem ? importItem.progressNote : existingMisc[idx].progressNote,
+                  goodNote: mergedMiscStatus === importItem.status && 'goodNote' in importItem ? importItem.goodNote : existingMisc[idx].goodNote,
+                  goodDate:       mergedMiscStatus === 'good'       ? (statusDate({ ...existingMisc[idx], ...importItem }, 'good') ?? statusDate(existingMisc[idx], 'good'))       : undefined,
+                  inProgressDate: mergedMiscStatus === 'inProgress' ? (statusDate({ ...existingMisc[idx], ...importItem }, 'inProgress') ?? statusDate(existingMisc[idx], 'inProgress')) : undefined,
+                  badDate:        mergedMiscStatus === 'bad'        ? (statusDate({ ...existingMisc[idx], ...importItem }, 'bad') ?? statusDate(existingMisc[idx], 'bad'))        : undefined,
                   progressImages: mergeImages(existingMisc[idx].progressImages, importItem.progressImages),
                   goodImages: mergeImages(existingMisc[idx].goodImages, importItem.goodImages),
                 };
@@ -1003,7 +1032,8 @@ export const useStore = create<StoreState>()(
             const mergedRfmIssues = existingRfm.issues.map((existIssue: any) => {
               const impIssue = impRfmIssueMap.get(existIssue.id);
               if (!impIssue) return existIssue;
-              const { deleted: _d, deletedAt: _dA, images: _i, updates: _u, ...rest } = { ...existIssue, ...impIssue };
+              const localIsNewer = issueActivityAt(existIssue) > issueActivityAt(impIssue);
+              const { deleted: _d, deletedAt: _dA, images: _i, updates: _u, ...rest } = localIsNewer ? { ...impIssue, ...existIssue } : { ...existIssue, ...impIssue };
               const dateUpdated = (existIssue.dateUpdated && impIssue.dateUpdated)
                 ? (existIssue.dateUpdated > impIssue.dateUpdated ? existIssue.dateUpdated : impIssue.dateUpdated)
                 : (existIssue.dateUpdated ?? impIssue.dateUpdated);
@@ -1013,7 +1043,10 @@ export const useStore = create<StoreState>()(
             });
             const existingRfmIds = new Set(existingRfm.issues.map((i) => i.id));
             const newRfmIssues = importRfm.issues.filter((i: any) => !existingRfmIds.has(i.id));
-            const mergedRfmStatus = imp.readyForMaster ? (importRfm.status ?? existingRfm.status) : existingRfm.status;
+            const rfmTransitionLog = [...new Map([...(existingRfm.transitionLog ?? []), ...(importRfm.transitionLog ?? [])].map((t) => [t.id, t])).values()];
+            const latestRfmTransition = [...rfmTransitionLog].sort((a, b) => a.date.localeCompare(b.date)).pop();
+            const mergedRfmStatus = latestRfmTransition?.status ?? (imp.readyForMaster ? (importRfm.status ?? existingRfm.status) : existingRfm.status);
+            const importRfmIsCurrent = mergedRfmStatus === importRfm.status;
             const mergedReadyForMaster: ReadyForMasterData = {
               ...existingRfm,
               ...importRfm,
@@ -1021,11 +1054,11 @@ export const useStore = create<StoreState>()(
               issues: [...mergedRfmIssues, ...newRfmIssues],
               progressImages: mergeImages(existingRfm.progressImages, importRfm.progressImages),
               goodImages: mergeImages(existingRfm.goodImages, importRfm.goodImages),
-              transitionLog: [...new Map([...(existingRfm.transitionLog ?? []), ...(importRfm.transitionLog ?? [])].map((t) => [t.id, t])).values()],
-              failCount: Math.max(existingRfm.failCount ?? 0, importRfm.failCount ?? 0),
-              goodDate: mergedRfmStatus === 'good' ? (importRfm.goodDate ?? existingRfm.goodDate) : undefined,
-              inProgressDate: mergedRfmStatus === 'inProgress' ? (importRfm.inProgressDate ?? existingRfm.inProgressDate) : undefined,
-              badDate: mergedRfmStatus === 'bad' ? (importRfm.badDate ?? existingRfm.badDate) : undefined,
+              transitionLog: rfmTransitionLog,
+              failCount: Math.max(existingRfm.failCount ?? 0, importRfm.failCount ?? 0, new Set(rfmTransitionLog.filter((t) => t.status === 'bad').map((t) => t.date)).size),
+              goodDate: mergedRfmStatus === 'good' ? (importRfmIsCurrent ? (importRfm.goodDate ?? existingRfm.goodDate) : existingRfm.goodDate) : undefined,
+              inProgressDate: mergedRfmStatus === 'inProgress' ? (importRfmIsCurrent ? (importRfm.inProgressDate ?? existingRfm.inProgressDate) : existingRfm.inProgressDate) : undefined,
+              badDate: mergedRfmStatus === 'bad' ? (importRfmIsCurrent ? (importRfm.badDate ?? existingRfm.badDate) : existingRfm.badDate) : undefined,
             };
 
             // Merge custom labels — remote wins
@@ -1110,7 +1143,8 @@ export const useStore = create<StoreState>()(
             const { deleted: _gd, deletedAt: _gdA, updates: _gu, ...impRest } = imp as any;
             const { deleted: _ld, deletedAt: _ldA, updates: _lu, ...localRest } = i as any;
             const mergedUpdates = mergeIssueUpdates(i.updates, imp.updates);
-            return { ...localRest, ...impRest, ...delResult, ...(dateUpdated ? { dateUpdated } : {}), ...(mergedUpdates ? { updates: mergedUpdates } : {}) };
+            const localIsNewer = issueActivityAt(i) > issueActivityAt(imp);
+            return { ...(localIsNewer ? { ...impRest, ...localRest } : { ...localRest, ...impRest }), ...delResult, ...(dateUpdated ? { dateUpdated } : {}), ...(mergedUpdates ? { updates: mergedUpdates } : {}) };
           });
           const existGeneralIds = new Set(state.generalIssues.map((i) => i.id));
           const newGeneral = importGeneralIssues.filter((i) => !existGeneralIds.has(i.id));
