@@ -6,7 +6,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { format } from 'date-fns';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
-import { Unit, STAGES, COMPONENTS, WorkingParty, WORKING_PARTY_LABELS, getReadyForMaster, hasOpenReadyForMasterIssues, normalizeStageStatus, isUnitComplete, isUnitFullyGreen } from '../types';
+import { Unit, STAGES, COMPONENTS, WorkingParty, WORKING_PARTY_LABELS, getReadyForMaster, normalizeStageStatus, isUnitComplete, isUnitFullyGreen } from '../types';
 import CopyrightFooter from '../components/CopyrightFooter';
 import { useEditMode } from '../context/EditModeContext';
 import { pushToCloud } from '../utils/sync';
@@ -26,7 +26,7 @@ function unitStatusColor(unit: Unit): string {
   ].filter((i) => !i.resolved && !i.deleted).length;
   const hasBad = comps.some((c) => c.status === 'bad') || miscItems.some((m) => m.status === 'bad');
   const hasStuck = STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) === 'stuck');
-  if ((ready.status === 'bad' && hasOpenReadyForMasterIssues(unit)) || hasBad || openIssues > 0 || hasStuck) return '#f85149';
+  if (ready.status === 'bad' || hasBad || openIssues > 0 || hasStuck) return '#f85149';
 
   if (isUnitFullyGreen(unit)) return '#3fb950';
 
@@ -73,7 +73,7 @@ const UnitCard = React.memo(function UnitCard({
   const ready = getReadyForMaster(unit);
   const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues, ...ready.issues].filter((i) => !i.resolved && !i.deleted).length;
   const color = unitStatusColor(unit);
-  const completeWithIssues = isUnitComplete(unit) && !hasOpenReadyForMasterIssues(unit) && (openIssues > 0 || bad > 0 || miscItems.some((m) => m.status === 'bad'));
+  const completeWithIssues = isUnitComplete(unit) && ready.status !== 'bad' && (openIssues > 0 || bad > 0 || miscItems.some((m) => m.status === 'bad'));
   const pct = Math.round(
     (stagesComplete / STAGES.length) * 70 + (good / COMPONENTS.length) * 30
   );

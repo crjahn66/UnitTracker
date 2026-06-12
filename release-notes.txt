@@ -1,5 +1,4 @@
-- Added Ready for Master tracking under RED Group Tested.
-- Ready for Master now persists status, notes, photos, issues, and transition history.
-- Dashboard and North/South unit cards now show Ready for Master issue indicators.
-- Completed unit counts and exports now require Ready for Master to be good.
-- Ready for Master issue logging uses Sign-off By and Notes fields only.
+- Ready for Master now drives the unit card colors: good = green, bad = red.
+- Unit cards show the "!" indicator only when a unit fails Ready for Master after being fully RED Group Tested.
+- A green unit with open component issues still shows the green/red split (no "!").
+- Applies to the Dashboard fleet grid and the North/South unit cards and lists.
