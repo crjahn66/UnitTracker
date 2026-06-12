@@ -268,6 +268,11 @@ async function _syncBody(): Promise<SyncResult> {
     console.warn(`[sync] post-merge upload failed (non-fatal): ${postErr?.message ?? postErr}`);
   }
 
+  // 3c. One-time Ready for Master backfill, run on freshly-merged data so it
+  // always acts on the latest remote state and is pushed in this same cycle.
+  // Idempotent; self-heals if a stale client reverts the derived status.
+  useStore.getState().backfillReadyForMaster();
+
   // 4. Push merged state back to cloud (25s timeout, aborts the underlying request)
   const { units: finalUnits, generalIssues: finalGeneralIssues } = useStore.getState();
   const payloadSize = JSON.stringify(finalUnits).length + JSON.stringify(finalGeneralIssues).length;

@@ -22,6 +22,7 @@ import {
   normalizeStageStatus,
 } from '../types';
 import { createInitialUnits } from '../utils/initialData';
+import { deriveReadyForMasterBackfill } from '../utils/readyForMasterBackfill';
 
 // Debounce AsyncStorage writes — avoids a blocking I/O call on every keystroke.
 // Reads are still synchronous/immediate; only setItem is deferred.
@@ -90,6 +91,7 @@ interface StoreState {
    * to the list. Safe to call repeatedly — no-op when nothing is missing.
    */
   ensureAllComponentsPresent: () => void;
+  backfillReadyForMaster: () => void;
   updateStage: (unitId: string, stage: StageKey, status: StageStatus) => void;
   setStageNote: (unitId: string, stage: StageKey, note: string) => void;
   updateComponentStatus: (unitId: string, component: ComponentKey, status: ComponentStatus) => void;
@@ -159,6 +161,41 @@ export const useStore = create<StoreState>()(
             if (normalized !== unit) anyChanged = true;
           }
           return anyChanged ? { units: newUnits } : state;
+        }),
+
+      // One-time backfill: derive Ready for Master from RED Group Tested state for
+      // any RGT-complete unit still 'unchecked'. Idempotent and residue-safe — it
+      // never overrides a manually-set good/bad, recomputes failCount from the log
+      // (so it can't double-count), and re-applies after a stale-client revert.
+      backfillReadyForMaster: () =>
+        set((state) => {
+          let changed = false;
+          const newUnits: UnitsStore = { ...state.units };
+          for (const [uid, unit] of Object.entries(state.units)) {
+            const current = normalizeReadyForMaster(unit.readyForMaster);
+            if (current.status !== 'unchecked') continue;
+            const res = deriveReadyForMasterBackfill(unit);
+            if (!res) continue;
+            let log = current.transitionLog ?? [];
+            if (!log.some((t) => t.status === res.status)) {
+              log = [...log, { id: `rfm-mig-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, status: res.status, date: res.date }];
+            }
+            const failCount = log.filter((t) => t.status === 'bad').length;
+            newUnits[uid] = {
+              ...unit,
+              readyForMaster: {
+                ...current,
+                status: res.status,
+                goodDate: res.status === 'good' ? (current.goodDate ?? res.date) : undefined,
+                inProgressDate: undefined,
+                badDate: res.status === 'bad' ? (current.badDate ?? res.date) : undefined,
+                failCount,
+                transitionLog: log,
+              },
+            };
+            changed = true;
+          }
+          return changed ? { units: newUnits } : state;
         }),
 
       updateStage: (unitId, stage, status) =>
