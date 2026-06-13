@@ -478,9 +478,11 @@ function GoodNoteForm({ initial, onSave, onSkip }: {
   );
 }
 
-function StatusSignoffForm({ status, initialDate, onSave, onCancel }: {
+function StatusSignoffForm({ status, initialDate, initialSignedBy, initialReason, onSave, onCancel }: {
   status: Extract<ComponentStatus, 'good' | 'bad'>;
   initialDate?: string;
+  initialSignedBy?: string;
+  initialReason?: string;
   onSave: (data: { date: string; signedBy: string; reason?: string }) => void;
   onCancel: () => void;
 }) {
@@ -488,8 +490,8 @@ function StatusSignoffForm({ status, initialDate, onSave, onCancel }: {
     if (!initialDate) return today();
     try { return format(new Date(initialDate), 'MM/dd/yyyy'); } catch { return today(); }
   });
-  const [signedBy, setSignedBy] = useState('');
-  const [reason, setReason] = useState('');
+  const [signedBy, setSignedBy] = useState(initialSignedBy ?? '');
+  const [reason, setReason] = useState(initialReason ?? '');
   const reasonRef = React.useRef<TextInput>(null);
 
   const handleSave = () => {
@@ -552,30 +554,38 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
     const now = new Date().toISOString();
     const parsed = parse(data.date, 'MM/dd/yyyy', new Date());
     const statusDateIso = isValid(parsed) ? parsed.toISOString() : now;
+    const statusChanged = pendingStatus !== ready.status;
     if (pendingStatus === 'bad') {
-      const id = genId();
-      const issue: ReadyForMasterIssue = {
-        id,
-        dateFound: statusDateIso,
-        dateUpdated: now,
-        foundBy: data.signedBy,
-        notes: data.reason ?? '',
-        resolved: false,
-      };
-      updateReadyForMaster(unitId, { status: 'bad', progressNote: '', goodNote: '', goodSignedBy: undefined });
-      updateReadyForMaster(unitId, { badDate: statusDateIso, badSignedBy: data.signedBy, badReason: data.reason });
-      addReadyForMasterIssue(unitId, issue);
+      updateReadyForMaster(unitId, { status: 'bad', progressNote: '', goodNote: '', goodSignedBy: undefined, badDate: statusDateIso, badSignedBy: data.signedBy, badReason: data.reason });
+      if (statusChanged) {
+        addReadyForMasterIssue(unitId, {
+          id: genId(),
+          dateFound: statusDateIso,
+          dateUpdated: now,
+          foundBy: data.signedBy,
+          notes: data.reason ?? '',
+          resolved: false,
+        });
+      } else {
+        const issueToEdit = [...ready.issues]
+          .filter((i) => !i.deleted)
+          .sort((a, b) => (b.dateUpdated ?? b.dateFound).localeCompare(a.dateUpdated ?? a.dateFound))
+          .find((i) => fmtDate(i.dateFound) === fmtDate(ready.badDate) || i.notes === ready.badReason)
+          ?? [...ready.issues].filter((i) => !i.deleted).sort((a, b) => (b.dateUpdated ?? b.dateFound).localeCompare(a.dateUpdated ?? a.dateFound))[0];
+        if (issueToEdit) {
+          updateReadyForMasterIssue(unitId, issueToEdit.id, { dateFound: statusDateIso, foundBy: data.signedBy, notes: data.reason ?? '' });
+        }
+      }
       pushToCloud().catch(() => {});
       setPendingStatus(null);
       setView('detail');
       return;
     }
-    updateReadyForMaster(unitId, { status: 'good', progressNote: '', goodNote: '', badSignedBy: undefined, badReason: undefined });
-    updateReadyForMaster(unitId, { goodDate: statusDateIso, goodSignedBy: data.signedBy });
+    updateReadyForMaster(unitId, { status: 'good', progressNote: '', goodNote: '', badSignedBy: undefined, badReason: undefined, goodDate: statusDateIso, goodSignedBy: data.signedBy });
     pushToCloud().catch(() => {});
     setPendingStatus(null);
     onClose();
-  }, [unitId, pendingStatus, updateReadyForMaster, addReadyForMasterIssue, onClose]);
+  }, [unitId, pendingStatus, ready.status, ready.issues, ready.badDate, ready.badReason, updateReadyForMaster, addReadyForMasterIssue, updateReadyForMasterIssue, onClose]);
 
   const handleAddIssue = useCallback((data: { dateFound: string; foundBy: string; notes: string; images: string[]; status: ComponentStatus }) => {
     const id = genId();
@@ -729,6 +739,8 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
       <StatusSignoffForm
         status={pendingStatus}
         initialDate={pendingStatus === 'good' ? ready.goodDate : ready.badDate}
+        initialSignedBy={pendingStatus === 'good' ? ready.goodSignedBy : ready.badSignedBy}
+        initialReason={pendingStatus === 'bad' ? ready.badReason : undefined}
         onSave={handleStatusSignoff}
         onCancel={() => { setPendingStatus(null); setView('detail'); }}
       />
@@ -773,11 +785,11 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
         )}
         {ready.status === 'good' && (
           <View style={m.goodNoteBox}>
-            <TouchableOpacity style={m.noteBoxTop} onPress={() => setView('goodNote')} activeOpacity={0.7}>
+            <TouchableOpacity style={m.noteBoxTop} onPress={() => { setPendingStatus('good'); setView('statusSignoff'); }} activeOpacity={0.7}>
               <View style={{ flex: 1 }}>
                 <Text style={m.goodNoteLabel}>SIGN-OFF</Text>
                 <Text style={m.goodNoteText}>{ready.goodSignedBy ? `Signed by ${ready.goodSignedBy}` : 'Signed by not set'}</Text>
-                <Text style={m.goodNoteText}>{ready.goodNote || '(tap to add note)'}</Text>
+                <Text style={m.goodNoteText}>{ready.goodNote || 'Tap to edit sign-off'}</Text>
               </View>
               <Ionicons name="pencil-outline" size={14} color="#3fb950" />
             </TouchableOpacity>
@@ -788,11 +800,12 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
           </View>
         )}
         {ready.status === 'bad' && (ready.badSignedBy || ready.badReason) && (
-          <View style={m.badSignoffBox}>
+          <TouchableOpacity style={m.badSignoffBox} onPress={() => { setPendingStatus('bad'); setView('statusSignoff'); }} activeOpacity={0.7}>
             <Text style={m.badSignoffLabel}>BAD SIGN-OFF</Text>
             {ready.badSignedBy && <Text style={m.badSignoffText}>Signed by {ready.badSignedBy}</Text>}
             {ready.badReason && <Text style={m.badSignoffText}>{ready.badReason}</Text>}
-          </View>
+            <Ionicons name="pencil-outline" size={14} color="#f85149" style={{ position: 'absolute', right: 10, top: 10 }} />
+          </TouchableOpacity>
         )}
         <View style={m.issueSectionHeader}>
           <Text style={m.sectionLabel}>ISSUES</Text>

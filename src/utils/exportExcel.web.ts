@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { Unit, STAGES, COMPONENTS, OPTIMO_MODE_LABELS, GeneralIssue, Issue, MiscIssue, getReadyForMaster, normalizeStageStatus, isReadyForMasterComplete } from '../types';
+import { Unit, STAGES, COMPONENTS, OPTIMO_MODE_LABELS, GeneralIssue, Issue, MiscIssue, ReadyForMasterIssue, getReadyForMaster, normalizeStageStatus, isReadyForMasterComplete } from '../types';
 import { readResizedBase64 } from './imageStorage';
 import { getPostCommissionHealth } from './postCommissionHealth';
 
@@ -225,7 +225,7 @@ async function buildConstraints(wb: any, sorted: Unit[]) {
   const IMG_H   = 80; // pixel height for thumbnail rows
   const IMG_W   = 80; // pixel width per thumbnail
 
-  interface IssueRow { issue: Issue | MiscIssue; unitId: string; side: string; unitNum: number; label: string; }
+  interface IssueRow { issue: Issue | MiscIssue | ReadyForMasterIssue; unitId: string; side: string; unitNum: number; label: string; }
   const rows: IssueRow[] = [];
 
   for (const u of sorted) {
@@ -239,6 +239,9 @@ async function buildConstraints(wb: any, sorted: Unit[]) {
       for (const issue of (item.issues ?? []).filter((i: any) => !i.deleted)) {
         rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label: item.label || 'Misc Equipment' });
       }
+    }
+    for (const issue of getReadyForMaster(u).issues.filter((i) => !i.deleted)) {
+      rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label: 'Ready for Master' });
     }
   }
 
@@ -323,10 +326,11 @@ function buildCompleted(wb: any, sorted: Unit[]) {
     }
     const comps = Object.values(u.components);
     const miscItems = (u.miscEquipment ?? []).filter((m) => !m.deleted);
+    const ready = getReadyForMaster(u);
     const allIssues = [
       ...comps.flatMap((c) => c.issues),
       ...miscItems.flatMap((m) => m.issues),
-      ...getReadyForMaster(u).issues,
+      ...ready.issues,
     ].filter((i) => !i.deleted);
     const health = getPostCommissionHealth(u);
     const r = ws.addRow([
@@ -337,7 +341,7 @@ function buildCompleted(wb: any, sorted: Unit[]) {
       allIssues.filter((i) => !i.resolved).length,
       u.stagesDates?.commissioning ? fmtDate(u.stagesDates.commissioning) : '',
       health.statusText,
-      'Red Group',
+      ready.goodSignedBy || 'Red Group',
     ]);
     r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, col === headers.length - 1 ? postCommissionClr(u) : GRN, col === 1, col >= 3));
     r.height = autoRowHeight(r, colWidths);
@@ -378,22 +382,32 @@ function readyForMasterLogText(status: string, failCount: number): string {
 
 function buildCompletedLog(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Completed Units Log');
-  const colWidths = [9, 7, 7, 14, 34, 18];
-  const headers = ['Unit ID', 'Side', 'Unit #', 'Date', 'Issue', 'Event #'];
+  const colWidths = [9, 7, 7, 14, 34, 18, 18, 50];
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Date', 'Issue', 'Event #', 'Signed By', 'Notes'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 34;
 
   let rows = 0;
   for (const u of sorted) {
-    const log = [...(u.readyForMaster?.transitionLog ?? [])].sort((a, b) => a.date.localeCompare(b.date));
+    const ready = getReadyForMaster(u);
+    const log = [...(ready.transitionLog ?? [])].sort((a, b) => a.date.localeCompare(b.date));
     let failCount = 0;
     for (const entry of log) {
       if (entry.status === 'bad') failCount++;
       const text = readyForMasterLogText(entry.status, failCount);
       const clr = entry.status === 'good' ? GRN : entry.status === 'bad' ? RED : entry.status === 'inProgress' ? AMB : GRY;
-      const r = ws.addRow([u.id, u.side, u.unitNumber, fmtDate(entry.date), text, rows + 1]);
+      const isCurrentStatus = entry.status === ready.status;
+      const matchingBadIssue = entry.status === 'bad'
+        ? ready.issues.find((i) => !i.deleted && fmtDate(i.dateFound) === fmtDate(entry.date))
+        : undefined;
+      const signedBy = entry.status === 'good' && isCurrentStatus ? ready.goodSignedBy ?? ''
+                     : entry.status === 'bad' ? matchingBadIssue?.foundBy ?? (isCurrentStatus ? ready.badSignedBy ?? '' : '') : '';
+      const notes = entry.status === 'good' && isCurrentStatus ? ready.goodNote ?? ''
+                  : entry.status === 'bad' ? (matchingBadIssue ? notesWithUpdates(matchingBadIssue) : (isCurrentStatus ? ready.badReason ?? '' : '')) : '';
+      const r = ws.addRow([u.id, u.side, u.unitNumber, fmtDate(entry.date), text, rows + 1, signedBy, notes]);
       r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, col === 5 ? clr : WHT, col === 1, col >= 3));
+      r.height = autoRowHeight(r, colWidths);
       rows++;
     }
   }
@@ -418,7 +432,7 @@ async function buildWithConstraints(wb: any, sorted: Unit[]) {
   const IMG_H   = 80;
   const IMG_W   = 80;
 
-  const rows: { issue: Issue | MiscIssue; unitId: string; side: string; unitNum: number; label: string }[] = [];
+  const rows: { issue: Issue | MiscIssue | ReadyForMasterIssue; unitId: string; side: string; unitNum: number; label: string }[] = [];
   for (const u of sorted) {
     for (const comp of COMPONENTS) {
       const label = u.customComponentLabels?.[comp.key] ?? comp.label;
@@ -430,6 +444,9 @@ async function buildWithConstraints(wb: any, sorted: Unit[]) {
       for (const issue of (item.issues ?? []).filter((i: any) => !i.deleted && !i.resolved)) {
         rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label: item.label || 'Misc Equipment' });
       }
+    }
+    for (const issue of getReadyForMaster(u).issues.filter((i) => !i.deleted && !i.resolved)) {
+      rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label: 'Ready for Master' });
     }
   }
   rows.sort((a, b) => {
