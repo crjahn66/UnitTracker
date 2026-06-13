@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput } from 
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, Unit, getReadyForMaster, normalizeStageStatus, isUnitComplete, isReadyForMasterComplete } from '../types';
+import { STAGES, COMPONENTS, Unit, getReadyForMaster, normalizeStageStatus, isReadyForMasterComplete } from '../types';
 import CopyrightFooter from '../components/CopyrightFooter';
 import { getPostCommissionHealth } from '../utils/postCommissionHealth';
 
@@ -34,24 +34,25 @@ function hasStuckStage(unit: Unit): boolean {
   return STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) === 'stuck');
 }
 
-function hasBadReadyForMaster(unit: Unit): boolean {
-  // RFM bad makes the card red on its own — no logged issue required.
-  return getReadyForMaster(unit).status === 'bad';
-}
-
 // A unit has "issues" if any of: open component/misc issues, bad component/misc status,
 // or any commissioning stage is stuck. These all roll into the same red state.
 function unitHasIssues(unit: Unit): boolean {
-  return getOpenIssueCount(unit) > 0 || hasBadComponentStatus(unit) || hasBadMiscStatus(unit) || hasStuckStage(unit) || hasBadReadyForMaster(unit);
+  return getOpenIssueCount(unit) > 0 || hasBadComponentStatus(unit) || hasBadMiscStatus(unit) || hasStuckStage(unit);
+}
+
+function unitReadyFailedAfterGood(unit: Unit): boolean {
+  const ready = getReadyForMaster(unit);
+  return ready.status === 'bad' && !!ready.wasGood;
 }
 
 // Priority: complete-with-issues > issues > complete > in-progress > not-started
 function getUnitStatus(unit: Unit): UnitStatus {
-  if (hasBadReadyForMaster(unit)) return 'issues';
-  if (isReadyForMasterComplete(unit)) return 'complete';
-  if (isUnitComplete(unit) && unitHasIssues(unit)) return 'completeWithIssues';
-  if (unitHasIssues(unit)) return 'issues';
-  if (getUnitPct(unit) > 0) return 'inProgress';
+  const ready = getReadyForMaster(unit);
+  const hasIssues = unitHasIssues(unit);
+  if (ready.status === 'bad') return 'issues';
+  if (ready.status === 'good' && hasIssues) return 'completeWithIssues';
+  if (ready.status === 'good') return 'complete';
+  if (hasIssues && ready.status === 'unchecked') return 'issues';
   return 'notStarted';
 }
 
@@ -323,6 +324,7 @@ function FleetGrid({
           const color = STATUS_COLOR[status];
           const opacity = status === 'notStarted' ? 0.55 : 1;
           const postCommissionHealth = getPostCommissionHealth(unit);
+          const readyFailedAfterGood = unitReadyFailedAfterGood(unit);
           return (
             <TouchableOpacity
               key={unit.id}
@@ -337,7 +339,7 @@ function FleetGrid({
                 </View>
               )}
               <Text style={s.gridCellText}>{unit.unitNumber}</Text>
-              {postCommissionHealth.needsAttention && (
+              {(postCommissionHealth.needsAttention || readyFailedAfterGood) && (
                 <View style={s.gridHealthBadge}>
                   <Text style={s.gridHealthBadgeText}>!</Text>
                 </View>
@@ -480,6 +482,7 @@ function CompactUnitRow({ unit, onPress, lastInColumn }: { unit: Unit; onPress: 
   const color = unitColor(unit);
   const completeWithIssues = getUnitStatus(unit) === 'completeWithIssues';
   const postCommissionHealth = getPostCommissionHealth(unit);
+  const readyFailedAfterGood = unitReadyFailedAfterGood(unit);
   return (
     <TouchableOpacity
       style={[s.compactRow, !lastInColumn && s.rowBorder]}
@@ -508,7 +511,7 @@ function CompactUnitRow({ unit, onPress, lastInColumn }: { unit: Unit; onPress: 
           <Text style={s.compactIssueText}>{allIssues}</Text>
         </View>
       )}
-      {postCommissionHealth.needsAttention && (
+      {(postCommissionHealth.needsAttention || readyFailedAfterGood) && (
         <View style={s.compactHealthBadge}>
           <Text style={s.compactHealthText}>!</Text>
         </View>

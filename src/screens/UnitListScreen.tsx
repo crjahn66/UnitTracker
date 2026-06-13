@@ -6,7 +6,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { format } from 'date-fns';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
-import { Unit, STAGES, COMPONENTS, WorkingParty, WORKING_PARTY_LABELS, getReadyForMaster, normalizeStageStatus, isUnitComplete, isReadyForMasterComplete } from '../types';
+import { Unit, STAGES, COMPONENTS, WorkingParty, WORKING_PARTY_LABELS, getReadyForMaster, normalizeStageStatus, isReadyForMasterComplete } from '../types';
 import CopyrightFooter from '../components/CopyrightFooter';
 import { useEditMode } from '../context/EditModeContext';
 import { pushToCloud } from '../utils/sync';
@@ -15,7 +15,7 @@ import { getPostCommissionHealth } from '../utils/postCommissionHealth';
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitList'>;
 type Filter = 'issues' | 'inProgress' | 'complete' | 'chiller';
 
-function unitStatusColor(unit: Unit): string {
+function unitHasCardIssue(unit: Unit): boolean {
   const comps = Object.values(unit.components);
   const miscItems = (unit.miscEquipment ?? []).filter((m) => !m.deleted);
   const ready = getReadyForMaster(unit);
@@ -26,14 +26,20 @@ function unitStatusColor(unit: Unit): string {
   ].filter((i) => !i.resolved && !i.deleted).length;
   const hasBad = comps.some((c) => c.status === 'bad') || miscItems.some((m) => m.status === 'bad');
   const hasStuck = STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) === 'stuck');
-  if (ready.status === 'bad' || hasBad || openIssues > 0 || hasStuck) return '#f85149';
+  return hasBad || openIssues > 0 || hasStuck;
+}
 
-  if (isReadyForMasterComplete(unit)) return '#3fb950';
+function unitReadyFailedAfterGood(unit: Unit): boolean {
+  const ready = getReadyForMaster(unit);
+  return ready.status === 'bad' && !!ready.wasGood;
+}
 
-  const hasWork = STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) !== 'pending')
-    || comps.some((c) => c.status !== 'unchecked')
-    || miscItems.some((m) => m.status !== 'unchecked');
-  if (hasWork) return '#d29922';
+function unitStatusColor(unit: Unit): string {
+  const ready = getReadyForMaster(unit);
+  const hasIssue = unitHasCardIssue(unit);
+  if (ready.status === 'bad') return '#f85149';
+  if (hasIssue && ready.status === 'unchecked') return '#f85149';
+  if (ready.status === 'good') return '#3fb950';
   return '#30363d';
 }
 
@@ -72,8 +78,10 @@ const UnitCard = React.memo(function UnitCard({
   const miscIssues = miscItems.flatMap((m) => m.issues ?? []);
   const ready = getReadyForMaster(unit);
   const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues, ...ready.issues].filter((i) => !i.resolved && !i.deleted).length;
+  const hasCardIssue = unitHasCardIssue(unit);
   const color = unitStatusColor(unit);
-  const completeWithIssues = isUnitComplete(unit) && ready.status !== 'bad' && (openIssues > 0 || bad > 0 || miscItems.some((m) => m.status === 'bad'));
+  const completeWithIssues = ready.status === 'good' && hasCardIssue;
+  const readyFailedAfterGood = unitReadyFailedAfterGood(unit);
   const pct = Math.round(
     (stagesComplete / STAGES.length) * 70 + (good / COMPONENTS.length) * 30
   );
@@ -100,7 +108,7 @@ const UnitCard = React.memo(function UnitCard({
               {unit.optimoMode && <Text style={s.optimoBadge}>{unit.optimoMode}</Text>}
             </View>
           )}
-          {postCommissionHealth.needsAttention && (
+          {(postCommissionHealth.needsAttention || readyFailedAfterGood) && (
             <View style={s.postCommissionBadge}>
               <Text style={s.postCommissionBadgeText}>!</Text>
             </View>

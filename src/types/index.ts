@@ -157,6 +157,7 @@ export interface ReadyForMasterData {
   transitionLog?: ReadyForMasterTransition[];
   completedLogResetAt?: string;
   readyStatusResetAt?: string;
+  wasGood?: boolean;
 }
 
 export function createDefaultReadyForMaster(): ReadyForMasterData {

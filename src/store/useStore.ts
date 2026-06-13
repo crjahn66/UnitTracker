@@ -55,13 +55,16 @@ function normalizeUnitComponents<T extends Unit>(unit: T): T {
 }
 
 function normalizeReadyForMaster(data?: Partial<ReadyForMasterData>): ReadyForMasterData {
+  const rawStatus = data?.status as ComponentStatus | undefined;
+  const status = rawStatus === 'inProgress' ? 'unchecked' : rawStatus ?? 'unchecked';
   return {
     ...createDefaultReadyForMaster(),
     ...(data ?? {}),
-    status: data?.status ?? 'unchecked',
+    status,
     issues: data?.issues ?? [],
     failCount: data?.failCount ?? 0,
     transitionLog: data?.transitionLog ?? [],
+    inProgressDate: undefined,
   };
 }
 
@@ -83,7 +86,6 @@ function mergeReadyForMasterTransitions(existingRfm: ReadyForMasterData, importR
 function readyForMasterStatusDate(rfm: ReadyForMasterData): string | undefined {
   if (rfm.status === 'good') return rfm.goodDate;
   if (rfm.status === 'bad') return rfm.badDate;
-  if (rfm.status === 'inProgress') return rfm.inProgressDate;
   return [...(rfm.transitionLog ?? [])].filter((t) => t.status === 'unchecked').sort((a, b) => a.date.localeCompare(b.date)).pop()?.date;
 }
 
@@ -91,9 +93,9 @@ function applyReadyForMasterStatusReset(status: ComponentStatus, existingRfm: Re
   const readyStatusResetAt = latestIso(existingRfm.readyStatusResetAt, importRfm.readyStatusResetAt);
   const latestStatusDate = latestIso(latestTransitionDate, readyForMasterStatusDate(existingRfm), readyForMasterStatusDate(importRfm));
   if (readyStatusResetAt && (!latestStatusDate || latestStatusDate <= readyStatusResetAt)) {
-    return { status: 'unchecked' as ComponentStatus, readyStatusResetAt };
+    return { status: 'unchecked' as ComponentStatus, readyStatusResetAt, resetApplied: true };
   }
-  return { status, readyStatusResetAt };
+  return { status, readyStatusResetAt, resetApplied: false };
 }
 
 function normalizeUnit<T extends Unit>(unit: T): T {
@@ -501,15 +503,16 @@ export const useStore = create<StoreState>()(
         set((state) => {
           const u = state.units[unitId];
           const current = normalizeReadyForMaster(u.readyForMaster);
-          const nextStatus = updates.status ?? current.status;
+          const nextStatus = updates.status === 'inProgress' ? 'unchecked' : updates.status ?? current.status;
           const now = new Date().toISOString();
           const statusChanged = 'status' in updates && nextStatus !== current.status;
           const extraUpdates: Partial<ReadyForMasterData> = {};
           if (statusChanged) {
             extraUpdates.goodDate = nextStatus === 'good' ? now : undefined;
-            extraUpdates.inProgressDate = nextStatus === 'inProgress' ? now : undefined;
+            extraUpdates.inProgressDate = undefined;
             extraUpdates.badDate = nextStatus === 'bad' ? now : undefined;
             extraUpdates.failCount = nextStatus === 'bad' ? (current.failCount ?? 0) + 1 : current.failCount ?? 0;
+            extraUpdates.wasGood = current.wasGood || current.status === 'good' || nextStatus === 'good';
             extraUpdates.transitionLog = [
               ...(current.transitionLog ?? []),
               { id: `rfm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, status: nextStatus, date: now },
@@ -1051,8 +1054,9 @@ export const useStore = create<StoreState>()(
               failCount: rfmFailCount,
               completedLogResetAt,
               readyStatusResetAt: resetStatusResult.readyStatusResetAt,
+              wasGood: resetStatusResult.resetApplied ? false : Boolean(existingRfm.wasGood || importRfm.wasGood || mergedRfmStatus === 'good'),
               goodDate: mergedRfmStatus === 'good' ? (importRfmIsCurrent ? (importRfm.goodDate ?? existingRfm.goodDate) : existingRfm.goodDate) : undefined,
-              inProgressDate: mergedRfmStatus === 'inProgress' ? (importRfmIsCurrent ? (importRfm.inProgressDate ?? existingRfm.inProgressDate) : existingRfm.inProgressDate) : undefined,
+              inProgressDate: undefined,
               badDate: mergedRfmStatus === 'bad' ? (importRfmIsCurrent ? (importRfm.badDate ?? existingRfm.badDate) : existingRfm.badDate) : undefined,
             };
 
@@ -1225,7 +1229,7 @@ export const useStore = create<StoreState>()(
               ...existingRfm,
               status: mergedRfmStatus,
               goodDate: localStatusIsCurrent ? existingRfm.goodDate : (importRfm.goodDate ?? existingRfm.goodDate),
-              inProgressDate: localStatusIsCurrent ? existingRfm.inProgressDate : (importRfm.inProgressDate ?? existingRfm.inProgressDate),
+              inProgressDate: undefined,
               badDate: localStatusIsCurrent ? existingRfm.badDate : (importRfm.badDate ?? existingRfm.badDate),
               issues: newRfmIssues.length ? [...existingRfm.issues, ...newRfmIssues] : existingRfm.issues,
               progressImages: unionPhotos(existingRfm.progressImages, importRfm.progressImages),
@@ -1234,6 +1238,7 @@ export const useStore = create<StoreState>()(
               failCount: rfmFailCount,
               completedLogResetAt,
               readyStatusResetAt: resetStatusResult.readyStatusResetAt,
+              wasGood: resetStatusResult.resetApplied ? false : Boolean(existingRfm.wasGood || importRfm.wasGood || mergedRfmStatus === 'good'),
             };
 
             merged[uid] = {

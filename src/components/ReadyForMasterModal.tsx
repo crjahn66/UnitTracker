@@ -39,11 +39,11 @@ function fmtDate(iso?: string) {
 }
 function statusColor(s: ComponentStatus) {
   if (s === 'good') return '#3fb950'; if (s === 'bad') return '#f85149';
-  if (s === 'inProgress') return '#d29922'; return '#6e7681';
+  return '#6e7681';
 }
 function statusLabel(s: ComponentStatus) {
   if (s === 'good') return 'Good'; if (s === 'bad') return 'Bad';
-  if (s === 'inProgress') return 'In Progress'; return 'Unchecked';
+  return 'Unchecked';
 }
 
 // ─── Image Strip ──────────────────────────────────────────────────────────────
@@ -115,7 +115,7 @@ function AddIssueForm({ onSave, onCancel, currentStatus, initialImages }: {
       <Text style={f.formTitle}>Log New Issue</Text>
       <Text style={f.label}>Ready for Master Status</Text>
       <View style={f.statusRow}>
-        {(['good', 'inProgress', 'bad'] as ComponentStatus[]).map((s) => (
+        {(['good', 'bad'] as ComponentStatus[]).map((s) => (
           <TouchableOpacity
             key={s}
             style={[f.statusBtn, status === s && { backgroundColor: statusColor(s) + '33', borderColor: statusColor(s) }]}
@@ -494,7 +494,6 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
   const ready = getReadyForMaster(unit);
   const statusDate =
     ready.status === 'good'       ? ready.goodDate :
-    ready.status === 'inProgress' ? ready.inProgressDate :
     ready.status === 'bad'        ? ready.badDate : undefined;
 
   const [view, setView] = useState<ModalView>('detail');
@@ -508,7 +507,6 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
 
   const handleStatusChange = useCallback((status: ComponentStatus) => {
     updateReadyForMaster(unitId, { status });
-    if (status === 'inProgress') { updateReadyForMaster(unitId, { goodNote: '' }); setView('progressNote'); return; }
     if (status === 'bad') { updateReadyForMaster(unitId, { progressNote: '', goodNote: '' }); setView('addIssue'); return; }
     if (status === 'good') { updateReadyForMaster(unitId, { progressNote: '', goodNote: '' }); pushToCloud().catch(() => {}); onClose(); return; }
     updateReadyForMaster(unitId, { progressNote: '', goodNote: '' }); pushToCloud().catch(() => {});
@@ -668,7 +666,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
         <Text style={m.sectionLabel}>STATUS</Text>
         {isEditMode && (
           <View style={m.statusRow}>
-            {(['good', 'inProgress', 'bad', 'unchecked'] as ComponentStatus[]).map((status) => (
+            {(['good', 'bad', 'unchecked'] as ComponentStatus[]).map((status) => (
               <TouchableOpacity key={status} style={[m.statusBtn, ready.status === status && { backgroundColor: statusColor(status) + '33', borderColor: statusColor(status) }]} onPress={() => handleStatusChange(status)} activeOpacity={0.75}>
                 <Text style={[m.statusBtnText, { color: statusColor(status) }]}>{statusLabel(status)}</Text>
               </TouchableOpacity>
@@ -684,7 +682,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
                   const p = parse(statusDateValue, 'MM/dd/yyyy', new Date());
                   if (isValid(p)) {
                     const date = p.toISOString();
-                    updateReadyForMaster(unitId, ready.status === 'good' ? { goodDate: date } : ready.status === 'inProgress' ? { inProgressDate: date } : ready.status === 'bad' ? { badDate: date } : {});
+                    updateReadyForMaster(unitId, ready.status === 'good' ? { goodDate: date } : ready.status === 'bad' ? { badDate: date } : {});
                     pushToCloud().catch(() => {});
                   }
                   setEditingStatusDate(false);
@@ -698,18 +696,6 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
                 <Ionicons name="pencil-outline" size={12} color="#6e7681" style={{ marginLeft: 6 }} />
               </TouchableOpacity>
             )}
-          </View>
-        )}
-        {ready.status === 'inProgress' && (
-          <View style={m.progressNoteBox}>
-            <TouchableOpacity style={m.noteBoxTop} onPress={() => setView('progressNote')} activeOpacity={0.7}>
-              <View style={{ flex: 1 }}><Text style={m.progressNoteLabel}>IN PROGRESS NOTE</Text><Text style={m.progressNoteText}>{ready.progressNote || '(tap to add note)'}</Text></View>
-              <Ionicons name="pencil-outline" size={14} color="#d29922" />
-            </TouchableOpacity>
-            <StatusImageStrip images={ready.progressImages ?? []} onAdd={async (uri, file) => {
-              const saved = await saveImage(`${unitId}_ready_master_prog`, uri, file);
-              updateReadyForMaster(unitId, { progressImages: [...(ready.progressImages ?? []), saved] });
-            }} onRemove={async (uri) => { await deleteImage(uri); updateReadyForMaster(unitId, { progressImages: (ready.progressImages ?? []).filter((i) => i !== uri) }); }} onView={setViewingPhoto} accentColor="#d29922" />
           </View>
         )}
         {ready.status === 'good' && (
