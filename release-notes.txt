@@ -1,2 +1,2 @@
-- Ready for Master card colors now match the final rules: Good/no issues green, Good/issues split green-red, Unchecked/issues red, Unchecked/no issues grey, Bad red.
-- The Ready for Master exclamation badge now only shows when a unit was previously Good and is now Bad.
+- Fixed Ready for Master log edits being overwritten by older synced copies.
+- Ready for Master log merge now keeps the newest edited entry by update timestamp.

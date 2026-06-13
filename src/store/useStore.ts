@@ -17,6 +17,7 @@ import {
   MiscIssue,
   ReadyForMasterData,
   ReadyForMasterIssue,
+  ReadyForMasterTransition,
   COMPONENTS,
   createDefaultReadyForMaster,
   normalizeStageStatus,
@@ -72,9 +73,20 @@ function latestIso(...values: Array<string | undefined>): string | undefined {
   return values.filter((v): v is string => !!v).sort().pop();
 }
 
+function transitionActivityAt(transition: ReadyForMasterTransition): string {
+  return transition.updatedAt ?? transition.date;
+}
+
 function mergeReadyForMasterTransitions(existingRfm: ReadyForMasterData, importRfm: ReadyForMasterData) {
   const completedLogResetAt = latestIso(existingRfm.completedLogResetAt, importRfm.completedLogResetAt);
-  const transitionLog = [...new Map([...(existingRfm.transitionLog ?? []), ...(importRfm.transitionLog ?? [])].map((t) => [t.id, t])).values()]
+  const transitionMap = new Map<string, ReadyForMasterTransition>();
+  for (const transition of [...(existingRfm.transitionLog ?? []), ...(importRfm.transitionLog ?? [])]) {
+    const current = transitionMap.get(transition.id);
+    if (!current || transitionActivityAt(transition) >= transitionActivityAt(current)) {
+      transitionMap.set(transition.id, transition);
+    }
+  }
+  const transitionLog = [...transitionMap.values()]
     .filter((t) => !completedLogResetAt || t.date > completedLogResetAt);
   const badTransitionCount = new Set(transitionLog.filter((t) => t.status === 'bad').map((t) => t.date)).size;
   const failCount = completedLogResetAt
@@ -532,6 +544,7 @@ export const useStore = create<StoreState>()(
                 id: `rfm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
                 status: nextStatus,
                 date: now,
+                updatedAt: now,
                 ...(signedDate ? { signedDate } : {}),
                 ...(signedBy ? { signedBy } : {}),
                 ...(transitionNotes ? { notes: transitionNotes } : {}),

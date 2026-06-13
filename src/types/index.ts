@@ -141,6 +141,7 @@ export interface ReadyForMasterTransition {
   id: string;
   status: ComponentStatus;
   date: string;
+  updatedAt?: string;
   signedDate?: string;
   signedBy?: string;
   notes?: string;

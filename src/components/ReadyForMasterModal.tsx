@@ -605,7 +605,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
       : undefined;
     const transitionLog = updateLatestCurrentTransition
       ? (ready.transitionLog ?? []).map((entry) => entry.id === updateLatestCurrentTransition.id
-        ? { ...entry, signedDate: statusDateIso, signedBy: data.signedBy, notes: pendingStatus === 'good' ? data.notes : data.reason }
+        ? { ...entry, updatedAt: new Date().toISOString(), signedDate: statusDateIso, signedBy: data.signedBy, notes: pendingStatus === 'good' ? data.notes : data.reason }
         : entry)
       : undefined;
     if (pendingStatus === 'bad') {
@@ -660,9 +660,10 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
     if (!entry) return;
     const parsed = parse(updates.date, 'MM/dd/yyyy', new Date());
     const signedDate = isValid(parsed) ? parsed.toISOString() : (entry.signedDate ?? entry.date);
+    const updatedAt = new Date().toISOString();
     const transitionLog = (ready.transitionLog ?? []).map((t) =>
       t.id === entryId
-        ? { ...t, signedDate, signedBy: updates.signedBy, notes: updates.notes }
+        ? { ...t, updatedAt, signedDate, signedBy: updates.signedBy, notes: updates.notes }
         : t
     );
     const isCurrentStatus = entry.status === ready.status;
