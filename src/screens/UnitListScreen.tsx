@@ -16,17 +16,8 @@ type Props = NativeStackScreenProps<UnitStackParamList, 'UnitList'>;
 type Filter = 'issues' | 'inProgress' | 'complete' | 'chiller';
 
 function unitHasCardIssue(unit: Unit): boolean {
-  const comps = Object.values(unit.components);
-  const miscItems = (unit.miscEquipment ?? []).filter((m) => !m.deleted);
   const ready = getReadyForMaster(unit);
-  const openIssues = [
-    ...comps.flatMap((c) => c.issues),
-    ...miscItems.flatMap((m) => m.issues ?? []),
-    ...ready.issues,
-  ].filter((i) => !i.resolved && !i.deleted).length;
-  const hasBad = comps.some((c) => c.status === 'bad') || miscItems.some((m) => m.status === 'bad');
-  const hasStuck = STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) === 'stuck');
-  return hasBad || openIssues > 0 || hasStuck;
+  return ready.issues.some((i) => !i.resolved && !i.deleted);
 }
 
 function unitReadyFailedAfterGood(unit: Unit): boolean {

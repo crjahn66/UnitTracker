@@ -9,3 +9,4 @@
 - Ready for Master Good with issues now shows the half green / half red state.
 - Ready for Master Bad after a previous Good now shows full red with an exclamation badge.
 - Removed In Progress as a Ready for Master status option.
+- Card and dashboard red/half-red Ready for Master states now only use Ready for Master issues.
