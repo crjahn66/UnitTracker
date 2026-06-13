@@ -8,7 +8,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { format, parse, isValid } from 'date-fns';
 import { useStore } from '../store/useStore';
-import { ComponentStatus, ReadyForMasterIssue, getReadyForMaster } from '../types';
+import { ComponentStatus, ReadyForMasterIssue, ReadyForMasterTransition, getReadyForMaster } from '../types';
 import { saveImage, deleteImage } from '../utils/imageStorage';
 import { pushToCloud } from '../utils/sync';
 import { useEditMode } from '../context/EditModeContext';
@@ -21,7 +21,7 @@ interface Props {
   onClose: () => void;
 }
 
-type ModalView = 'detail' | 'addIssue' | 'resolveIssue' | 'editIssue' | 'progressNote' | 'goodNote' | 'statusSignoff';
+type ModalView = 'detail' | 'addIssue' | 'resolveIssue' | 'editIssue' | 'progressNote' | 'goodNote' | 'statusSignoff' | 'editTransition';
 
 const today = () => format(new Date(), 'MM/dd/yyyy');
 const EMPTY_ISSUE = () => ({ dateFound: today(), foundBy: '', notes: '' });
@@ -46,9 +46,9 @@ function statusLabel(s: ComponentStatus) {
   return 'Unchecked';
 }
 function transitionText(status: ComponentStatus) {
-  if (status === 'good') return 'RED Group Tested Completed';
-  if (status === 'bad') return 'Ready for Master Bad';
-  return 'Ready for Master Unchecked';
+  if (status === 'good') return 'Good';
+  if (status === 'bad') return 'Bad';
+  return 'Unchecked';
 }
 
 // ─── Image Strip ──────────────────────────────────────────────────────────────
@@ -521,6 +521,41 @@ function StatusSignoffForm({ status, initialDate, initialSignedBy, initialReason
   );
 }
 
+function TransitionEditForm({ entry, initialSignedBy, initialNotes, onSave, onCancel }: {
+  entry: ReadyForMasterTransition;
+  initialSignedBy?: string;
+  initialNotes?: string;
+  onSave: (updates: { date: string; signedBy: string; notes?: string }) => void;
+  onCancel: () => void;
+}) {
+  const [date, setDate] = useState(() => {
+    const initial = entry.signedDate ?? entry.date;
+    try { return format(new Date(initial), 'MM/dd/yyyy'); } catch { return today(); }
+  });
+  const [signedBy, setSignedBy] = useState(entry.signedBy ?? initialSignedBy ?? '');
+  const [notes, setNotes] = useState(entry.notes ?? initialNotes ?? '');
+
+  const handleSave = () => {
+    if (!signedBy.trim()) { showAlert('Required', entry.status === 'bad' ? 'Please enter who logged this.' : 'Please enter who signed off.'); return; }
+    onSave({ date, signedBy: signedBy.trim(), notes: notes.trim() || undefined });
+  };
+
+  return (
+    <View>
+      <Text style={f.formTitle}>Edit {transitionText(entry.status)} Log</Text>
+      <FormField label="Date" value={date} onChangeText={setDate} placeholder="MM/DD/YYYY" />
+      <NameSelectField label={entry.status === 'bad' ? 'Logged By' : 'Sign-off By'} value={signedBy} onChange={setSignedBy} rememberLastUsed />
+      {entry.status === 'bad' && (
+        <FormField label="Notes" value={notes} onChangeText={setNotes} placeholder="Why was Ready for Master bad?" multiline />
+      )}
+      <View style={f.buttonRow}>
+        <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={onCancel}><Text style={f.btnOutlineText}>Cancel</Text></TouchableOpacity>
+        <TouchableOpacity style={[f.btn, f.btnPrimary]} onPress={handleSave}><Text style={f.btnPrimaryText}>Save</Text></TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 // ─── Main Modal ────────────────────────────────────────────────────────────────
 
 export default function ReadyForMasterModal({ unitId, onClose }: Props) {
@@ -542,6 +577,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
   const [view, setView] = useState<ModalView>('detail');
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [editingIssueId, setEditingIssueId] = useState<string | null>(null);
+  const [editingTransitionId, setEditingTransitionId] = useState<string | null>(null);
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [editingStatusDate, setEditingStatusDate] = useState(false);
@@ -626,6 +662,35 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
       })();
     }
   }, [unitId, addReadyForMasterIssue, updateReadyForMasterIssue, updateReadyForMaster]);
+
+  const handleEditTransition = useCallback((entryId: string, updates: { date: string; signedBy: string; notes?: string }) => {
+    const entry = ready.transitionLog?.find((t) => t.id === entryId);
+    if (!entry) return;
+    const parsed = parse(updates.date, 'MM/dd/yyyy', new Date());
+    const signedDate = isValid(parsed) ? parsed.toISOString() : (entry.signedDate ?? entry.date);
+    const transitionLog = (ready.transitionLog ?? []).map((t) =>
+      t.id === entryId
+        ? { ...t, signedDate, signedBy: updates.signedBy, notes: updates.notes }
+        : t
+    );
+    const isCurrentStatus = entry.status === ready.status;
+    const readyUpdates = entry.status === 'good' && isCurrentStatus
+      ? { transitionLog, goodDate: signedDate, goodSignedBy: updates.signedBy }
+      : entry.status === 'bad' && isCurrentStatus
+        ? { transitionLog, badDate: signedDate, badSignedBy: updates.signedBy, badReason: updates.notes }
+        : { transitionLog };
+    updateReadyForMaster(unitId, readyUpdates);
+
+    if (entry.status === 'bad') {
+      const matchingIssue = ready.issues.find((i) => !i.deleted && fmtDate(i.dateFound) === fmtDate(entry.signedDate ?? entry.date));
+      if (matchingIssue) {
+        updateReadyForMasterIssue(unitId, matchingIssue.id, { dateFound: signedDate, foundBy: updates.signedBy, notes: updates.notes ?? matchingIssue.notes });
+      }
+    }
+    setEditingTransitionId(null);
+    setView('detail');
+    pushToCloud().catch(() => {});
+  }, [unitId, ready.transitionLog, ready.status, ready.issues, updateReadyForMaster, updateReadyForMasterIssue]);
 
   const handleResolve = useCallback((issueId: string, data: { dateFixed: string; fixedBy: string; howFixed: string }) => {
     updateReadyForMasterIssue(unitId, issueId, {
@@ -740,6 +805,22 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
       const issue = ready.issues.find((i) => i.id === editingIssueId);
       if (issue) return <EditIssueForm issue={issue} onSave={(u) => handleEditIssue(editingIssueId, u)} onCancel={() => { setEditingIssueId(null); setView('detail'); }} />;
     }
+    if (view === 'editTransition' && editingTransitionId) {
+      const entry = ready.transitionLog?.find((t) => t.id === editingTransitionId);
+      if (entry) {
+        const displayDate = entry.signedDate ?? entry.date;
+        const matchingBadIssue = entry.status === 'bad'
+          ? ready.issues.find((i) => !i.deleted && fmtDate(i.dateFound) === fmtDate(displayDate))
+          : undefined;
+        const isCurrentStatus = entry.status === ready.status;
+        const initialSignedBy = entry.signedBy
+          ?? (entry.status === 'good' && isCurrentStatus ? ready.goodSignedBy : undefined)
+          ?? (entry.status === 'bad' ? matchingBadIssue?.foundBy ?? (isCurrentStatus ? ready.badSignedBy : undefined) : undefined);
+        const initialNotes = entry.notes
+          ?? (entry.status === 'bad' ? matchingBadIssue?.notes ?? (isCurrentStatus ? ready.badReason : undefined) : undefined);
+        return <TransitionEditForm entry={entry} initialSignedBy={initialSignedBy} initialNotes={initialNotes} onSave={(u) => handleEditTransition(editingTransitionId, u)} onCancel={() => { setEditingTransitionId(null); setView('detail'); }} />;
+      }
+    }
     if (view === 'resolveIssue' && resolvingId) return <ResolveForm onSave={(d) => handleResolve(resolvingId, d)} onCancel={() => { setResolvingId(null); setView('detail'); }} />;
     if (view === 'progressNote') return (
       <ProgressNoteForm initial={ready.progressNote ?? ''} onSave={(note) => { updateReadyForMaster(unitId, { progressNote: note }); pushToCloud().catch(() => {}); setView('detail'); }} onCancel={() => setView('detail')} />
@@ -831,7 +912,14 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
               <View key={entry.id} style={[m.logEntry, { borderLeftColor: entryColor }]}>
                 <View style={m.logEntryHeader}>
                   <Text style={[m.logStatus, { color: entryColor }]}>{transitionText(entry.status)}</Text>
-                  <Text style={m.logDate}>{fmtDate(displayDate)}</Text>
+                  <View style={m.logHeaderRight}>
+                    <Text style={m.logDate}>{fmtDate(displayDate)}</Text>
+                    {isEditMode && (entry.status === 'good' || entry.status === 'bad') && (
+                      <TouchableOpacity onPress={() => { setEditingTransitionId(entry.id); setView('editTransition'); }} style={m.logEditBtn}>
+                        <Ionicons name="pencil-outline" size={13} color="#d29922" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
                 {!!by && <Text style={m.logMeta}>{entry.status === 'bad' ? 'Logged by' : 'Signed by'} {by}</Text>}
                 {!!notes && <Text style={m.logNotes}>{notes}</Text>}
@@ -984,6 +1072,8 @@ const m = StyleSheet.create({
   logSection: { marginBottom: 18 },
   logEntry: { backgroundColor: '#161b22', borderRadius: 8, borderWidth: 1, borderColor: '#30363d', borderLeftWidth: 4, padding: 10, marginBottom: 8 },
   logEntryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
+  logHeaderRight: { flexDirection: 'row', alignItems: 'center' },
+  logEditBtn: { marginLeft: 8, padding: 2 },
   logStatus: { fontSize: 12, fontWeight: '700' },
   logDate: { color: '#8b949e', fontSize: 12 },
   logMeta: { color: '#c9d1d9', fontSize: 12, marginTop: 2 },
