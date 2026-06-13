@@ -1,3 +1,1 @@
-- Ready for Master no longer counts historical log entries as open issues.
-- Ready for Master now shows only the current status icon: green check for Good, red X for Bad, and empty circle for Unchecked.
-- Unit open-issue counts, card colors, dashboard issue lists, and Excel row colors now ignore Ready for Master history entries.
+- Ready for Master logs now show newest entries first in the app and Excel export.

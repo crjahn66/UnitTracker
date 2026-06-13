@@ -826,7 +826,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
   const combinedLog = [
     ...statusLog.map((entry) => ({ type: 'transition' as const, date: entry.signedDate ?? entry.date, entry })),
     ...legacyIssueLog,
-  ].sort((a, b) => a.date.localeCompare(b.date));
+  ].sort((a, b) => b.date.localeCompare(a.date));
   const color = statusColor(ready.status);
 
   const renderContent = () => {

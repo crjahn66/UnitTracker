@@ -402,7 +402,7 @@ function buildCompletedLog(wb: any, sorted: Unit[]) {
     const log = [
       ...statusLog.map((entry) => ({ type: 'status' as const, date: entry.signedDate ?? entry.date, entry })),
       ...legacyIssueLog,
-    ].sort((a, b) => a.date.localeCompare(b.date));
+    ].sort((a, b) => b.date.localeCompare(a.date));
     let failCount = 0;
     for (const logEntry of log) {
       if (logEntry.type === 'issue') {
