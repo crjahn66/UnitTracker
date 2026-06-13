@@ -188,15 +188,8 @@ export function hasOpenReadyForMasterIssues(unit: Pick<Unit, 'readyForMaster'>):
   return getReadyForMaster(unit).issues.some((i) => !i.resolved && !i.deleted);
 }
 
-export function hasOpenComponentIssues(unit: Pick<Unit, 'components'>): boolean {
-  return Object.values(unit.components).some((component) =>
-    component.issues.some((issue) => !issue.resolved && !issue.deleted)
-  );
-}
-
-export function isUnitComplete(unit: Pick<Unit, 'stages' | 'components'>): boolean {
-  return STAGES.every((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete')
-    && !hasOpenComponentIssues(unit);
+export function isUnitComplete(unit: Pick<Unit, 'stages'>): boolean {
+  return STAGES.every((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete');
 }
 
 export function isUnitFullyGreen(unit: Pick<Unit, 'stages' | 'components' | 'readyForMaster'>): boolean {

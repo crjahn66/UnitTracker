@@ -2,5 +2,5 @@
 - Fixed RED/ACS/N/A unit card updates being reverted during cloud push.
 - Fixed Complete counts showing 0 after Ready for Master was reset to manual unchecked.
 - Complete counts and Completed Units export now ignore manual Ready for Master status.
-- A unit is complete when all stages are complete and there are no open component issues.
+- A unit is complete when all four stages are complete.
 - Ready for Master remains manual and separate from normal completion indicators.
