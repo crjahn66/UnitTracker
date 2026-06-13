@@ -372,18 +372,18 @@ function buildCompleted(wb: any, sorted: Unit[]) {
 }
 
 
-// ??? Sheet 5: Completed Units Log ?????????????????????????????????????????????
+// ??? Sheet 5: Ready for Master Log ????????????????????????????????????????????
 function readyForMasterLogText(status: string, failCount: number): string {
-  if (status === 'good') return 'Commissioned';
+  if (status === 'good') return 'RED Group Tested Completed';
   if (status === 'bad') return `Decommissioned${failCount > 0 ? ` (${failCount} Post RGT Fail${failCount !== 1 ? 's' : ''})` : ''}`;
   if (status === 'inProgress') return 'In Progress';
   return 'Not Set';
 }
 
 function buildCompletedLog(wb: any, sorted: Unit[]) {
-  const ws = wb.addWorksheet('Completed Units Log');
-  const colWidths = [9, 7, 7, 14, 34, 18, 18, 50];
-  const headers = ['Unit ID', 'Side', 'Unit #', 'Date', 'Issue', 'Event #', 'Signed By', 'Notes'];
+  const ws = wb.addWorksheet('Ready for Master Log');
+  const colWidths = [9, 7, 7, 14, 34, 18, 50];
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Date', 'Ready for Master Log', 'Signed By', 'Notes'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 34;
@@ -406,7 +406,7 @@ function buildCompletedLog(wb: any, sorted: Unit[]) {
                      : entry.status === 'bad' ? matchingBadIssue?.foundBy ?? (isCurrentStatus ? ready.badSignedBy ?? '' : '') : '';
       const notes = entry.status === 'good' && isCurrentStatus ? ready.goodNote ?? ''
                   : entry.status === 'bad' ? (matchingBadIssue ? notesWithUpdates(matchingBadIssue) : (isCurrentStatus ? ready.badReason ?? '' : '')) : '';
-      const r = ws.addRow([u.id, u.side, u.unitNumber, fmtDate(displayDate), text, rows + 1, signedBy, notes]);
+      const r = ws.addRow([u.id, u.side, u.unitNumber, fmtDate(displayDate), text, signedBy, notes]);
       r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, col === 5 ? clr : WHT, col === 1, col >= 3));
       r.height = autoRowHeight(r, colWidths);
       rows++;
