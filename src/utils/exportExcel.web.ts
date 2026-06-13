@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { Unit, STAGES, COMPONENTS, OPTIMO_MODE_LABELS, GeneralIssue, Issue, MiscIssue, getReadyForMaster, normalizeStageStatus, isUnitComplete } from '../types';
+import { Unit, STAGES, COMPONENTS, OPTIMO_MODE_LABELS, GeneralIssue, Issue, MiscIssue, getReadyForMaster, normalizeStageStatus, isReadyForMasterComplete } from '../types';
 import { readResizedBase64 } from './imageStorage';
 import { getPostCommissionHealth } from './postCommissionHealth';
 
@@ -95,7 +95,7 @@ function rowClr(unit: Unit): Clr {
   const openCount  = [...compIssues, ...miscIssues, ...readyIssues].filter((i) => !i.resolved && !i.deleted).length;
   const doneCount  = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
   if (ready.status === 'bad') return RED;
-  if (isUnitComplete(unit)) return GRN;
+  if (isReadyForMasterComplete(unit)) return GRN;
   if (doneCount === STAGES.length) return openCount > 0 ? RED : AMB;
   if (openCount > 0)  return RED;
   if (doneCount > 0 || Object.values(unit.components).some((c) => c.status !== 'unchecked'))  return AMB;
@@ -135,7 +135,7 @@ function buildOverview(wb: any, sorted: Unit[]) {
     const open = allIssues.filter((i) => !i.resolved && !i.deleted).length;
     const done = STAGES.filter((s) => normalizeStageStatus(u.stages[s.key]) === 'complete').length;
     const stuck = STAGES.filter((s) => normalizeStageStatus(u.stages[s.key]) === 'stuck').length;
-    const status = isUnitComplete(u) ? 'Complete'
+    const status = isReadyForMasterComplete(u) ? 'Complete'
                  : done === STAGES.length ? (open > 0 ? 'Complete with Constraints' : 'Ready for Master Pending')
                  : stuck > 0 ? `${stuck} Stuck`
                  : open > 0 ? `${open} Constraint${open > 1 ? 's' : ''}`
@@ -313,7 +313,7 @@ function buildCompleted(wb: any, sorted: Unit[]) {
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 45;
 
-  const done = sorted.filter(isUnitComplete);
+  const done = sorted.filter(isReadyForMasterComplete);
 
   let currentSide = '';
   for (const u of done) {

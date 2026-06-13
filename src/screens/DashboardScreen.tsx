@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput } from 
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, Unit, getReadyForMaster, normalizeStageStatus, isUnitComplete, isUnitFullyGreen } from '../types';
+import { STAGES, COMPONENTS, Unit, getReadyForMaster, normalizeStageStatus, isUnitComplete, isReadyForMasterComplete } from '../types';
 import CopyrightFooter from '../components/CopyrightFooter';
 import { getPostCommissionHealth } from '../utils/postCommissionHealth';
 
@@ -48,7 +48,7 @@ function unitHasIssues(unit: Unit): boolean {
 // Priority: complete-with-issues > issues > complete > in-progress > not-started
 function getUnitStatus(unit: Unit): UnitStatus {
   if (hasBadReadyForMaster(unit)) return 'issues';
-  if (isUnitFullyGreen(unit)) return 'complete';
+  if (isReadyForMasterComplete(unit)) return 'complete';
   if (isUnitComplete(unit) && unitHasIssues(unit)) return 'completeWithIssues';
   if (unitHasIssues(unit)) return 'issues';
   if (getUnitPct(unit) > 0) return 'inProgress';
@@ -97,8 +97,8 @@ export default function DashboardScreen() {
       a.side !== b.side ? a.side.localeCompare(b.side) : a.unitNumber - b.unitNumber
     );
 
-    const complete = all.filter(isUnitComplete).length;
-    const inProgress = all.filter((u) => { const p = getUnitPct(u); return p > 0 && !isUnitComplete(u); }).length;
+    const complete = all.filter(isReadyForMasterComplete).length;
+    const inProgress = all.filter((u) => { const p = getUnitPct(u); return p > 0 && !isReadyForMasterComplete(u); }).length;
     const openGeneralCount = generalIssues.filter((i) => !i.resolved && !i.deleted).length;
     const totalIssues = all.reduce((n, u) => n + getOpenIssueCount(u), 0) + openGeneralCount;
     const chillerReady = all.filter((u) => u.chillerAvailable === true).length;
@@ -108,7 +108,7 @@ export default function DashboardScreen() {
     const northUnits = all.filter((u) => u.side === 'North').sort((a, b) => a.unitNumber - b.unitNumber);
     const southUnits = all.filter((u) => u.side === 'South').sort((a, b) => a.unitNumber - b.unitNumber);
     const sidePct = (arr: Unit[]) => arr.length === 0 ? 0 : Math.round(arr.reduce((n, u) => n + getUnitPct(u), 0) / arr.length);
-    const sideDoneCount = (arr: Unit[]) => arr.filter(isUnitComplete).length;
+    const sideDoneCount = (arr: Unit[]) => arr.filter(isReadyForMasterComplete).length;
     const sidePcts = { N: sidePct(northUnits), S: sidePct(southUnits) };
     const sideDone = { N: sideDoneCount(northUnits), S: sideDoneCount(southUnits) };
     const workingUnits = {
@@ -140,7 +140,7 @@ export default function DashboardScreen() {
 
   // Detail list: when not showing all, hide complete units. Order is numerical (by side, then unit number).
   const detailUnits = useMemo(
-    () => showAllUnits ? sortedUnits : sortedUnits.filter((u) => !isUnitComplete(u)),
+    () => showAllUnits ? sortedUnits : sortedUnits.filter((u) => !isReadyForMasterComplete(u)),
     [sortedUnits, showAllUnits],
   );
   const detailNorth = useMemo(() => detailUnits.filter((u) => u.side === 'North'), [detailUnits]);

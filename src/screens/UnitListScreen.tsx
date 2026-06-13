@@ -6,7 +6,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { format } from 'date-fns';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
-import { Unit, STAGES, COMPONENTS, WorkingParty, WORKING_PARTY_LABELS, getReadyForMaster, normalizeStageStatus, isUnitComplete, isUnitFullyGreen } from '../types';
+import { Unit, STAGES, COMPONENTS, WorkingParty, WORKING_PARTY_LABELS, getReadyForMaster, normalizeStageStatus, isUnitComplete, isReadyForMasterComplete } from '../types';
 import CopyrightFooter from '../components/CopyrightFooter';
 import { useEditMode } from '../context/EditModeContext';
 import { pushToCloud } from '../utils/sync';
@@ -28,7 +28,7 @@ function unitStatusColor(unit: Unit): string {
   const hasStuck = STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) === 'stuck');
   if (ready.status === 'bad' || hasBad || openIssues > 0 || hasStuck) return '#f85149';
 
-  if (isUnitFullyGreen(unit)) return '#3fb950';
+  if (isReadyForMasterComplete(unit)) return '#3fb950';
 
   const hasWork = STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) !== 'pending')
     || comps.some((c) => c.status !== 'unchecked')
@@ -45,7 +45,7 @@ function hasOpenIssues(unit: Unit): boolean {
 }
 
 function isInProgress(unit: Unit): boolean {
-  if (isUnitComplete(unit)) return false;
+  if (isReadyForMasterComplete(unit)) return false;
   return STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) !== 'pending')
     || Object.values(unit.components).some((c) => c.status !== 'unchecked')
     || (unit.miscEquipment ?? []).some((m) => m.status !== 'unchecked');
@@ -196,7 +196,7 @@ export default function UnitListScreen({ navigation, route }: Props) {
   );
 
   const stats = useMemo(() => {
-    const complete = sideUnits.filter(isUnitComplete).length;
+    const complete = sideUnits.filter(isReadyForMasterComplete).length;
     const hasIssue = sideUnits.filter(hasOpenIssues).length;
     const inProgress = sideUnits.filter(isInProgress).length;
     const openIssues = sideUnits.reduce((sum, u) => {
@@ -223,7 +223,7 @@ export default function UnitListScreen({ navigation, route }: Props) {
     return sideUnits.filter((u) =>
       (activeFilters.has('issues') && hasOpenIssues(u)) ||
       (activeFilters.has('inProgress') && isInProgress(u)) ||
-      (activeFilters.has('complete') && isUnitComplete(u)) ||
+      (activeFilters.has('complete') && isReadyForMasterComplete(u)) ||
       (activeFilters.has('chiller') && u.chillerAvailable === true)
     );
   }, [sideUnits, activeFilters]);

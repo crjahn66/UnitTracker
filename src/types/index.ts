@@ -193,6 +193,10 @@ export function isUnitComplete(unit: Pick<Unit, 'stages'>): boolean {
   return STAGES.every((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete');
 }
 
+export function isReadyForMasterComplete(unit: Pick<Unit, 'readyForMaster'>): boolean {
+  return getReadyForMaster(unit).status === 'good';
+}
+
 export function isUnitFullyGreen(unit: Pick<Unit, 'stages' | 'components' | 'readyForMaster'>): boolean {
   return isUnitComplete(unit)
     && Object.values(unit.components).every((c) => c.status === 'good')

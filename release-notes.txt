@@ -1,7 +1,7 @@
 - Fixed Optimo Mode updates being reverted during cloud push.
 - Fixed RED/ACS/N/A unit card updates being reverted during cloud push.
-- Fixed Complete counts showing 0 after Ready for Master was reset to manual unchecked.
-- Complete counts and Completed Units export now ignore manual Ready for Master status.
-- A unit is complete when all four stages are complete.
-- Ready for Master remains manual and separate from normal completion indicators.
-- Completed Units Log reset now has a reset marker so older local test log entries are dropped instead of re-uploaded.
+- Complete counters now use the manual Ready for Master status only.
+- Units count as Complete when Ready for Master is marked Good.
+- Complete filters, fleet totals, reports, and Completed Units export now follow that same Ready for Master rule.
+- Stage progress remains separate from the final Ready for Master completion signal.
+- Completed Units Log reset marker remains in place to prevent stale test log entries from re-uploading.

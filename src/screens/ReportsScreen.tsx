@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, UnitsStore, GeneralIssue, Unit, normalizeStageStatus, isUnitComplete } from '../types';
+import { STAGES, COMPONENTS, UnitsStore, GeneralIssue, Unit, normalizeStageStatus, isReadyForMasterComplete } from '../types';
 import { exportToExcel } from '../utils/exportExcel';
 import { backupData, restoreData } from '../utils/backup';
 import { syncWithCloud, wipeAllPhotos } from '../utils/sync';
@@ -21,7 +21,7 @@ import { runUpdateCheck } from '../hooks/useUpdateCheck';
 import CopyrightFooter from '../components/CopyrightFooter';
 
 function isUnitCommissioned(unit: Unit): boolean {
-  return isUnitComplete(unit);
+  return isReadyForMasterComplete(unit);
 }
 
 function getUnitCommissionDate(unit: Unit): string | undefined {
@@ -237,7 +237,7 @@ export default function ReportsScreen() {
 
     const openIssueCount = issuesByUnit.length;
 
-    const fullyComplete = all.filter(isUnitComplete).length;
+    const fullyComplete = all.filter(isReadyForMasterComplete).length;
     const hasAnyWork = all.filter((u) =>
       STAGES.some((s) => normalizeStageStatus(u.stages[s.key]) !== 'pending')
       || Object.values(u.components).some((c) => c.status !== 'unchecked')
