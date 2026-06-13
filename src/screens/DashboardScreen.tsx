@@ -325,11 +325,13 @@ function FleetGrid({
                   <Text style={s.gridHealthBadgeText}>!</Text>
                 </View>
               )}
-              {unit.optimoMode && <Text style={s.gridCellOptimo}>{unit.optimoMode}</Text>}
               {unit.chillerAvailable === true && (
-                <View style={s.gridCellChillerWrap}>
-                  <Text style={s.gridCellChiller}>❄</Text>
-                </View>
+                <>
+                  {unit.optimoMode && <Text style={s.gridCellOptimo}>{unit.optimoMode}</Text>}
+                  <View style={s.gridCellChillerWrap}>
+                    <Text style={s.gridCellChiller}>❄</Text>
+                  </View>
+                </>
               )}
             </TouchableOpacity>
           );
@@ -477,10 +479,10 @@ function CompactUnitRow({ unit, onPress, lastInColumn }: { unit: Unit; onPress: 
         <View style={[s.sideDotSm, { backgroundColor: color }]} />
       )}
       <Text style={[s.compactId, { color }]}>{unit.unitNumber}</Text>
-      {unit.optimoMode && <Text style={s.compactOptimoBadge}>{unit.optimoMode}</Text>}
       {unit.chillerAvailable === true && (
         <View style={s.compactChillerWrap}>
           <Text style={s.compactChiller}>❄</Text>
+          {unit.optimoMode && <Text style={s.compactOptimoBadge}>{unit.optimoMode}</Text>}
         </View>
       )}
       <StageSegmentBar unit={unit} />
@@ -648,7 +650,7 @@ const s = StyleSheet.create({
   compactId: { fontSize: 12, fontWeight: '700', minWidth: 18 },
   compactChillerWrap: { position: 'relative', width: 14, height: 14, marginRight: -2 },
   compactChiller: { color: '#58a6ff', fontSize: 11, lineHeight: 14, textAlign: 'center' },
-  compactOptimoBadge: { color: '#ffffff', fontSize: 9, lineHeight: 14, fontWeight: '900' },
+  compactOptimoBadge: { position: 'absolute', left: -2, bottom: -3, color: '#ffffff', fontSize: 8, fontWeight: '900' },
   segBar: { flex: 1, flexDirection: 'row', gap: 2, alignItems: 'center' },
   segCell: { flex: 1, height: 6, borderRadius: 1.5 },
   compactPct: { color: '#c9d1d9', fontSize: 11, fontWeight: '600', minWidth: 28, textAlign: 'right' },

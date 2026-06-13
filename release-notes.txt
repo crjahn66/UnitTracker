@@ -1,2 +1,2 @@
 - Unit cards and dashboard cells now show half green / half red whenever there are open component or misc issues.
-- Optimo mode badges now show on cards and dashboard whenever O/L/R is set, even without chiller available.
+- Optimo mode badges keep the existing chiller-ready display requirement.

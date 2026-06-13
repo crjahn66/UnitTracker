@@ -86,10 +86,10 @@ const UnitCard = React.memo(function UnitCard({
       <View style={[s.cardTop, { backgroundColor: completeWithIssues ? 'transparent' : color + '28' }]}>
         <Text style={s.unitId}>{unit.id}</Text>
         <View style={s.cardTopIcons}>
-          {unit.optimoMode && <Text style={s.optimoBadge}>{unit.optimoMode}</Text>}
           {unit.chillerAvailable === true && (
             <View style={s.chillerWrap}>
               <Text style={s.chillerBadge}>❄</Text>
+              {unit.optimoMode && <Text style={s.optimoBadge}>{unit.optimoMode}</Text>}
             </View>
           )}
           {(postCommissionHealth.needsAttention || readyFailedAfterGood) && (
@@ -355,7 +355,7 @@ const s = StyleSheet.create({
   cardTopIcons: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   chillerWrap: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 4, position: 'relative' },
   chillerBadge: { color: '#58a6ff', fontSize: 22, lineHeight: 22 },
-  optimoBadge: { color: '#ffffff', fontSize: 16, lineHeight: 18, fontWeight: '900' },
+  optimoBadge: { position: 'absolute', left: -16, top: 4, color: '#ffffff', fontSize: 16, lineHeight: 18, fontWeight: '900' },
   postCommissionBadge: {
     width: 17, height: 17, borderRadius: 8.5,
     alignItems: 'center', justifyContent: 'center',
