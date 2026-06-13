@@ -1,2 +1,2 @@
-- Unit cards and dashboard cells now show half green / half red whenever there are open component or misc issues.
-- Optimo mode badges keep the existing chiller-ready display requirement.
+- Half green / half red unit cards now only show when Ready for Master is Good and the unit has open component or misc issues.
+- Ready for Master Unchecked units stay grey even when they have open issues.

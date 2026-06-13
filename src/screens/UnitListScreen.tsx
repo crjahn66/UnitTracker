@@ -23,7 +23,6 @@ function unitReadyFailedAfterGood(unit: Unit): boolean {
 function unitStatusColor(unit: Unit): string {
   const ready = getReadyForMaster(unit);
   if (ready.status === 'bad') return '#f85149';
-  if (hasOpenIssues(unit)) return '#3fb950';
   if (ready.status === 'good') return '#3fb950';
   return '#30363d';
 }
@@ -64,7 +63,7 @@ const UnitCard = React.memo(function UnitCard({
   const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
   const hasCardIssue = openIssues > 0;
   const color = unitStatusColor(unit);
-  const completeWithIssues = ready.status !== 'bad' && hasCardIssue;
+  const completeWithIssues = ready.status === 'good' && hasCardIssue;
   const readyFailedAfterGood = unitReadyFailedAfterGood(unit);
   const pct = Math.round(
     (stagesComplete / STAGES.length) * 70 + (good / COMPONENTS.length) * 30

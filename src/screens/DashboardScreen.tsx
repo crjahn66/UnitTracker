@@ -35,7 +35,7 @@ function getUnitStatus(unit: Unit): UnitStatus {
   const ready = getReadyForMaster(unit);
   const hasIssues = unitHasIssues(unit);
   if (ready.status === 'bad') return 'issues';
-  if (hasIssues) return 'completeWithIssues';
+  if (ready.status === 'good' && hasIssues) return 'completeWithIssues';
   if (ready.status === 'good') return 'complete';
   return 'notStarted';
 }
