@@ -514,14 +514,14 @@ export const useStore = create<StoreState>()(
             extraUpdates.badDate = nextStatus === 'bad' ? updates.badDate ?? now : undefined;
             extraUpdates.badSignedBy = nextStatus === 'bad' ? updates.badSignedBy ?? current.badSignedBy : undefined;
             extraUpdates.badReason = nextStatus === 'bad' ? updates.badReason ?? current.badReason : undefined;
-            const transitionDate = nextStatus === 'good' ? extraUpdates.goodDate ?? now
-              : nextStatus === 'bad' ? extraUpdates.badDate ?? now
-              : now;
+            const signedDate = nextStatus === 'good' ? extraUpdates.goodDate
+              : nextStatus === 'bad' ? extraUpdates.badDate
+              : undefined;
             extraUpdates.failCount = nextStatus === 'bad' ? (current.failCount ?? 0) + 1 : current.failCount ?? 0;
             extraUpdates.wasGood = current.wasGood || current.status === 'good' || nextStatus === 'good';
             extraUpdates.transitionLog = [
               ...(current.transitionLog ?? []),
-              { id: `rfm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, status: nextStatus, date: transitionDate },
+              { id: `rfm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, status: nextStatus, date: now, ...(signedDate ? { signedDate } : {}) },
             ];
           }
           return {
