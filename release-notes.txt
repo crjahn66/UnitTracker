@@ -5,3 +5,4 @@
 - Complete filters, fleet totals, reports, and Completed Units export now follow that same Ready for Master rule.
 - Stage progress remains separate from the final Ready for Master completion signal.
 - Completed Units Log reset marker remains in place to prevent stale test log entries from re-uploading.
+- Ready for Master status resets now have a reset marker so stale local Good/Bad values are dropped instead of re-uploaded.

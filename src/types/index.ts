@@ -156,6 +156,7 @@ export interface ReadyForMasterData {
   failCount?: number;
   transitionLog?: ReadyForMasterTransition[];
   completedLogResetAt?: string;
+  readyStatusResetAt?: string;
 }
 
 export function createDefaultReadyForMaster(): ReadyForMasterData {
