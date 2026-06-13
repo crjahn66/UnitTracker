@@ -391,24 +391,30 @@ function buildCompletedLog(wb: any, sorted: Unit[]) {
   let rows = 0;
   for (const u of sorted) {
     const ready = getReadyForMaster(u);
-    const log = [...(ready.transitionLog ?? [])].sort((a, b) => a.date.localeCompare(b.date));
+    const log = [
+      ...(ready.transitionLog ?? []).filter((entry) => entry.status !== 'bad').map((entry) => ({ type: 'status' as const, date: entry.signedDate ?? entry.date, entry })),
+      ...ready.issues.filter((issue) => !issue.deleted).map((issue) => ({ type: 'issue' as const, date: issue.dateFound, issue })),
+    ].sort((a, b) => a.date.localeCompare(b.date));
     let failCount = 0;
-    for (const entry of log) {
-      if (entry.status === 'bad') failCount++;
+    for (const logEntry of log) {
+      if (logEntry.type === 'issue') {
+        failCount++;
+        const r = ws.addRow([u.id, u.side, u.unitNumber, fmtDate(logEntry.issue.dateFound), readyForMasterLogText('bad', failCount), logEntry.issue.foundBy, notesWithUpdates(logEntry.issue)]);
+        r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, col === 5 ? RED : WHT, col === 1, col >= 3));
+        r.height = autoRowHeight(r, colWidths);
+        rows++;
+        continue;
+      }
+      const { entry } = logEntry;
       const text = readyForMasterLogText(entry.status, failCount);
-      const clr = entry.status === 'good' ? GRN : entry.status === 'bad' ? RED : entry.status === 'inProgress' ? AMB : GRY;
+      const clr = entry.status === 'good' ? GRN : entry.status === 'inProgress' ? AMB : GRY;
       const isCurrentStatus = entry.status === ready.status;
       const displayDate = entry.signedDate ?? entry.date;
-      const matchingBadIssue = entry.status === 'bad'
-        ? ready.issues.find((i) => !i.deleted && fmtDate(i.dateFound) === fmtDate(displayDate))
-        : undefined;
       const signedBy = entry.signedBy
                      ?? (entry.status === 'good' && isCurrentStatus ? ready.goodSignedBy : undefined)
-                     ?? (entry.status === 'bad' ? matchingBadIssue?.foundBy ?? (isCurrentStatus ? ready.badSignedBy : undefined) : undefined)
                      ?? '';
       const notes = entry.notes
                   ?? (entry.status === 'good' && isCurrentStatus ? ready.goodNote : undefined)
-                  ?? (entry.status === 'bad' ? (matchingBadIssue ? notesWithUpdates(matchingBadIssue) : (isCurrentStatus ? ready.badReason : undefined)) : undefined)
                   ?? '';
       const r = ws.addRow([u.id, u.side, u.unitNumber, fmtDate(displayDate), text, signedBy, notes]);
       r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, col === 5 ? clr : WHT, col === 1, col >= 3));

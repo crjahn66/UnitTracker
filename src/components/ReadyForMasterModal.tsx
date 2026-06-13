@@ -794,7 +794,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
   const openIssuesList = visibleIssues.filter((i) => !i.resolved);
   const resolvedIssuesList = visibleIssues.filter((i) => i.resolved);
   const openIssues = openIssuesList.length;
-  const readyLog = [...(ready.transitionLog ?? [])].sort((a, b) => a.date.localeCompare(b.date));
+  const statusLog = [...(ready.transitionLog ?? [])].filter((entry) => entry.status !== 'bad').sort((a, b) => a.date.localeCompare(b.date));
   const color = statusColor(ready.status);
 
   const renderContent = () => {
@@ -893,47 +893,38 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
           </View>
         )}
         <View style={m.logSection}>
-          <Text style={m.sectionLabel}>READY FOR MASTER LOG</Text>
-          {readyLog.length === 0 ? (
-            <Text style={m.noIssues}>No Ready for Master status changes yet.</Text>
-          ) : readyLog.map((entry) => {
-            const displayDate = entry.signedDate ?? entry.date;
-            const matchingBadIssue = entry.status === 'bad'
-              ? ready.issues.find((i) => !i.deleted && fmtDate(i.dateFound) === fmtDate(displayDate))
-              : undefined;
-            const isCurrentStatus = entry.status === ready.status;
-            const by = entry.signedBy
-              ?? (entry.status === 'good' && isCurrentStatus ? ready.goodSignedBy : undefined)
-              ?? (entry.status === 'bad' ? matchingBadIssue?.foundBy ?? (isCurrentStatus ? ready.badSignedBy : undefined) : undefined);
-            const notes = entry.notes
-              ?? (entry.status === 'bad' ? matchingBadIssue?.notes ?? (isCurrentStatus ? ready.badReason : undefined) : undefined);
-            const entryColor = statusColor(entry.status);
-            return (
-              <View key={entry.id} style={[m.logEntry, { borderLeftColor: entryColor }]}>
-                <View style={m.logEntryHeader}>
-                  <Text style={[m.logStatus, { color: entryColor }]}>{transitionText(entry.status)}</Text>
-                  <View style={m.logHeaderRight}>
-                    <Text style={m.logDate}>{fmtDate(displayDate)}</Text>
-                    {isEditMode && (entry.status === 'good' || entry.status === 'bad') && (
-                      <TouchableOpacity onPress={() => { setEditingTransitionId(entry.id); setView('editTransition'); }} style={m.logEditBtn}>
-                        <Ionicons name="pencil-outline" size={13} color="#d29922" />
-                      </TouchableOpacity>
-                    )}
+          <View style={m.issueSectionHeader}>
+            <Text style={m.sectionLabel}>READY FOR MASTER LOG</Text>
+            {openIssues > 0 && <View style={m.openBadge}><Text style={m.openBadgeText}>{openIssues} open</Text></View>}
+          </View>
+          {statusLog.length === 0 && visibleIssues.length === 0 ? (
+            <Text style={m.noIssues}>No Ready for Master log entries yet.</Text>
+          ) : (
+            <>
+              {statusLog.map((entry) => {
+                const displayDate = entry.signedDate ?? entry.date;
+                const isCurrentStatus = entry.status === ready.status;
+                const by = entry.signedBy
+                  ?? (entry.status === 'good' && isCurrentStatus ? ready.goodSignedBy : undefined);
+                const entryColor = statusColor(entry.status);
+                return (
+                  <View key={entry.id} style={[m.logEntry, { borderLeftColor: entryColor }]}>
+                    <View style={m.logEntryHeader}>
+                      <Text style={[m.logStatus, { color: entryColor }]}>{transitionText(entry.status)}</Text>
+                      <View style={m.logHeaderRight}>
+                        <Text style={m.logDate}>{fmtDate(displayDate)}</Text>
+                        {isEditMode && entry.status === 'good' && (
+                          <TouchableOpacity onPress={() => { setEditingTransitionId(entry.id); setView('editTransition'); }} style={m.logEditBtn}>
+                            <Ionicons name="pencil-outline" size={13} color="#d29922" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                    {!!by && <Text style={m.logMeta}>Signed by {by}</Text>}
                   </View>
-                </View>
-                {!!by && <Text style={m.logMeta}>{entry.status === 'bad' ? 'Logged by' : 'Signed by'} {by}</Text>}
-                {!!notes && <Text style={m.logNotes}>{notes}</Text>}
-              </View>
-            );
-          })}
-        </View>
-        <View style={m.issueSectionHeader}>
-          <Text style={m.sectionLabel}>ISSUES</Text>
-          {openIssues > 0 && <View style={m.openBadge}><Text style={m.openBadgeText}>{openIssues} open</Text></View>}
-        </View>
-        {visibleIssues.length === 0 ? <Text style={m.noIssues}>No Ready for Master issues logged.</Text> : (
-          <>
-            {openIssuesList.map((issue) => (
+                );
+              })}
+              {openIssuesList.map((issue) => (
               <IssueCard key={issue.id} issue={issue}
                 onResolve={() => { setResolvingId(issue.id); setView('resolveIssue'); }}
                 onUnresolve={() => handleUnresolve(issue.id)}
@@ -946,31 +937,32 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
                 onRemoveImage={(uri) => handleRemoveImage(issue.id, uri)}
                 onViewImage={setViewingPhoto}
               />
-            ))}
-            {resolvedIssuesList.length > 0 && (
-              <>
-                <TouchableOpacity style={m.archiveToggle} onPress={() => setArchiveOpen((o) => !o)} activeOpacity={0.7}>
-                  <Ionicons name={archiveOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#6e7681" style={{ marginRight: 6 }} />
-                  <Text style={m.archiveToggleText}>{resolvedIssuesList.length} resolved issue{resolvedIssuesList.length !== 1 ? 's' : ''}</Text>
-                </TouchableOpacity>
-                {archiveOpen && resolvedIssuesList.map((issue) => (
-                  <IssueCard key={issue.id} issue={issue}
-                    onResolve={() => { setResolvingId(issue.id); setView('resolveIssue'); }}
-                    onUnresolve={() => handleUnresolve(issue.id)}
-                    onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}
-                    onDelete={() => handleDelete(issue.id)}
-                    onAddUpdate={(note, updatedBy) => handleAddUpdate(issue.id, note, updatedBy)}
-                    onEditUpdate={(updateId, changes) => handleEditUpdate(issue.id, updateId, changes)}
-                    onDeleteUpdate={(updateId) => handleDeleteUpdate(issue.id, updateId)}
-                    onAddImage={(uri) => handleAddImage(issue.id, uri)}
-                    onRemoveImage={(uri) => handleRemoveImage(issue.id, uri)}
-                    onViewImage={setViewingPhoto}
-                  />
-                ))}
-              </>
-            )}
-          </>
-        )}
+              ))}
+              {resolvedIssuesList.length > 0 && (
+                <>
+                  <TouchableOpacity style={m.archiveToggle} onPress={() => setArchiveOpen((o) => !o)} activeOpacity={0.7}>
+                    <Ionicons name={archiveOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#6e7681" style={{ marginRight: 6 }} />
+                    <Text style={m.archiveToggleText}>{resolvedIssuesList.length} resolved log entr{resolvedIssuesList.length === 1 ? 'y' : 'ies'}</Text>
+                  </TouchableOpacity>
+                  {archiveOpen && resolvedIssuesList.map((issue) => (
+                    <IssueCard key={issue.id} issue={issue}
+                      onResolve={() => { setResolvingId(issue.id); setView('resolveIssue'); }}
+                      onUnresolve={() => handleUnresolve(issue.id)}
+                      onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}
+                      onDelete={() => handleDelete(issue.id)}
+                      onAddUpdate={(note, updatedBy) => handleAddUpdate(issue.id, note, updatedBy)}
+                      onEditUpdate={(updateId, changes) => handleEditUpdate(issue.id, updateId, changes)}
+                      onDeleteUpdate={(updateId) => handleDeleteUpdate(issue.id, updateId)}
+                      onAddImage={(uri) => handleAddImage(issue.id, uri)}
+                      onRemoveImage={(uri) => handleRemoveImage(issue.id, uri)}
+                      onViewImage={setViewingPhoto}
+                    />
+                  ))}
+                </>
+              )}
+            </>
+          )}
+        </View>
         {isEditMode && (
           <View style={m.issueBtnRow}>
             <TouchableOpacity style={[m.addIssueBtn, { flex: 1 }]} onPress={() => { setPendingStatus(null); setView('addIssue'); }}>
