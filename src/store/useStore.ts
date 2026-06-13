@@ -517,11 +517,22 @@ export const useStore = create<StoreState>()(
             const signedDate = nextStatus === 'good' ? extraUpdates.goodDate
               : nextStatus === 'bad' ? extraUpdates.badDate
               : undefined;
+            const signedBy = nextStatus === 'good' ? extraUpdates.goodSignedBy
+              : nextStatus === 'bad' ? extraUpdates.badSignedBy
+              : undefined;
+            const transitionNotes = nextStatus === 'bad' ? extraUpdates.badReason : undefined;
             extraUpdates.failCount = nextStatus === 'bad' ? (current.failCount ?? 0) + 1 : current.failCount ?? 0;
             extraUpdates.wasGood = current.wasGood || current.status === 'good' || nextStatus === 'good';
             extraUpdates.transitionLog = [
               ...(current.transitionLog ?? []),
-              { id: `rfm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, status: nextStatus, date: now, ...(signedDate ? { signedDate } : {}) },
+              {
+                id: `rfm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                status: nextStatus,
+                date: now,
+                ...(signedDate ? { signedDate } : {}),
+                ...(signedBy ? { signedBy } : {}),
+                ...(transitionNotes ? { notes: transitionNotes } : {}),
+              },
             ];
           }
           return {

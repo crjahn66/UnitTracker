@@ -45,6 +45,11 @@ function statusLabel(s: ComponentStatus) {
   if (s === 'good') return 'Good'; if (s === 'bad') return 'Bad';
   return 'Unchecked';
 }
+function transitionText(status: ComponentStatus) {
+  if (status === 'good') return 'RED Group Tested Completed';
+  if (status === 'bad') return 'Ready for Master Bad';
+  return 'Ready for Master Unchecked';
+}
 
 // ─── Image Strip ──────────────────────────────────────────────────────────────
 
@@ -602,7 +607,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
       images: data.images.length > 0 ? data.images : undefined,
     };
     updateReadyForMaster(unitId, data.status === 'bad'
-      ? { status: 'bad', progressNote: '', goodNote: '', goodSignedBy: undefined, badDate: dateFound, badSignedBy: undefined, badReason: undefined }
+      ? { status: 'bad', progressNote: '', goodNote: '', goodSignedBy: undefined, badDate: dateFound, badSignedBy: data.foundBy, badReason: data.notes }
       : { status: data.status, progressNote: '', goodNote: '', goodDate: dateFound, goodSignedBy: data.foundBy });
     addReadyForMasterIssue(unitId, issue);
     setView('detail');
@@ -724,6 +729,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
   const openIssuesList = visibleIssues.filter((i) => !i.resolved);
   const resolvedIssuesList = visibleIssues.filter((i) => i.resolved);
   const openIssues = openIssuesList.length;
+  const readyLog = [...(ready.transitionLog ?? [])].sort((a, b) => a.date.localeCompare(b.date));
   const color = statusColor(ready.status);
 
   const renderContent = () => {
@@ -805,6 +811,34 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
             }} onRemove={async (uri) => { await deleteImage(uri); updateReadyForMaster(unitId, { goodImages: (ready.goodImages ?? []).filter((i) => i !== uri) }); }} onView={setViewingPhoto} accentColor="#3fb950" />
           </View>
         )}
+        <View style={m.logSection}>
+          <Text style={m.sectionLabel}>READY FOR MASTER LOG</Text>
+          {readyLog.length === 0 ? (
+            <Text style={m.noIssues}>No Ready for Master status changes yet.</Text>
+          ) : readyLog.map((entry) => {
+            const displayDate = entry.signedDate ?? entry.date;
+            const matchingBadIssue = entry.status === 'bad'
+              ? ready.issues.find((i) => !i.deleted && fmtDate(i.dateFound) === fmtDate(displayDate))
+              : undefined;
+            const isCurrentStatus = entry.status === ready.status;
+            const by = entry.signedBy
+              ?? (entry.status === 'good' && isCurrentStatus ? ready.goodSignedBy : undefined)
+              ?? (entry.status === 'bad' ? matchingBadIssue?.foundBy ?? (isCurrentStatus ? ready.badSignedBy : undefined) : undefined);
+            const notes = entry.notes
+              ?? (entry.status === 'bad' ? matchingBadIssue?.notes ?? (isCurrentStatus ? ready.badReason : undefined) : undefined);
+            const entryColor = statusColor(entry.status);
+            return (
+              <View key={entry.id} style={[m.logEntry, { borderLeftColor: entryColor }]}>
+                <View style={m.logEntryHeader}>
+                  <Text style={[m.logStatus, { color: entryColor }]}>{transitionText(entry.status)}</Text>
+                  <Text style={m.logDate}>{fmtDate(displayDate)}</Text>
+                </View>
+                {!!by && <Text style={m.logMeta}>{entry.status === 'bad' ? 'Logged by' : 'Signed by'} {by}</Text>}
+                {!!notes && <Text style={m.logNotes}>{notes}</Text>}
+              </View>
+            );
+          })}
+        </View>
         <View style={m.issueSectionHeader}>
           <Text style={m.sectionLabel}>ISSUES</Text>
           {openIssues > 0 && <View style={m.openBadge}><Text style={m.openBadgeText}>{openIssues} open</Text></View>}
@@ -947,6 +981,13 @@ const m = StyleSheet.create({
   badSignoffBox: { backgroundColor: '#f8514911', borderRadius: 8, borderWidth: 1, borderColor: '#f8514944', padding: 10, marginBottom: 20 },
   badSignoffLabel: { color: '#f85149', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 3 },
   badSignoffText: { color: '#e6edf3', fontSize: 13 },
+  logSection: { marginBottom: 18 },
+  logEntry: { backgroundColor: '#161b22', borderRadius: 8, borderWidth: 1, borderColor: '#30363d', borderLeftWidth: 4, padding: 10, marginBottom: 8 },
+  logEntryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
+  logStatus: { fontSize: 12, fontWeight: '700' },
+  logDate: { color: '#8b949e', fontSize: 12 },
+  logMeta: { color: '#c9d1d9', fontSize: 12, marginTop: 2 },
+  logNotes: { color: '#8b949e', fontSize: 12, marginTop: 4 },
 });
 
 const ic = StyleSheet.create({

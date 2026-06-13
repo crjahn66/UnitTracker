@@ -142,6 +142,8 @@ export interface ReadyForMasterTransition {
   status: ComponentStatus;
   date: string;
   signedDate?: string;
+  signedBy?: string;
+  notes?: string;
 }
 
 export interface ReadyForMasterData {

@@ -404,10 +404,14 @@ function buildCompletedLog(wb: any, sorted: Unit[]) {
       const matchingBadIssue = entry.status === 'bad'
         ? ready.issues.find((i) => !i.deleted && fmtDate(i.dateFound) === fmtDate(displayDate))
         : undefined;
-      const signedBy = entry.status === 'good' && isCurrentStatus ? ready.goodSignedBy ?? ''
-                     : entry.status === 'bad' ? matchingBadIssue?.foundBy ?? (isCurrentStatus ? ready.badSignedBy ?? '' : '') : '';
-      const notes = entry.status === 'good' && isCurrentStatus ? ready.goodNote ?? ''
-                  : entry.status === 'bad' ? (matchingBadIssue ? notesWithUpdates(matchingBadIssue) : (isCurrentStatus ? ready.badReason ?? '' : '')) : '';
+      const signedBy = entry.signedBy
+                     ?? (entry.status === 'good' && isCurrentStatus ? ready.goodSignedBy : undefined)
+                     ?? (entry.status === 'bad' ? matchingBadIssue?.foundBy ?? (isCurrentStatus ? ready.badSignedBy : undefined) : undefined)
+                     ?? '';
+      const notes = entry.notes
+                  ?? (entry.status === 'good' && isCurrentStatus ? ready.goodNote : undefined)
+                  ?? (entry.status === 'bad' ? (matchingBadIssue ? notesWithUpdates(matchingBadIssue) : (isCurrentStatus ? ready.badReason : undefined)) : undefined)
+                  ?? '';
       const r = ws.addRow([u.id, u.side, u.unitNumber, fmtDate(displayDate), text, signedBy, notes]);
       r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, col === 5 ? clr : WHT, col === 1, col >= 3));
       r.height = autoRowHeight(r, colWidths);
