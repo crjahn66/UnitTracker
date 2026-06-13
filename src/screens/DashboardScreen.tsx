@@ -18,12 +18,11 @@ function getUnitPct(unit: Unit): number {
 function getOpenIssueCount(unit: Unit): number {
   const compIssues = Object.values(unit.components).flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted);
   const miscIssues = (unit.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues ?? []).filter((i) => !i.resolved && !i.deleted);
-  const readyIssues = getReadyForMaster(unit).issues.filter((i) => !i.resolved && !i.deleted);
-  return compIssues.length + miscIssues.length + readyIssues.length;
+  return compIssues.length + miscIssues.length;
 }
 
-function unitHasIssues(unit: Unit): boolean {
-  return getReadyForMaster(unit).issues.some((i) => !i.resolved && !i.deleted);
+function unitHasIssues(_unit: Unit): boolean {
+  return false;
 }
 
 function unitReadyFailedAfterGood(unit: Unit): boolean {
@@ -115,9 +114,6 @@ export default function DashboardScreen() {
         for (const issue of m.issues.filter((i) => !i.resolved && !i.deleted)) {
           openIssues.push({ key: issue.id, unitId: unit.id, unit, compLabel: m.label || 'Misc Equipment', notes: issue.notes, foundBy: issue.foundBy, ageDays: Math.floor((Date.now() - new Date(issue.dateFound).getTime()) / 86400000), miscItemId: m.id });
         }
-      }
-      for (const issue of getReadyForMaster(unit).issues.filter((i) => !i.resolved && !i.deleted)) {
-        openIssues.push({ key: issue.id, unitId: unit.id, unit, compLabel: 'Ready for Master', notes: issue.notes, foundBy: issue.foundBy, ageDays: Math.floor((Date.now() - new Date(issue.dateFound).getTime()) / 86400000) });
       }
     }
     openIssues.sort((a, b) => b.ageDays - a.ageDays);

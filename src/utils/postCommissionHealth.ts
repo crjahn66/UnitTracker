@@ -34,7 +34,7 @@ function statusText(status: ComponentStatus, failCount: number, openIssueCount: 
 export function getPostCommissionHealth(unit: Unit): ReadyForMasterHealth {
   const commissioned = normalizeStageStatus(unit.stages.commissioning) === 'complete';
   const ready = getReadyForMaster(unit);
-  const openIssueCount = ready.issues.filter((i) => !i.resolved && !i.deleted).length;
+  const openIssueCount = 0;
   // The "!" indicator means the unit failed AFTER it was fully tested/commissioned:
   // RED Group Tested (commissioning) is complete and Ready for Master has since gone bad.
   const needsAttention = commissioned && ready.status === 'bad';

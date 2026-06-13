@@ -15,9 +15,8 @@ import { getPostCommissionHealth } from '../utils/postCommissionHealth';
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitList'>;
 type Filter = 'issues' | 'inProgress' | 'complete' | 'chiller';
 
-function unitHasCardIssue(unit: Unit): boolean {
-  const ready = getReadyForMaster(unit);
-  return ready.issues.some((i) => !i.resolved && !i.deleted);
+function unitHasCardIssue(_unit: Unit): boolean {
+  return false;
 }
 
 function unitReadyFailedAfterGood(unit: Unit): boolean {
@@ -37,8 +36,7 @@ function unitStatusColor(unit: Unit): string {
 function hasOpenIssues(unit: Unit): boolean {
   const compIssues = Object.values(unit.components).flatMap((c) => c.issues);
   const miscIssues = (unit.miscEquipment ?? []).flatMap((m) => m.issues ?? []);
-  const readyIssues = getReadyForMaster(unit).issues;
-  return [...compIssues, ...miscIssues, ...readyIssues].some((i) => !i.resolved && !i.deleted);
+  return [...compIssues, ...miscIssues].some((i) => !i.resolved && !i.deleted);
 }
 
 function isInProgress(unit: Unit): boolean {
@@ -201,8 +199,7 @@ export default function UnitListScreen({ navigation, route }: Props) {
     const openIssues = sideUnits.reduce((sum, u) => {
       const compIssues = Object.values(u.components).flatMap((c) => c.issues);
       const miscIssues = (u.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues ?? []);
-      const readyIssues = getReadyForMaster(u).issues;
-      return sum + [...compIssues, ...miscIssues, ...readyIssues].filter((i) => !i.resolved && !i.deleted).length;
+      return sum + [...compIssues, ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
     }, 0);
     const chillerReady = sideUnits.filter((u) => u.chillerAvailable === true).length;
     return { complete, hasIssue, inProgress, openIssues, chillerReady };

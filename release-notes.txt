@@ -1,7 +1,3 @@
-- Ready for Master Good now prompts for sign-off name, date, and an optional note.
-- Ready for Master Bad now prompts for logged-by name, date, and a required reason.
-- Ready for Master history now displays Good, Bad, and Unchecked changes in one chronological log.
-- Ready for Master status now follows the latest log entry instead of treating Bad entries as unresolved issues.
-- Ready for Master log entries can be edited or deleted; deleting an entry recalculates status from the latest remaining entry.
-- Removed the duplicate Sign-off section above the Ready for Master log.
-- Excel Ready for Master Log now exports Good and Bad history in chronological order.
+- Ready for Master no longer counts historical log entries as open issues.
+- Ready for Master now shows only the current status icon: green check for Good, red X for Bad, and empty circle for Unchecked.
+- Unit open-issue counts, card colors, dashboard issue lists, and Excel row colors now ignore Ready for Master history entries.

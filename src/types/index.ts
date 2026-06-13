@@ -194,7 +194,7 @@ export function getReadyForMaster(unit: Pick<Unit, 'readyForMaster'>): ReadyForM
 }
 
 export function hasOpenReadyForMasterIssues(unit: Pick<Unit, 'readyForMaster'>): boolean {
-  return getReadyForMaster(unit).issues.some((i) => !i.resolved && !i.deleted);
+  return false;
 }
 
 export function isUnitComplete(unit: Pick<Unit, 'stages'>): boolean {

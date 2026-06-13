@@ -167,12 +167,10 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
     return n;
   }, [allComps, miscItems, unit]);
   const readyForMaster = getReadyForMaster(unit);
-  const readyOpenIssues = readyForMaster.issues.filter((i) => !i.resolved && !i.deleted).length;
   const goodCount = allComps.filter((c) => c.status === 'good').length + miscItems.filter((m) => m.status === 'good').length + (readyForMaster.status === 'good' ? 1 : 0);
   const badCount = allComps.filter((c) => c.status === 'bad').length + miscItems.filter((m) => m.status === 'bad').length + (readyForMaster.status === 'bad' ? 1 : 0);
   const openIssues = allComps.flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted).length
-    + miscItems.flatMap((m) => m.issues).filter((i) => !i.resolved && !i.deleted).length
-    + readyOpenIssues;
+    + miscItems.flatMap((m) => m.issues).filter((i) => !i.resolved && !i.deleted).length;
   const postCommissionHealth = useMemo(() => getPostCommissionHealth(unit), [unit]);
 
   return (
@@ -464,9 +462,6 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
                     <StatusIcon status={readyForMaster.status} />
                     <View style={s.compInfo}>
                       <Text style={s.compLabel}>Ready for Master</Text>
-                      {readyOpenIssues > 0 && (
-                        <Text style={[s.issueMeta, { color: '#f85149' }]}>{readyOpenIssues} open issue{readyOpenIssues !== 1 ? 's' : ''}</Text>
-                      )}
                     </View>
                     <View style={s.compRight}>
                       <Text style={[s.compStatusText, { color: postCommissionHealth.statusColor }]}>{postCommissionHealth.statusText}</Text>

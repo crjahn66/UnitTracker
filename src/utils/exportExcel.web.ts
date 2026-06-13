@@ -91,8 +91,7 @@ function rowClr(unit: Unit): Clr {
   const compIssues = Object.values(unit.components).flatMap((c) => c.issues);
   const miscIssues = (unit.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues);
   const ready = getReadyForMaster(unit);
-  const readyIssues = ready.issues ?? [];
-  const openCount  = [...compIssues, ...miscIssues, ...readyIssues].filter((i) => !i.resolved && !i.deleted).length;
+  const openCount  = [...compIssues, ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
   const doneCount  = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
   if (ready.status === 'bad') return RED;
   if (isReadyForMasterComplete(unit)) return GRN;
