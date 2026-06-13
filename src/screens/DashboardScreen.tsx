@@ -37,6 +37,7 @@ function getUnitStatus(unit: Unit): UnitStatus {
   if (ready.status === 'bad') return 'issues';
   if (ready.status === 'good' && hasIssues) return 'completeWithIssues';
   if (ready.status === 'good') return 'complete';
+  if (hasIssues) return 'issues';
   return 'notStarted';
 }
 
@@ -304,7 +305,6 @@ function FleetGrid({
           const status = getUnitStatus(unit);
           const color = STATUS_COLOR[status];
           const opacity = status === 'notStarted' ? 0.55 : 1;
-          const postCommissionHealth = getPostCommissionHealth(unit);
           const readyFailedAfterGood = unitReadyFailedAfterGood(unit);
           return (
             <TouchableOpacity
@@ -320,7 +320,7 @@ function FleetGrid({
                 </View>
               )}
               <Text style={s.gridCellText}>{unit.unitNumber}</Text>
-              {(postCommissionHealth.needsAttention || readyFailedAfterGood) && (
+              {readyFailedAfterGood && (
                 <View style={s.gridHealthBadge}>
                   <Text style={s.gridHealthBadgeText}>!</Text>
                 </View>
@@ -462,7 +462,6 @@ function CompactUnitRow({ unit, onPress, lastInColumn }: { unit: Unit; onPress: 
   const allIssues = getOpenIssueCount(unit);
   const color = unitColor(unit);
   const completeWithIssues = getUnitStatus(unit) === 'completeWithIssues';
-  const postCommissionHealth = getPostCommissionHealth(unit);
   const readyFailedAfterGood = unitReadyFailedAfterGood(unit);
   return (
     <TouchableOpacity
@@ -492,7 +491,7 @@ function CompactUnitRow({ unit, onPress, lastInColumn }: { unit: Unit; onPress: 
           <Text style={s.compactIssueText}>{allIssues}</Text>
         </View>
       )}
-      {(postCommissionHealth.needsAttention || readyFailedAfterGood) && (
+      {readyFailedAfterGood && (
         <View style={s.compactHealthBadge}>
           <Text style={s.compactHealthText}>!</Text>
         </View>

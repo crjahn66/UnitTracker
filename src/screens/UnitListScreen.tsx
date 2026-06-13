@@ -10,7 +10,6 @@ import { Unit, STAGES, COMPONENTS, WorkingParty, WORKING_PARTY_LABELS, getReadyF
 import CopyrightFooter from '../components/CopyrightFooter';
 import { useEditMode } from '../context/EditModeContext';
 import { pushToCloud } from '../utils/sync';
-import { getPostCommissionHealth } from '../utils/postCommissionHealth';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitList'>;
 type Filter = 'issues' | 'inProgress' | 'complete' | 'chiller';
@@ -24,6 +23,7 @@ function unitStatusColor(unit: Unit): string {
   const ready = getReadyForMaster(unit);
   if (ready.status === 'bad') return '#f85149';
   if (ready.status === 'good') return '#3fb950';
+  if (hasOpenIssues(unit)) return '#f85149';
   return '#30363d';
 }
 
@@ -72,7 +72,6 @@ const UnitCard = React.memo(function UnitCard({
     ? (() => { try { return format(new Date(unit.stagesDates!.commissioning!), 'MMM d, yyyy'); } catch { return null; } })()
     : null;
   const currentWorkingParty = unit.workingParty ?? 'na';
-  const postCommissionHealth = getPostCommissionHealth(unit);
 
   return (
     <TouchableOpacity style={[s.card, { borderColor: color }]} onPress={onPress} activeOpacity={0.75}>
@@ -91,7 +90,7 @@ const UnitCard = React.memo(function UnitCard({
               {unit.optimoMode && <Text style={s.optimoBadge}>{unit.optimoMode}</Text>}
             </View>
           )}
-          {(postCommissionHealth.needsAttention || readyFailedAfterGood) && (
+          {readyFailedAfterGood && (
             <View style={s.postCommissionBadge}>
               <Text style={s.postCommissionBadgeText}>!</Text>
             </View>
