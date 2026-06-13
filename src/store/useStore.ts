@@ -505,7 +505,8 @@ export const useStore = create<StoreState>()(
           const current = normalizeReadyForMaster(u.readyForMaster);
           const nextStatus = updates.status === 'inProgress' ? 'unchecked' : updates.status ?? current.status;
           const now = new Date().toISOString();
-          const statusChanged = 'status' in updates && nextStatus !== current.status;
+          const explicitTransitionLog = 'transitionLog' in updates;
+          const statusChanged = 'status' in updates && nextStatus !== current.status && !explicitTransitionLog;
           const extraUpdates: Partial<ReadyForMasterData> = {};
           if (statusChanged) {
             extraUpdates.goodDate = nextStatus === 'good' ? updates.goodDate ?? now : undefined;
@@ -520,7 +521,9 @@ export const useStore = create<StoreState>()(
             const signedBy = nextStatus === 'good' ? extraUpdates.goodSignedBy
               : nextStatus === 'bad' ? extraUpdates.badSignedBy
               : undefined;
-            const transitionNotes = nextStatus === 'bad' ? extraUpdates.badReason : undefined;
+            const transitionNotes = nextStatus === 'good' ? updates.goodNote
+              : nextStatus === 'bad' ? extraUpdates.badReason
+              : undefined;
             extraUpdates.failCount = nextStatus === 'bad' ? (current.failCount ?? 0) + 1 : current.failCount ?? 0;
             extraUpdates.wasGood = current.wasGood || current.status === 'good' || nextStatus === 'good';
             extraUpdates.transitionLog = [

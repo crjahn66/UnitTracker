@@ -375,7 +375,7 @@ function buildCompleted(wb: any, sorted: Unit[]) {
 // ??? Sheet 5: Ready for Master Log ????????????????????????????????????????????
 function readyForMasterLogText(status: string, failCount: number): string {
   if (status === 'good') return 'RED Group Tested Completed';
-  if (status === 'bad') return `Decommissioned${failCount > 0 ? ` (${failCount} Post RGT Fail${failCount !== 1 ? 's' : ''})` : ''}`;
+  if (status === 'bad') return `Bad${failCount > 0 ? ` (${failCount} Ready for Master Fail${failCount !== 1 ? 's' : ''})` : ''}`;
   if (status === 'inProgress') return 'In Progress';
   return 'Not Set';
 }
@@ -391,9 +391,18 @@ function buildCompletedLog(wb: any, sorted: Unit[]) {
   let rows = 0;
   for (const u of sorted) {
     const ready = getReadyForMaster(u);
+    const statusLog = [...(ready.transitionLog ?? [])].sort((a, b) => (a.signedDate ?? a.date).localeCompare(b.signedDate ?? b.date));
+    const legacyIssueLog = ready.issues
+      .filter((issue) => !issue.deleted)
+      .filter((issue) => !statusLog.some((entry) =>
+        entry.status === 'bad'
+        && fmtDate(entry.signedDate ?? entry.date) === fmtDate(issue.dateFound)
+        && ((entry.notes ?? ready.badReason ?? '') === issue.notes || (entry.signedBy ?? ready.badSignedBy ?? '') === issue.foundBy)
+      ))
+      .map((issue) => ({ type: 'issue' as const, date: issue.dateFound, issue }));
     const log = [
-      ...(ready.transitionLog ?? []).filter((entry) => entry.status !== 'bad').map((entry) => ({ type: 'status' as const, date: entry.signedDate ?? entry.date, entry })),
-      ...ready.issues.filter((issue) => !issue.deleted).map((issue) => ({ type: 'issue' as const, date: issue.dateFound, issue })),
+      ...statusLog.map((entry) => ({ type: 'status' as const, date: entry.signedDate ?? entry.date, entry })),
+      ...legacyIssueLog,
     ].sort((a, b) => a.date.localeCompare(b.date));
     let failCount = 0;
     for (const logEntry of log) {
@@ -407,14 +416,16 @@ function buildCompletedLog(wb: any, sorted: Unit[]) {
       }
       const { entry } = logEntry;
       const text = readyForMasterLogText(entry.status, failCount);
-      const clr = entry.status === 'good' ? GRN : entry.status === 'inProgress' ? AMB : GRY;
+      const clr = entry.status === 'good' ? GRN : entry.status === 'bad' ? RED : entry.status === 'inProgress' ? AMB : GRY;
       const isCurrentStatus = entry.status === ready.status;
       const displayDate = entry.signedDate ?? entry.date;
       const signedBy = entry.signedBy
                      ?? (entry.status === 'good' && isCurrentStatus ? ready.goodSignedBy : undefined)
+                     ?? (entry.status === 'bad' && isCurrentStatus ? ready.badSignedBy : undefined)
                      ?? '';
       const notes = entry.notes
                   ?? (entry.status === 'good' && isCurrentStatus ? ready.goodNote : undefined)
+                  ?? (entry.status === 'bad' && isCurrentStatus ? ready.badReason : undefined)
                   ?? '';
       const r = ws.addRow([u.id, u.side, u.unitNumber, fmtDate(displayDate), text, signedBy, notes]);
       r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, col === 5 ? clr : WHT, col === 1, col >= 3));

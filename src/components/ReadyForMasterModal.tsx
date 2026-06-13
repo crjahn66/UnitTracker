@@ -86,16 +86,15 @@ function ImageStrip({ images, onAdd, onRemove, onView = () => {} }: {
 
 // ─── Add Issue Form ────────────────────────────────────────────────────────────
 
-function AddIssueForm({ onSave, onCancel, currentStatus, initialImages }: {
+function AddIssueForm({ onSave, onCancel, initialImages }: {
   onSave: (d: { dateFound: string; foundBy: string; notes: string; images: string[]; status: ComponentStatus }) => void;
   onCancel: () => void;
-  currentStatus: ComponentStatus;
   /** Pre-attach photos (e.g. from the "Photo-first issue" camera button). */
   initialImages?: string[];
 }) {
   const [form, setForm] = useState(EMPTY_ISSUE());
   const [images, setImages] = useState<string[]>(initialImages ?? []);
-  const [status, setStatus] = useState<ComponentStatus>(currentStatus === 'unchecked' ? 'bad' : currentStatus);
+  const [status, setStatus] = useState<ComponentStatus>('bad');
   const set = (key: 'dateFound' | 'foundBy' | 'notes', val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
   const notesRef = React.useRef<TextInput>(null);
@@ -117,10 +116,10 @@ function AddIssueForm({ onSave, onCancel, currentStatus, initialImages }: {
 
   return (
     <View>
-      <Text style={f.formTitle}>Log New Issue</Text>
+      <Text style={f.formTitle}>Log Ready for Master Entry</Text>
       <Text style={f.label}>Ready for Master Status</Text>
       <View style={f.statusRow}>
-        {(['good', 'bad'] as ComponentStatus[]).map((s) => (
+        {(['bad'] as ComponentStatus[]).map((s) => (
           <TouchableOpacity
             key={s}
             style={[f.statusBtn, status === s && { backgroundColor: statusColor(s) + '33', borderColor: statusColor(s) }]}
@@ -131,14 +130,14 @@ function AddIssueForm({ onSave, onCancel, currentStatus, initialImages }: {
           </TouchableOpacity>
         ))}
       </View>
-      <FormField label="Date Found" value={form.dateFound} onChangeText={(v) => set('dateFound', v)} placeholder="MM/DD/YYYY" />
-      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => { set('foundBy', v); if (v) setTimeout(() => notesRef.current?.focus(), 50); }} rememberLastUsed />
-      <FormField label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} placeholder="Describe the issue…" multiline inputRef={notesRef} />
+      <FormField label="Date" value={form.dateFound} onChangeText={(v) => set('dateFound', v)} placeholder="MM/DD/YYYY" />
+      <NameSelectField label="Logged By" value={form.foundBy} onChange={(v) => { set('foundBy', v); if (v) setTimeout(() => notesRef.current?.focus(), 50); }} rememberLastUsed />
+      <FormField label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} placeholder="Describe the Ready for Master log entry…" multiline inputRef={notesRef} />
       <Text style={f.label}>Photos</Text>
       <ImageStrip images={images} onAdd={pickImages} onRemove={(u) => setImages((p) => p.filter((i) => i !== u))} />
       <View style={f.buttonRow}>
         <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={onCancel}><Text style={f.btnOutlineText}>Cancel</Text></TouchableOpacity>
-        <TouchableOpacity style={[f.btn, f.btnPrimary]} onPress={handleSave}><Text style={f.btnPrimaryText}>Save Issue</Text></TouchableOpacity>
+        <TouchableOpacity style={[f.btn, f.btnPrimary]} onPress={handleSave}><Text style={f.btnPrimaryText}>Save Entry</Text></TouchableOpacity>
       </View>
     </View>
   );
@@ -483,12 +482,13 @@ function GoodNoteForm({ initial, onSave, onSkip }: {
   );
 }
 
-function StatusSignoffForm({ status, initialDate, initialSignedBy, initialReason, onSave, onCancel }: {
+function StatusSignoffForm({ status, initialDate, initialSignedBy, initialReason, initialNotes, onSave, onCancel }: {
   status: Extract<ComponentStatus, 'good' | 'bad'>;
   initialDate?: string;
   initialSignedBy?: string;
   initialReason?: string;
-  onSave: (data: { date: string; signedBy: string; reason?: string }) => void;
+  initialNotes?: string;
+  onSave: (data: { date: string; signedBy: string; reason?: string; notes?: string }) => void;
   onCancel: () => void;
 }) {
   const [date, setDate] = useState(() => {
@@ -497,21 +497,25 @@ function StatusSignoffForm({ status, initialDate, initialSignedBy, initialReason
   });
   const [signedBy, setSignedBy] = useState(initialSignedBy ?? '');
   const [reason, setReason] = useState(initialReason ?? '');
+  const [notes, setNotes] = useState(initialNotes ?? '');
   const reasonRef = React.useRef<TextInput>(null);
 
   const handleSave = () => {
-    if (!signedBy.trim()) { showAlert('Required', 'Please enter who is signing off.'); return; }
+    if (!signedBy.trim()) { showAlert('Required', status === 'bad' ? 'Please enter who logged this.' : 'Please enter who is signing off.'); return; }
     if (status === 'bad' && !reason.trim()) { showAlert('Required', 'Please enter why Ready for Master is bad.'); return; }
-    onSave({ date, signedBy: signedBy.trim(), reason: reason.trim() || undefined });
+    onSave({ date, signedBy: signedBy.trim(), reason: reason.trim() || undefined, notes: notes.trim() || undefined });
   };
 
   return (
     <View>
       <Text style={f.formTitle}>{status === 'good' ? 'Good Sign-off' : 'Bad Sign-off'}</Text>
       <FormField label="Date" value={date} onChangeText={setDate} placeholder="MM/DD/YYYY" />
-      <NameSelectField label="Sign-off By" value={signedBy} onChange={(v) => { setSignedBy(v); if (status === 'bad' && v) setTimeout(() => reasonRef.current?.focus(), 50); }} rememberLastUsed />
+      <NameSelectField label={status === 'bad' ? 'Logged By' : 'Sign-off By'} value={signedBy} onChange={(v) => { setSignedBy(v); if (status === 'bad' && v) setTimeout(() => reasonRef.current?.focus(), 50); }} rememberLastUsed />
       {status === 'bad' && (
         <FormField label="Why Bad" value={reason} onChangeText={setReason} placeholder="Describe why Ready for Master is bad…" multiline inputRef={reasonRef} />
+      )}
+      {status === 'good' && (
+        <FormField label="Notes (optional)" value={notes} onChangeText={setNotes} placeholder="Example: ISOLATION VALVES HAVE BEEN REPLACED" multiline />
       )}
       <View style={f.buttonRow}>
         <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={onCancel}><Text style={f.btnOutlineText}>Cancel</Text></TouchableOpacity>
@@ -545,9 +549,7 @@ function TransitionEditForm({ entry, initialSignedBy, initialNotes, onSave, onCa
       <Text style={f.formTitle}>Edit {transitionText(entry.status)} Log</Text>
       <FormField label="Date" value={date} onChangeText={setDate} placeholder="MM/DD/YYYY" />
       <NameSelectField label={entry.status === 'bad' ? 'Logged By' : 'Sign-off By'} value={signedBy} onChange={setSignedBy} rememberLastUsed />
-      {entry.status === 'bad' && (
-        <FormField label="Notes" value={notes} onChangeText={setNotes} placeholder="Why was Ready for Master bad?" multiline />
-      )}
+      <FormField label="Notes" value={notes} onChangeText={setNotes} placeholder={entry.status === 'bad' ? 'Why was Ready for Master bad?' : 'Ready for Master note…'} multiline />
       <View style={f.buttonRow}>
         <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={onCancel}><Text style={f.btnOutlineText}>Cancel</Text></TouchableOpacity>
         <TouchableOpacity style={[f.btn, f.btnPrimary]} onPress={handleSave}><Text style={f.btnPrimaryText}>Save</Text></TouchableOpacity>
@@ -579,7 +581,6 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
   const [editingIssueId, setEditingIssueId] = useState<string | null>(null);
   const [editingTransitionId, setEditingTransitionId] = useState<string | null>(null);
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
-  const [archiveOpen, setArchiveOpen] = useState(false);
   const [editingStatusDate, setEditingStatusDate] = useState(false);
   const [statusDateValue, setStatusDateValue] = useState('');
   const [photoFirstImages, setPhotoFirstImages] = useState<string[]>([]);
@@ -587,47 +588,38 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
 
   const handleStatusChange = useCallback((status: ComponentStatus) => {
     if (status === 'good') { setPendingStatus(status); setView('statusSignoff'); return; }
-    if (status === 'bad') { setPendingStatus('bad'); setView('addIssue'); return; }
+    if (status === 'bad') { setPendingStatus('bad'); setView('statusSignoff'); return; }
     updateReadyForMaster(unitId, { status, progressNote: '', goodNote: '' }); pushToCloud().catch(() => {});
   }, [unitId, updateReadyForMaster]);
 
-  const handleStatusSignoff = useCallback((data: { date: string; signedBy: string; reason?: string }) => {
+  const handleStatusSignoff = useCallback((data: { date: string; signedBy: string; reason?: string; notes?: string }) => {
     if (!pendingStatus) return;
-    const now = new Date().toISOString();
     const parsed = parse(data.date, 'MM/dd/yyyy', new Date());
-    const statusDateIso = isValid(parsed) ? parsed.toISOString() : now;
+    const statusDateIso = isValid(parsed) ? parsed.toISOString() : new Date().toISOString();
     const statusChanged = pendingStatus !== ready.status;
+    const updateLatestCurrentTransition = !statusChanged
+      ? [...(ready.transitionLog ?? [])]
+        .filter((entry) => entry.status === pendingStatus)
+        .sort((a, b) => (a.signedDate ?? a.date).localeCompare(b.signedDate ?? b.date))
+        .pop()
+      : undefined;
+    const transitionLog = updateLatestCurrentTransition
+      ? (ready.transitionLog ?? []).map((entry) => entry.id === updateLatestCurrentTransition.id
+        ? { ...entry, signedDate: statusDateIso, signedBy: data.signedBy, notes: pendingStatus === 'good' ? data.notes : data.reason }
+        : entry)
+      : undefined;
     if (pendingStatus === 'bad') {
-      updateReadyForMaster(unitId, { status: 'bad', progressNote: '', goodNote: '', goodSignedBy: undefined, badDate: statusDateIso, badSignedBy: data.signedBy, badReason: data.reason });
-      if (statusChanged) {
-        addReadyForMasterIssue(unitId, {
-          id: genId(),
-          dateFound: statusDateIso,
-          dateUpdated: now,
-          foundBy: data.signedBy,
-          notes: data.reason ?? '',
-          resolved: false,
-        });
-      } else {
-        const issueToEdit = [...ready.issues]
-          .filter((i) => !i.deleted)
-          .sort((a, b) => (b.dateUpdated ?? b.dateFound).localeCompare(a.dateUpdated ?? a.dateFound))
-          .find((i) => fmtDate(i.dateFound) === fmtDate(ready.badDate) || i.notes === ready.badReason)
-          ?? [...ready.issues].filter((i) => !i.deleted).sort((a, b) => (b.dateUpdated ?? b.dateFound).localeCompare(a.dateUpdated ?? a.dateFound))[0];
-        if (issueToEdit) {
-          updateReadyForMasterIssue(unitId, issueToEdit.id, { dateFound: statusDateIso, foundBy: data.signedBy, notes: data.reason ?? '' });
-        }
-      }
+      updateReadyForMaster(unitId, { status: 'bad', progressNote: '', goodNote: '', goodSignedBy: undefined, badDate: statusDateIso, badSignedBy: data.signedBy, badReason: data.reason, ...(transitionLog ? { transitionLog } : {}) });
       pushToCloud().catch(() => {});
       setPendingStatus(null);
       setView('detail');
       return;
     }
-    updateReadyForMaster(unitId, { status: 'good', progressNote: '', goodNote: '', badSignedBy: undefined, badReason: undefined, goodDate: statusDateIso, goodSignedBy: data.signedBy });
+    updateReadyForMaster(unitId, { status: 'good', progressNote: '', goodNote: data.notes ?? '', badSignedBy: undefined, badReason: undefined, goodDate: statusDateIso, goodSignedBy: data.signedBy, ...(transitionLog ? { transitionLog } : {}) });
     pushToCloud().catch(() => {});
     setPendingStatus(null);
     onClose();
-  }, [unitId, pendingStatus, ready.status, ready.issues, ready.badDate, ready.badReason, updateReadyForMaster, addReadyForMasterIssue, updateReadyForMasterIssue, onClose]);
+  }, [unitId, pendingStatus, ready.status, ready.transitionLog, updateReadyForMaster, onClose]);
 
   const handleAddIssue = useCallback((data: { dateFound: string; foundBy: string; notes: string; images: string[]; status: ComponentStatus }) => {
     const id = genId();
@@ -675,7 +667,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
     );
     const isCurrentStatus = entry.status === ready.status;
     const readyUpdates = entry.status === 'good' && isCurrentStatus
-      ? { transitionLog, goodDate: signedDate, goodSignedBy: updates.signedBy }
+      ? { transitionLog, goodDate: signedDate, goodSignedBy: updates.signedBy, goodNote: updates.notes ?? '' }
       : entry.status === 'bad' && isCurrentStatus
         ? { transitionLog, badDate: signedDate, badSignedBy: updates.signedBy, badReason: updates.notes }
         : { transitionLog };
@@ -691,6 +683,37 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
     setView('detail');
     pushToCloud().catch(() => {});
   }, [unitId, ready.transitionLog, ready.status, ready.issues, updateReadyForMaster, updateReadyForMasterIssue]);
+
+  const handleDeleteTransition = useCallback((entryId: string) => {
+    const doDelete = () => {
+      const transitionLog = (ready.transitionLog ?? []).filter((entry) => entry.id !== entryId);
+      const latest = [...transitionLog]
+        .sort((a, b) => (a.signedDate ?? a.date).localeCompare(b.signedDate ?? b.date))
+        .pop();
+      const latestDate = latest?.signedDate ?? latest?.date;
+      updateReadyForMaster(unitId, {
+        transitionLog,
+        status: latest?.status ?? 'unchecked',
+        failCount: transitionLog.filter((entry) => entry.status === 'bad').length,
+        wasGood: transitionLog.some((entry) => entry.status === 'good'),
+        goodDate: latest?.status === 'good' ? latestDate : undefined,
+        goodSignedBy: latest?.status === 'good' ? latest.signedBy : undefined,
+        goodNote: latest?.status === 'good' ? latest.notes ?? '' : '',
+        badDate: latest?.status === 'bad' ? latestDate : undefined,
+        badSignedBy: latest?.status === 'bad' ? latest.signedBy : undefined,
+        badReason: latest?.status === 'bad' ? latest.notes : undefined,
+      });
+      pushToCloud().catch(() => {});
+    };
+    if (Platform.OS === 'web') {
+      if ((window as any).confirm('Delete this Ready for Master log entry?')) doDelete();
+    } else {
+      Alert.alert('Delete Log Entry', 'This will remove this Ready for Master log entry and recalculate the current status from the latest remaining entry. Continue?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: doDelete },
+      ]);
+    }
+  }, [unitId, ready.transitionLog, updateReadyForMaster]);
 
   const handleResolve = useCallback((issueId: string, data: { dateFixed: string; fixedBy: string; howFixed: string }) => {
     updateReadyForMasterIssue(unitId, issueId, {
@@ -711,7 +734,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
       if (result.canceled) return;
       const uri = result.assets?.[0]?.uri;
       if (!uri) return;
-      setPendingStatus(null);
+      setPendingStatus('bad');
       setPhotoFirstImages([uri]);
       setView('addIssue');
     } catch {
@@ -768,6 +791,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
     updateReadyForMasterIssue(unitId, issueId, updates);
     setEditingIssueId(null);
     setView('detail');
+    pushToCloud().catch(() => {});
   }, [unitId, updateReadyForMasterIssue]);
 
   const handleUnresolve = useCallback((issueId: string) => {
@@ -791,15 +815,23 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
   }, [unitId, deleteReadyForMasterIssueUpdate]);
 
   const visibleIssues = ready.issues.filter((i) => !i.deleted);
-  const openIssuesList = visibleIssues.filter((i) => !i.resolved);
-  const resolvedIssuesList = visibleIssues.filter((i) => i.resolved);
-  const openIssues = openIssuesList.length;
-  const statusLog = [...(ready.transitionLog ?? [])].filter((entry) => entry.status !== 'bad').sort((a, b) => a.date.localeCompare(b.date));
+  const statusLog = [...(ready.transitionLog ?? [])].sort((a, b) => (a.signedDate ?? a.date).localeCompare(b.signedDate ?? b.date));
+  const legacyIssueLog = visibleIssues
+    .filter((issue) => !statusLog.some((entry) =>
+      entry.status === 'bad'
+      && fmtDate(entry.signedDate ?? entry.date) === fmtDate(issue.dateFound)
+      && ((entry.notes ?? ready.badReason ?? '') === issue.notes || (entry.signedBy ?? ready.badSignedBy ?? '') === issue.foundBy)
+    ))
+    .map((issue) => ({ type: 'issue' as const, date: issue.dateFound, issue }));
+  const combinedLog = [
+    ...statusLog.map((entry) => ({ type: 'transition' as const, date: entry.signedDate ?? entry.date, entry })),
+    ...legacyIssueLog,
+  ].sort((a, b) => a.date.localeCompare(b.date));
   const color = statusColor(ready.status);
 
   const renderContent = () => {
     if (view === 'addIssue') return (
-      <AddIssueForm onSave={handleAddIssue} onCancel={() => { setPendingStatus(null); setView('detail'); setPhotoFirstImages([]); }} currentStatus={pendingStatus ?? ready.status} initialImages={photoFirstImages} />
+      <AddIssueForm onSave={handleAddIssue} onCancel={() => { setPendingStatus(null); setView('detail'); setPhotoFirstImages([]); }} initialImages={photoFirstImages} />
     );
     if (view === 'editIssue' && editingIssueId) {
       const issue = ready.issues.find((i) => i.id === editingIssueId);
@@ -834,6 +866,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
         initialDate={pendingStatus === 'good' ? ready.goodDate : ready.badDate}
         initialSignedBy={pendingStatus === 'good' ? ready.goodSignedBy : ready.badSignedBy}
         initialReason={pendingStatus === 'bad' ? ready.badReason : undefined}
+        initialNotes={pendingStatus === 'good' ? ready.goodNote : undefined}
         onSave={handleStatusSignoff}
         onCancel={() => { setPendingStatus(null); setView('detail'); }}
       />
@@ -876,105 +909,77 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
             )}
           </View>
         )}
-        {ready.status === 'good' && (
-          <View style={m.goodNoteBox}>
-            <TouchableOpacity style={m.noteBoxTop} onPress={() => { setPendingStatus('good'); setView('statusSignoff'); }} activeOpacity={0.7}>
-              <View style={{ flex: 1 }}>
-                <Text style={m.goodNoteLabel}>SIGN-OFF</Text>
-                <Text style={m.goodNoteText}>{ready.goodSignedBy ? `Signed by ${ready.goodSignedBy}` : 'Signed by not set'}</Text>
-                <Text style={m.goodNoteText}>{ready.goodNote || 'Tap to edit sign-off'}</Text>
-              </View>
-              <Ionicons name="pencil-outline" size={14} color="#3fb950" />
-            </TouchableOpacity>
-            <StatusImageStrip images={ready.goodImages ?? []} onAdd={async (uri, file) => {
-              const saved = await saveImage(`${unitId}_ready_master_good`, uri, file);
-              updateReadyForMaster(unitId, { goodImages: [...(ready.goodImages ?? []), saved] });
-            }} onRemove={async (uri) => { await deleteImage(uri); updateReadyForMaster(unitId, { goodImages: (ready.goodImages ?? []).filter((i) => i !== uri) }); }} onView={setViewingPhoto} accentColor="#3fb950" />
-          </View>
-        )}
         <View style={m.logSection}>
           <View style={m.issueSectionHeader}>
             <Text style={m.sectionLabel}>READY FOR MASTER LOG</Text>
-            {openIssues > 0 && <View style={m.openBadge}><Text style={m.openBadgeText}>{openIssues} open</Text></View>}
           </View>
-          {statusLog.length === 0 && visibleIssues.length === 0 ? (
+          {combinedLog.length === 0 ? (
             <Text style={m.noIssues}>No Ready for Master log entries yet.</Text>
           ) : (
             <>
-              {statusLog.map((entry) => {
+              {combinedLog.map((logEntry) => {
+                if (logEntry.type === 'issue') {
+                  const issue = logEntry.issue;
+                  const entryColor = statusColor('bad');
+                  return (
+                    <View key={`issue-${issue.id}`} style={[m.logEntry, { borderLeftColor: entryColor }]}>
+                      <View style={m.logEntryHeader}>
+                        <Text style={[m.logStatus, { color: entryColor }]}>Bad</Text>
+                        <View style={m.logHeaderRight}>
+                          <Text style={m.logDate}>{fmtDate(issue.dateFound)}</Text>
+                          {isEditMode && (
+                            <>
+                              <TouchableOpacity onPress={() => { setEditingIssueId(issue.id); setView('editIssue'); }} style={m.logEditBtn}>
+                                <Ionicons name="pencil-outline" size={13} color="#d29922" />
+                              </TouchableOpacity>
+                              <TouchableOpacity onPress={() => handleDelete(issue.id)} style={m.logEditBtn}>
+                                <Ionicons name="trash-outline" size={13} color="#f85149" />
+                              </TouchableOpacity>
+                            </>
+                          )}
+                        </View>
+                      </View>
+                      {!!issue.foundBy && <Text style={m.logMeta}>Logged by {issue.foundBy}</Text>}
+                      {!!issue.notes && <Text style={m.logNotes}>{issue.notes}</Text>}
+                    </View>
+                  );
+                }
+                const entry = logEntry.entry;
                 const displayDate = entry.signedDate ?? entry.date;
                 const isCurrentStatus = entry.status === ready.status;
                 const by = entry.signedBy
-                  ?? (entry.status === 'good' && isCurrentStatus ? ready.goodSignedBy : undefined);
+                  ?? (entry.status === 'good' && isCurrentStatus ? ready.goodSignedBy : undefined)
+                  ?? (entry.status === 'bad' && isCurrentStatus ? ready.badSignedBy : undefined);
+                const notes = entry.notes
+                  ?? (entry.status === 'good' && isCurrentStatus ? ready.goodNote : undefined)
+                  ?? (entry.status === 'bad' && isCurrentStatus ? ready.badReason : undefined);
                 const entryColor = statusColor(entry.status);
                 return (
-                  <View key={entry.id} style={[m.logEntry, { borderLeftColor: entryColor }]}>
+                  <View key={`transition-${entry.id}`} style={[m.logEntry, { borderLeftColor: entryColor }]}>
                     <View style={m.logEntryHeader}>
                       <Text style={[m.logStatus, { color: entryColor }]}>{transitionText(entry.status)}</Text>
                       <View style={m.logHeaderRight}>
                         <Text style={m.logDate}>{fmtDate(displayDate)}</Text>
-                        {isEditMode && entry.status === 'good' && (
-                          <TouchableOpacity onPress={() => { setEditingTransitionId(entry.id); setView('editTransition'); }} style={m.logEditBtn}>
-                            <Ionicons name="pencil-outline" size={13} color="#d29922" />
-                          </TouchableOpacity>
+                        {isEditMode && (
+                          <>
+                            <TouchableOpacity onPress={() => { setEditingTransitionId(entry.id); setView('editTransition'); }} style={m.logEditBtn}>
+                              <Ionicons name="pencil-outline" size={13} color="#d29922" />
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => handleDeleteTransition(entry.id)} style={m.logEditBtn}>
+                              <Ionicons name="trash-outline" size={13} color="#f85149" />
+                            </TouchableOpacity>
+                          </>
                         )}
                       </View>
                     </View>
-                    {!!by && <Text style={m.logMeta}>Signed by {by}</Text>}
+                    {!!by && <Text style={m.logMeta}>{entry.status === 'bad' ? 'Logged by' : 'Signed by'} {by}</Text>}
+                    {!!notes && <Text style={m.logNotes}>{notes}</Text>}
                   </View>
                 );
               })}
-              {openIssuesList.map((issue) => (
-              <IssueCard key={issue.id} issue={issue}
-                onResolve={() => { setResolvingId(issue.id); setView('resolveIssue'); }}
-                onUnresolve={() => handleUnresolve(issue.id)}
-                onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}
-                onDelete={() => handleDelete(issue.id)}
-                onAddUpdate={(note, updatedBy) => handleAddUpdate(issue.id, note, updatedBy)}
-                onEditUpdate={(updateId, changes) => handleEditUpdate(issue.id, updateId, changes)}
-                onDeleteUpdate={(updateId) => handleDeleteUpdate(issue.id, updateId)}
-                onAddImage={(uri) => handleAddImage(issue.id, uri)}
-                onRemoveImage={(uri) => handleRemoveImage(issue.id, uri)}
-                onViewImage={setViewingPhoto}
-              />
-              ))}
-              {resolvedIssuesList.length > 0 && (
-                <>
-                  <TouchableOpacity style={m.archiveToggle} onPress={() => setArchiveOpen((o) => !o)} activeOpacity={0.7}>
-                    <Ionicons name={archiveOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#6e7681" style={{ marginRight: 6 }} />
-                    <Text style={m.archiveToggleText}>{resolvedIssuesList.length} resolved log entr{resolvedIssuesList.length === 1 ? 'y' : 'ies'}</Text>
-                  </TouchableOpacity>
-                  {archiveOpen && resolvedIssuesList.map((issue) => (
-                    <IssueCard key={issue.id} issue={issue}
-                      onResolve={() => { setResolvingId(issue.id); setView('resolveIssue'); }}
-                      onUnresolve={() => handleUnresolve(issue.id)}
-                      onEdit={() => { setEditingIssueId(issue.id); setView('editIssue'); }}
-                      onDelete={() => handleDelete(issue.id)}
-                      onAddUpdate={(note, updatedBy) => handleAddUpdate(issue.id, note, updatedBy)}
-                      onEditUpdate={(updateId, changes) => handleEditUpdate(issue.id, updateId, changes)}
-                      onDeleteUpdate={(updateId) => handleDeleteUpdate(issue.id, updateId)}
-                      onAddImage={(uri) => handleAddImage(issue.id, uri)}
-                      onRemoveImage={(uri) => handleRemoveImage(issue.id, uri)}
-                      onViewImage={setViewingPhoto}
-                    />
-                  ))}
-                </>
-              )}
             </>
           )}
         </View>
-        {isEditMode && (
-          <View style={m.issueBtnRow}>
-            <TouchableOpacity style={[m.addIssueBtn, { flex: 1 }]} onPress={() => { setPendingStatus(null); setView('addIssue'); }}>
-              <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 6 }} />
-              <Text style={m.addIssueBtnText}>Log New Issue</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[m.addIssueBtn, m.photoIssueBtn, { flex: 1 }]} onPress={handlePhotoFirstIssue}>
-              <Ionicons name="camera-outline" size={18} color="#d29922" style={{ marginRight: 6 }} />
-              <Text style={[m.addIssueBtnText, { color: '#d29922' }]}>Photo Issue</Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </View>
     );
   };

@@ -1,12 +1,7 @@
-- Fixed Optimo Mode updates being reverted during cloud push.
-- Fixed RED/ACS/N/A unit card updates being reverted during cloud push.
-- Complete counters now use the manual Ready for Master status only.
-- Units count as Complete when Ready for Master is marked Good.
-- Complete filters, fleet totals, reports, and Completed Units export now follow that same Ready for Master rule.
-- Stage progress remains separate from the final Ready for Master completion signal.
-- Completed Units Log reset marker remains in place to prevent stale test log entries from re-uploading.
-- Updated card and dashboard colors to use Ready for Master status plus issue state.
-- Ready for Master Good with issues now shows the half green / half red state.
-- Ready for Master Bad after a previous Good now shows full red with an exclamation badge.
-- Removed In Progress as a Ready for Master status option.
-- Card and dashboard red/half-red Ready for Master states now only use Ready for Master issues.
+- Ready for Master Good now prompts for sign-off name, date, and an optional note.
+- Ready for Master Bad now prompts for logged-by name, date, and a required reason.
+- Ready for Master history now displays Good, Bad, and Unchecked changes in one chronological log.
+- Ready for Master status now follows the latest log entry instead of treating Bad entries as unresolved issues.
+- Ready for Master log entries can be edited or deleted; deleting an entry recalculates status from the latest remaining entry.
+- Removed the duplicate Sign-off section above the Ready for Master log.
+- Excel Ready for Master Log now exports Good and Bad history in chronological order.
