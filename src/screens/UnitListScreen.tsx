@@ -15,10 +15,6 @@ import { getPostCommissionHealth } from '../utils/postCommissionHealth';
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitList'>;
 type Filter = 'issues' | 'inProgress' | 'complete' | 'chiller';
 
-function unitHasCardIssue(_unit: Unit): boolean {
-  return false;
-}
-
 function unitReadyFailedAfterGood(unit: Unit): boolean {
   const ready = getReadyForMaster(unit);
   return ready.status === 'bad' && !!ready.wasGood;
@@ -26,9 +22,8 @@ function unitReadyFailedAfterGood(unit: Unit): boolean {
 
 function unitStatusColor(unit: Unit): string {
   const ready = getReadyForMaster(unit);
-  const hasIssue = unitHasCardIssue(unit);
   if (ready.status === 'bad') return '#f85149';
-  if (hasIssue && ready.status === 'unchecked') return '#f85149';
+  if (hasOpenIssues(unit)) return '#3fb950';
   if (ready.status === 'good') return '#3fb950';
   return '#30363d';
 }
@@ -66,10 +61,10 @@ const UnitCard = React.memo(function UnitCard({
   const miscItems = (unit.miscEquipment ?? []).filter((m) => !m.deleted);
   const miscIssues = miscItems.flatMap((m) => m.issues ?? []);
   const ready = getReadyForMaster(unit);
-  const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues, ...ready.issues].filter((i) => !i.resolved && !i.deleted).length;
-  const hasCardIssue = unitHasCardIssue(unit);
+  const openIssues = [...comps.flatMap((c) => c.issues), ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
+  const hasCardIssue = openIssues > 0;
   const color = unitStatusColor(unit);
-  const completeWithIssues = ready.status === 'good' && hasCardIssue;
+  const completeWithIssues = ready.status !== 'bad' && hasCardIssue;
   const readyFailedAfterGood = unitReadyFailedAfterGood(unit);
   const pct = Math.round(
     (stagesComplete / STAGES.length) * 70 + (good / COMPONENTS.length) * 30
@@ -91,10 +86,10 @@ const UnitCard = React.memo(function UnitCard({
       <View style={[s.cardTop, { backgroundColor: completeWithIssues ? 'transparent' : color + '28' }]}>
         <Text style={s.unitId}>{unit.id}</Text>
         <View style={s.cardTopIcons}>
+          {unit.optimoMode && <Text style={s.optimoBadge}>{unit.optimoMode}</Text>}
           {unit.chillerAvailable === true && (
             <View style={s.chillerWrap}>
               <Text style={s.chillerBadge}>❄</Text>
-              {unit.optimoMode && <Text style={s.optimoBadge}>{unit.optimoMode}</Text>}
             </View>
           )}
           {(postCommissionHealth.needsAttention || readyFailedAfterGood) && (
@@ -360,7 +355,7 @@ const s = StyleSheet.create({
   cardTopIcons: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   chillerWrap: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 4, position: 'relative' },
   chillerBadge: { color: '#58a6ff', fontSize: 22, lineHeight: 22 },
-  optimoBadge: { position: 'absolute', left: -16, top: 4, color: '#ffffff', fontSize: 16, lineHeight: 18, fontWeight: '900' },
+  optimoBadge: { color: '#ffffff', fontSize: 16, lineHeight: 18, fontWeight: '900' },
   postCommissionBadge: {
     width: 17, height: 17, borderRadius: 8.5,
     alignItems: 'center', justifyContent: 'center',
