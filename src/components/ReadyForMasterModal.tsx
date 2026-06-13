@@ -105,7 +105,7 @@ function AddIssueForm({ onSave, onCancel, currentStatus, initialImages }: {
   };
 
   const handleSave = () => {
-    if (!form.foundBy.trim()) { showAlert('Required', 'Please enter who signed off.'); return; }
+    if (!form.foundBy.trim()) { showAlert('Required', 'Please enter who found or logged the issue.'); return; }
     if (!form.notes.trim()) { showAlert('Required', 'Please enter issue notes.'); return; }
     onSave({ ...form, images, status });
   };
@@ -127,7 +127,7 @@ function AddIssueForm({ onSave, onCancel, currentStatus, initialImages }: {
         ))}
       </View>
       <FormField label="Date Found" value={form.dateFound} onChangeText={(v) => set('dateFound', v)} placeholder="MM/DD/YYYY" />
-      <NameSelectField label="Sign-off By" value={form.foundBy} onChange={(v) => { set('foundBy', v); if (v) setTimeout(() => notesRef.current?.focus(), 50); }} rememberLastUsed />
+      <NameSelectField label="Found By" value={form.foundBy} onChange={(v) => { set('foundBy', v); if (v) setTimeout(() => notesRef.current?.focus(), 50); }} rememberLastUsed />
       <FormField label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} placeholder="Describe the issue…" multiline inputRef={notesRef} />
       <Text style={f.label}>Photos</Text>
       <ImageStrip images={images} onAdd={pickImages} onRemove={(u) => setImages((p) => p.filter((i) => i !== u))} />
@@ -545,7 +545,8 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
   const [pendingStatus, setPendingStatus] = useState<Extract<ComponentStatus, 'good' | 'bad'> | null>(null);
 
   const handleStatusChange = useCallback((status: ComponentStatus) => {
-    if (status === 'good' || status === 'bad') { setPendingStatus(status); setView('statusSignoff'); return; }
+    if (status === 'good') { setPendingStatus(status); setView('statusSignoff'); return; }
+    if (status === 'bad') { setPendingStatus('bad'); setView('addIssue'); return; }
     updateReadyForMaster(unitId, { status, progressNote: '', goodNote: '' }); pushToCloud().catch(() => {});
   }, [unitId, updateReadyForMaster]);
 
@@ -590,18 +591,22 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
   const handleAddIssue = useCallback((data: { dateFound: string; foundBy: string; notes: string; images: string[]; status: ComponentStatus }) => {
     const id = genId();
     const now = new Date().toISOString();
+    const dateFound = (() => { const p = parse(data.dateFound, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : now; })();
     const issue: ReadyForMasterIssue = {
       id,
-      dateFound: (() => { const p = parse(data.dateFound, 'MM/dd/yyyy', new Date()); return isValid(p) ? p.toISOString() : now; })(),
+      dateFound,
       dateUpdated: now,
       foundBy: data.foundBy,
       notes: data.notes,
       resolved: false,
       images: data.images.length > 0 ? data.images : undefined,
     };
-    updateReadyForMaster(unitId, { status: data.status });
+    updateReadyForMaster(unitId, data.status === 'bad'
+      ? { status: 'bad', progressNote: '', goodNote: '', goodSignedBy: undefined, badDate: dateFound, badSignedBy: undefined, badReason: undefined }
+      : { status: data.status, progressNote: '', goodNote: '', goodDate: dateFound, goodSignedBy: data.foundBy });
     addReadyForMasterIssue(unitId, issue);
     setView('detail');
+    setPendingStatus(null);
     setPhotoFirstImages([]);
     if (data.images.length > 0) {
       (async () => {
@@ -636,6 +641,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
       if (result.canceled) return;
       const uri = result.assets?.[0]?.uri;
       if (!uri) return;
+      setPendingStatus(null);
       setPhotoFirstImages([uri]);
       setView('addIssue');
     } catch {
@@ -722,7 +728,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
 
   const renderContent = () => {
     if (view === 'addIssue') return (
-      <AddIssueForm onSave={handleAddIssue} onCancel={() => { setView('detail'); setPhotoFirstImages([]); }} currentStatus={ready.status} initialImages={photoFirstImages} />
+      <AddIssueForm onSave={handleAddIssue} onCancel={() => { setPendingStatus(null); setView('detail'); setPhotoFirstImages([]); }} currentStatus={pendingStatus ?? ready.status} initialImages={photoFirstImages} />
     );
     if (view === 'editIssue' && editingIssueId) {
       const issue = ready.issues.find((i) => i.id === editingIssueId);
@@ -799,14 +805,6 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
             }} onRemove={async (uri) => { await deleteImage(uri); updateReadyForMaster(unitId, { goodImages: (ready.goodImages ?? []).filter((i) => i !== uri) }); }} onView={setViewingPhoto} accentColor="#3fb950" />
           </View>
         )}
-        {ready.status === 'bad' && (ready.badSignedBy || ready.badReason) && (
-          <TouchableOpacity style={m.badSignoffBox} onPress={() => { setPendingStatus('bad'); setView('statusSignoff'); }} activeOpacity={0.7}>
-            <Text style={m.badSignoffLabel}>BAD SIGN-OFF</Text>
-            {ready.badSignedBy && <Text style={m.badSignoffText}>Signed by {ready.badSignedBy}</Text>}
-            {ready.badReason && <Text style={m.badSignoffText}>{ready.badReason}</Text>}
-            <Ionicons name="pencil-outline" size={14} color="#f85149" style={{ position: 'absolute', right: 10, top: 10 }} />
-          </TouchableOpacity>
-        )}
         <View style={m.issueSectionHeader}>
           <Text style={m.sectionLabel}>ISSUES</Text>
           {openIssues > 0 && <View style={m.openBadge}><Text style={m.openBadgeText}>{openIssues} open</Text></View>}
@@ -853,7 +851,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
         )}
         {isEditMode && (
           <View style={m.issueBtnRow}>
-            <TouchableOpacity style={[m.addIssueBtn, { flex: 1 }]} onPress={() => setView('addIssue')}>
+            <TouchableOpacity style={[m.addIssueBtn, { flex: 1 }]} onPress={() => { setPendingStatus(null); setView('addIssue'); }}>
               <Ionicons name="add-circle-outline" size={18} color="#58a6ff" style={{ marginRight: 6 }} />
               <Text style={m.addIssueBtnText}>Log New Issue</Text>
             </TouchableOpacity>
