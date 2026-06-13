@@ -45,7 +45,7 @@ function hasOpenIssues(unit: Unit): boolean {
 }
 
 function isInProgress(unit: Unit): boolean {
-  if (isUnitFullyGreen(unit)) return false;
+  if (isUnitComplete(unit)) return false;
   return STAGES.some((s) => normalizeStageStatus(unit.stages[s.key]) !== 'pending')
     || Object.values(unit.components).some((c) => c.status !== 'unchecked')
     || (unit.miscEquipment ?? []).some((m) => m.status !== 'unchecked');
@@ -196,7 +196,7 @@ export default function UnitListScreen({ navigation, route }: Props) {
   );
 
   const stats = useMemo(() => {
-    const complete = sideUnits.filter(isUnitFullyGreen).length;
+    const complete = sideUnits.filter(isUnitComplete).length;
     const hasIssue = sideUnits.filter(hasOpenIssues).length;
     const inProgress = sideUnits.filter(isInProgress).length;
     const openIssues = sideUnits.reduce((sum, u) => {
@@ -223,7 +223,7 @@ export default function UnitListScreen({ navigation, route }: Props) {
     return sideUnits.filter((u) =>
       (activeFilters.has('issues') && hasOpenIssues(u)) ||
       (activeFilters.has('inProgress') && isInProgress(u)) ||
-      (activeFilters.has('complete') && isUnitFullyGreen(u)) ||
+      (activeFilters.has('complete') && isUnitComplete(u)) ||
       (activeFilters.has('chiller') && u.chillerAvailable === true)
     );
   }, [sideUnits, activeFilters]);

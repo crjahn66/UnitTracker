@@ -97,8 +97,8 @@ export default function DashboardScreen() {
       a.side !== b.side ? a.side.localeCompare(b.side) : a.unitNumber - b.unitNumber
     );
 
-    const complete = all.filter(isUnitFullyGreen).length;
-    const inProgress = all.filter((u) => { const p = getUnitPct(u); return p > 0 && !isUnitFullyGreen(u); }).length;
+    const complete = all.filter(isUnitComplete).length;
+    const inProgress = all.filter((u) => { const p = getUnitPct(u); return p > 0 && !isUnitComplete(u); }).length;
     const openGeneralCount = generalIssues.filter((i) => !i.resolved && !i.deleted).length;
     const totalIssues = all.reduce((n, u) => n + getOpenIssueCount(u), 0) + openGeneralCount;
     const chillerReady = all.filter((u) => u.chillerAvailable === true).length;
@@ -108,7 +108,7 @@ export default function DashboardScreen() {
     const northUnits = all.filter((u) => u.side === 'North').sort((a, b) => a.unitNumber - b.unitNumber);
     const southUnits = all.filter((u) => u.side === 'South').sort((a, b) => a.unitNumber - b.unitNumber);
     const sidePct = (arr: Unit[]) => arr.length === 0 ? 0 : Math.round(arr.reduce((n, u) => n + getUnitPct(u), 0) / arr.length);
-    const sideDoneCount = (arr: Unit[]) => arr.filter(isUnitFullyGreen).length;
+    const sideDoneCount = (arr: Unit[]) => arr.filter(isUnitComplete).length;
     const sidePcts = { N: sidePct(northUnits), S: sidePct(southUnits) };
     const sideDone = { N: sideDoneCount(northUnits), S: sideDoneCount(southUnits) };
     const workingUnits = {
@@ -140,7 +140,7 @@ export default function DashboardScreen() {
 
   // Detail list: when not showing all, hide complete units. Order is numerical (by side, then unit number).
   const detailUnits = useMemo(
-    () => showAllUnits ? sortedUnits : sortedUnits.filter((u) => !isUnitFullyGreen(u)),
+    () => showAllUnits ? sortedUnits : sortedUnits.filter((u) => !isUnitComplete(u)),
     [sortedUnits, showAllUnits],
   );
   const detailNorth = useMemo(() => detailUnits.filter((u) => u.side === 'North'), [detailUnits]);
