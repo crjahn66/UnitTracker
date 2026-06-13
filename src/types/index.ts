@@ -155,6 +155,7 @@ export interface ReadyForMasterData {
   badDate?: string;
   failCount?: number;
   transitionLog?: ReadyForMasterTransition[];
+  completedLogResetAt?: string;
 }
 
 export function createDefaultReadyForMaster(): ReadyForMasterData {

@@ -4,3 +4,4 @@
 - Complete counts and Completed Units export now ignore manual Ready for Master status.
 - A unit is complete when all four stages are complete.
 - Ready for Master remains manual and separate from normal completion indicators.
+- Completed Units Log reset now has a reset marker so older local test log entries are dropped instead of re-uploaded.

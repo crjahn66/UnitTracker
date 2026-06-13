@@ -65,6 +65,21 @@ function normalizeReadyForMaster(data?: Partial<ReadyForMasterData>): ReadyForMa
   };
 }
 
+function latestIso(...values: Array<string | undefined>): string | undefined {
+  return values.filter((v): v is string => !!v).sort().pop();
+}
+
+function mergeReadyForMasterTransitions(existingRfm: ReadyForMasterData, importRfm: ReadyForMasterData) {
+  const completedLogResetAt = latestIso(existingRfm.completedLogResetAt, importRfm.completedLogResetAt);
+  const transitionLog = [...new Map([...(existingRfm.transitionLog ?? []), ...(importRfm.transitionLog ?? [])].map((t) => [t.id, t])).values()]
+    .filter((t) => !completedLogResetAt || t.date > completedLogResetAt);
+  const badTransitionCount = new Set(transitionLog.filter((t) => t.status === 'bad').map((t) => t.date)).size;
+  const failCount = completedLogResetAt
+    ? badTransitionCount
+    : Math.max(existingRfm.failCount ?? 0, importRfm.failCount ?? 0, badTransitionCount);
+  return { completedLogResetAt, transitionLog, failCount };
+}
+
 function normalizeUnit<T extends Unit>(unit: T): T {
   return { ...normalizeUnitComponents(unit), readyForMaster: normalizeReadyForMaster(unit.readyForMaster) };
 }
@@ -999,7 +1014,7 @@ export const useStore = create<StoreState>()(
             });
             const existingRfmIds = new Set(existingRfm.issues.map((i) => i.id));
             const newRfmIssues = importRfm.issues.filter((i: any) => !existingRfmIds.has(i.id));
-            const rfmTransitionLog = [...new Map([...(existingRfm.transitionLog ?? []), ...(importRfm.transitionLog ?? [])].map((t) => [t.id, t])).values()];
+            const { completedLogResetAt, transitionLog: rfmTransitionLog, failCount: rfmFailCount } = mergeReadyForMasterTransitions(existingRfm, importRfm);
             const latestRfmTransition = [...rfmTransitionLog].sort((a, b) => a.date.localeCompare(b.date)).pop();
             const mergedRfmStatus = latestRfmTransition?.status ?? (imp.readyForMaster ? (importRfm.status ?? existingRfm.status) : existingRfm.status);
             const importRfmIsCurrent = mergedRfmStatus === importRfm.status;
@@ -1011,7 +1026,8 @@ export const useStore = create<StoreState>()(
               progressImages: mergeImages(existingRfm.progressImages, importRfm.progressImages),
               goodImages: mergeImages(existingRfm.goodImages, importRfm.goodImages),
               transitionLog: rfmTransitionLog,
-              failCount: Math.max(existingRfm.failCount ?? 0, importRfm.failCount ?? 0, new Set(rfmTransitionLog.filter((t) => t.status === 'bad').map((t) => t.date)).size),
+              failCount: rfmFailCount,
+              completedLogResetAt,
               goodDate: mergedRfmStatus === 'good' ? (importRfmIsCurrent ? (importRfm.goodDate ?? existingRfm.goodDate) : existingRfm.goodDate) : undefined,
               inProgressDate: mergedRfmStatus === 'inProgress' ? (importRfmIsCurrent ? (importRfm.inProgressDate ?? existingRfm.inProgressDate) : existingRfm.inProgressDate) : undefined,
               badDate: mergedRfmStatus === 'bad' ? (importRfmIsCurrent ? (importRfm.badDate ?? existingRfm.badDate) : existingRfm.badDate) : undefined,
@@ -1167,7 +1183,7 @@ export const useStore = create<StoreState>()(
             const importRfm = normalizeReadyForMaster(imp.readyForMaster);
             const existingRfmIds = new Set(existingRfm.issues.map((i) => i.id));
             const newRfmIssues = importRfm.issues.filter((i: any) => !existingRfmIds.has(i.id));
-            const rfmLog = [...new Map([...(existingRfm.transitionLog ?? []), ...(importRfm.transitionLog ?? [])].map((t) => [t.id, t])).values()];
+            const { completedLogResetAt, transitionLog: rfmLog, failCount: rfmFailCount } = mergeReadyForMasterTransitions(existingRfm, importRfm);
             const localHasReadyStatus = existingRfm.status !== 'unchecked';
             const sortedRfmLog = [...rfmLog].sort((a, b) => a.date.localeCompare(b.date));
             const latestRfmLog = sortedRfmLog[sortedRfmLog.length - 1];
@@ -1186,7 +1202,8 @@ export const useStore = create<StoreState>()(
               progressImages: unionPhotos(existingRfm.progressImages, importRfm.progressImages),
               goodImages: unionPhotos(existingRfm.goodImages, importRfm.goodImages),
               transitionLog: rfmLog,
-              failCount: Math.max(existingRfm.failCount ?? 0, importRfm.failCount ?? 0, new Set(rfmLog.filter((t) => t.status === 'bad').map((t) => t.date)).size),
+              failCount: rfmFailCount,
+              completedLogResetAt,
             };
 
             merged[uid] = {
