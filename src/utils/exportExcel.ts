@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { format } from 'date-fns';
-import { Unit, STAGES, COMPONENTS, OPTIMO_MODE_LABELS, GeneralIssue, Issue, MiscIssue, normalizeStageStatus, isUnitComplete } from '../types';
+import { Unit, STAGES, COMPONENTS, OPTIMO_MODE_LABELS, GeneralIssue, Issue, MiscIssue, getReadyForMaster, normalizeStageStatus, isUnitFullyGreen } from '../types';
 import { readResizedBase64 } from './imageStorage';
 import { getPostCommissionHealth } from './postCommissionHealth';
 
@@ -92,9 +92,13 @@ function notesWithUpdates(issue: { notes: string; updates?: Array<{ date: string
 function rowClr(unit: Unit): Clr {
   const compIssues = Object.values(unit.components).flatMap((c) => c.issues);
   const miscIssues = (unit.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues);
-  const openCount  = [...compIssues, ...miscIssues].filter((i) => !i.resolved && !i.deleted).length;
+  const ready = getReadyForMaster(unit);
+  const readyIssues = ready.issues ?? [];
+  const openCount  = [...compIssues, ...miscIssues, ...readyIssues].filter((i) => !i.resolved && !i.deleted).length;
   const doneCount  = STAGES.filter((s) => normalizeStageStatus(unit.stages[s.key]) === 'complete').length;
-  if (isUnitComplete(unit)) return openCount > 0 ? RED : GRN;
+  if (ready.status === 'bad') return RED;
+  if (isUnitFullyGreen(unit)) return GRN;
+  if (doneCount === STAGES.length) return openCount > 0 ? RED : AMB;
   if (openCount > 0)  return RED;
   if (doneCount > 0 || Object.values(unit.components).some((c) => c.status !== 'unchecked'))  return AMB;
   return WHT;
@@ -128,11 +132,13 @@ function buildOverview(wb: any, sorted: Unit[]) {
     const allIssues = [
       ...Object.values(u.components).flatMap((c) => c.issues),
       ...(u.miscEquipment ?? []).filter((m) => !m.deleted).flatMap((m) => m.issues),
+      ...getReadyForMaster(u).issues,
     ];
     const open = allIssues.filter((i) => !i.resolved && !i.deleted).length;
     const done = STAGES.filter((s) => normalizeStageStatus(u.stages[s.key]) === 'complete').length;
     const stuck = STAGES.filter((s) => normalizeStageStatus(u.stages[s.key]) === 'stuck').length;
-    const status = done === STAGES.length ? (open > 0 ? 'Complete with Constraints' : 'Complete')
+    const status = isUnitFullyGreen(u) ? 'Complete'
+                 : done === STAGES.length ? (open > 0 ? 'Complete with Constraints' : 'Ready for Master Pending')
                  : stuck > 0 ? `${stuck} Stuck`
                  : open > 0 ? `${open} Constraint${open > 1 ? 's' : ''}`
                  : done > 0 ? 'In Progress' : 'Not Started';
@@ -309,7 +315,7 @@ function buildCompleted(wb: any, sorted: Unit[]) {
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 45;
 
-  const done = sorted.filter((u) => { const h = getPostCommissionHealth(u); return isUnitComplete(u) && h.status !== 'bad'; });
+  const done = sorted.filter(isUnitFullyGreen);
 
   let currentSide = '';
   for (const u of done) {
@@ -322,6 +328,7 @@ function buildCompleted(wb: any, sorted: Unit[]) {
     const allIssues = [
       ...comps.flatMap((c) => c.issues),
       ...miscItems.flatMap((m) => m.issues),
+      ...getReadyForMaster(u).issues,
     ].filter((i) => !i.deleted);
     const health = getPostCommissionHealth(u);
     const r = ws.addRow([

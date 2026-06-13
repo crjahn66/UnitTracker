@@ -1,4 +1,4 @@
-- App now sends its UnitTracker version with every Supabase request.
-- This supports a Supabase-side minimum-version write block for stale clients.
-- Older clients without the version header can be blocked from overwriting sync_state.
-- Ready for Master remains manual; stale overwrite protection remains active.
+- Excel Completed Units now matches the app's fully-green unit logic.
+- Completed exports require Ready for Master to be good, matching Dashboard and unit lists.
+- Ready for Master issues now count in export constraint totals/status coloring.
+- APK and web Excel exports remain matched for the same report logic.
