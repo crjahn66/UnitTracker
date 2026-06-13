@@ -508,9 +508,12 @@ export const useStore = create<StoreState>()(
           const statusChanged = 'status' in updates && nextStatus !== current.status;
           const extraUpdates: Partial<ReadyForMasterData> = {};
           if (statusChanged) {
-            extraUpdates.goodDate = nextStatus === 'good' ? now : undefined;
+            extraUpdates.goodDate = nextStatus === 'good' ? updates.goodDate ?? now : undefined;
+            extraUpdates.goodSignedBy = nextStatus === 'good' ? updates.goodSignedBy ?? current.goodSignedBy : undefined;
             extraUpdates.inProgressDate = undefined;
-            extraUpdates.badDate = nextStatus === 'bad' ? now : undefined;
+            extraUpdates.badDate = nextStatus === 'bad' ? updates.badDate ?? now : undefined;
+            extraUpdates.badSignedBy = nextStatus === 'bad' ? updates.badSignedBy ?? current.badSignedBy : undefined;
+            extraUpdates.badReason = nextStatus === 'bad' ? updates.badReason ?? current.badReason : undefined;
             extraUpdates.failCount = nextStatus === 'bad' ? (current.failCount ?? 0) + 1 : current.failCount ?? 0;
             extraUpdates.wasGood = current.wasGood || current.status === 'good' || nextStatus === 'good';
             extraUpdates.transitionLog = [
@@ -1056,8 +1059,11 @@ export const useStore = create<StoreState>()(
               readyStatusResetAt: resetStatusResult.readyStatusResetAt,
               wasGood: resetStatusResult.resetApplied ? false : Boolean(existingRfm.wasGood || importRfm.wasGood || mergedRfmStatus === 'good'),
               goodDate: mergedRfmStatus === 'good' ? (importRfmIsCurrent ? (importRfm.goodDate ?? existingRfm.goodDate) : existingRfm.goodDate) : undefined,
+              goodSignedBy: mergedRfmStatus === 'good' ? (importRfmIsCurrent ? (importRfm.goodSignedBy ?? existingRfm.goodSignedBy) : existingRfm.goodSignedBy) : undefined,
               inProgressDate: undefined,
               badDate: mergedRfmStatus === 'bad' ? (importRfmIsCurrent ? (importRfm.badDate ?? existingRfm.badDate) : existingRfm.badDate) : undefined,
+              badSignedBy: mergedRfmStatus === 'bad' ? (importRfmIsCurrent ? (importRfm.badSignedBy ?? existingRfm.badSignedBy) : existingRfm.badSignedBy) : undefined,
+              badReason: mergedRfmStatus === 'bad' ? (importRfmIsCurrent ? (importRfm.badReason ?? existingRfm.badReason) : existingRfm.badReason) : undefined,
             };
 
             // Merge custom labels — remote wins

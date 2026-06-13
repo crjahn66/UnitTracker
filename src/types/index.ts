@@ -151,8 +151,11 @@ export interface ReadyForMasterData {
   goodNote?: string;
   goodImages?: string[];
   goodDate?: string;
+  goodSignedBy?: string;
   inProgressDate?: string;
   badDate?: string;
+  badSignedBy?: string;
+  badReason?: string;
   failCount?: number;
   transitionLog?: ReadyForMasterTransition[];
   completedLogResetAt?: string;

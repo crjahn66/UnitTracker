@@ -21,7 +21,7 @@ interface Props {
   onClose: () => void;
 }
 
-type ModalView = 'detail' | 'addIssue' | 'resolveIssue' | 'editIssue' | 'progressNote' | 'goodNote';
+type ModalView = 'detail' | 'addIssue' | 'resolveIssue' | 'editIssue' | 'progressNote' | 'goodNote' | 'statusSignoff';
 
 const today = () => format(new Date(), 'MM/dd/yyyy');
 const EMPTY_ISSUE = () => ({ dateFound: today(), foundBy: '', notes: '' });
@@ -478,6 +478,42 @@ function GoodNoteForm({ initial, onSave, onSkip }: {
   );
 }
 
+function StatusSignoffForm({ status, initialDate, onSave, onCancel }: {
+  status: Extract<ComponentStatus, 'good' | 'bad'>;
+  initialDate?: string;
+  onSave: (data: { date: string; signedBy: string; reason?: string }) => void;
+  onCancel: () => void;
+}) {
+  const [date, setDate] = useState(() => {
+    if (!initialDate) return today();
+    try { return format(new Date(initialDate), 'MM/dd/yyyy'); } catch { return today(); }
+  });
+  const [signedBy, setSignedBy] = useState('');
+  const [reason, setReason] = useState('');
+  const reasonRef = React.useRef<TextInput>(null);
+
+  const handleSave = () => {
+    if (!signedBy.trim()) { showAlert('Required', 'Please enter who is signing off.'); return; }
+    if (status === 'bad' && !reason.trim()) { showAlert('Required', 'Please enter why Ready for Master is bad.'); return; }
+    onSave({ date, signedBy: signedBy.trim(), reason: reason.trim() || undefined });
+  };
+
+  return (
+    <View>
+      <Text style={f.formTitle}>{status === 'good' ? 'Good Sign-off' : 'Bad Sign-off'}</Text>
+      <FormField label="Date" value={date} onChangeText={setDate} placeholder="MM/DD/YYYY" />
+      <NameSelectField label="Sign-off By" value={signedBy} onChange={(v) => { setSignedBy(v); if (status === 'bad' && v) setTimeout(() => reasonRef.current?.focus(), 50); }} rememberLastUsed />
+      {status === 'bad' && (
+        <FormField label="Why Bad" value={reason} onChangeText={setReason} placeholder="Describe why Ready for Master is bad…" multiline inputRef={reasonRef} />
+      )}
+      <View style={f.buttonRow}>
+        <TouchableOpacity style={[f.btn, f.btnOutline]} onPress={onCancel}><Text style={f.btnOutlineText}>Cancel</Text></TouchableOpacity>
+        <TouchableOpacity style={[f.btn, status === 'good' ? f.btnGreen : f.btnPrimary]} onPress={handleSave}><Text style={f.btnPrimaryText}>Save</Text></TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 // ─── Main Modal ────────────────────────────────────────────────────────────────
 
 export default function ReadyForMasterModal({ unitId, onClose }: Props) {
@@ -504,13 +540,42 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
   const [editingStatusDate, setEditingStatusDate] = useState(false);
   const [statusDateValue, setStatusDateValue] = useState('');
   const [photoFirstImages, setPhotoFirstImages] = useState<string[]>([]);
+  const [pendingStatus, setPendingStatus] = useState<Extract<ComponentStatus, 'good' | 'bad'> | null>(null);
 
   const handleStatusChange = useCallback((status: ComponentStatus) => {
-    updateReadyForMaster(unitId, { status });
-    if (status === 'bad') { updateReadyForMaster(unitId, { progressNote: '', goodNote: '' }); setView('addIssue'); return; }
-    if (status === 'good') { updateReadyForMaster(unitId, { progressNote: '', goodNote: '' }); pushToCloud().catch(() => {}); onClose(); return; }
+    if (status === 'good' || status === 'bad') { setPendingStatus(status); setView('statusSignoff'); return; }
     updateReadyForMaster(unitId, { progressNote: '', goodNote: '' }); pushToCloud().catch(() => {});
-  }, [unitId, updateReadyForMaster, onClose]);
+  }, [unitId, updateReadyForMaster]);
+
+  const handleStatusSignoff = useCallback((data: { date: string; signedBy: string; reason?: string }) => {
+    if (!pendingStatus) return;
+    const now = new Date().toISOString();
+    const parsed = parse(data.date, 'MM/dd/yyyy', new Date());
+    const statusDateIso = isValid(parsed) ? parsed.toISOString() : now;
+    if (pendingStatus === 'bad') {
+      const id = genId();
+      const issue: ReadyForMasterIssue = {
+        id,
+        dateFound: statusDateIso,
+        dateUpdated: now,
+        foundBy: data.signedBy,
+        notes: data.reason ?? '',
+        resolved: false,
+      };
+      updateReadyForMaster(unitId, { status: 'bad', progressNote: '', goodNote: '', goodSignedBy: undefined });
+      updateReadyForMaster(unitId, { badDate: statusDateIso, badSignedBy: data.signedBy, badReason: data.reason });
+      addReadyForMasterIssue(unitId, issue);
+      pushToCloud().catch(() => {});
+      setPendingStatus(null);
+      setView('detail');
+      return;
+    }
+    updateReadyForMaster(unitId, { status: 'good', progressNote: '', goodNote: '', badSignedBy: undefined, badReason: undefined });
+    updateReadyForMaster(unitId, { goodDate: statusDateIso, goodSignedBy: data.signedBy });
+    pushToCloud().catch(() => {});
+    setPendingStatus(null);
+    onClose();
+  }, [unitId, pendingStatus, updateReadyForMaster, addReadyForMasterIssue, onClose]);
 
   const handleAddIssue = useCallback((data: { dateFound: string; foundBy: string; notes: string; images: string[]; status: ComponentStatus }) => {
     const id = genId();
@@ -660,6 +725,14 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
     if (view === 'goodNote') return (
       <GoodNoteForm initial={ready.goodNote ?? ''} onSave={(note) => { updateReadyForMaster(unitId, { goodNote: note }); pushToCloud().catch(() => {}); onClose(); }} onSkip={onClose} />
     );
+    if (view === 'statusSignoff' && pendingStatus) return (
+      <StatusSignoffForm
+        status={pendingStatus}
+        initialDate={pendingStatus === 'good' ? ready.goodDate : ready.badDate}
+        onSave={handleStatusSignoff}
+        onCancel={() => { setPendingStatus(null); setView('detail'); }}
+      />
+    );
 
     return (
       <View>
@@ -701,13 +774,24 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
         {ready.status === 'good' && (
           <View style={m.goodNoteBox}>
             <TouchableOpacity style={m.noteBoxTop} onPress={() => setView('goodNote')} activeOpacity={0.7}>
-              <View style={{ flex: 1 }}><Text style={m.goodNoteLabel}>SIGN-OFF NOTE</Text><Text style={m.goodNoteText}>{ready.goodNote || '(tap to add note)'}</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={m.goodNoteLabel}>SIGN-OFF</Text>
+                <Text style={m.goodNoteText}>{ready.goodSignedBy ? `Signed by ${ready.goodSignedBy}` : 'Signed by not set'}</Text>
+                <Text style={m.goodNoteText}>{ready.goodNote || '(tap to add note)'}</Text>
+              </View>
               <Ionicons name="pencil-outline" size={14} color="#3fb950" />
             </TouchableOpacity>
             <StatusImageStrip images={ready.goodImages ?? []} onAdd={async (uri, file) => {
               const saved = await saveImage(`${unitId}_ready_master_good`, uri, file);
               updateReadyForMaster(unitId, { goodImages: [...(ready.goodImages ?? []), saved] });
             }} onRemove={async (uri) => { await deleteImage(uri); updateReadyForMaster(unitId, { goodImages: (ready.goodImages ?? []).filter((i) => i !== uri) }); }} onView={setViewingPhoto} accentColor="#3fb950" />
+          </View>
+        )}
+        {ready.status === 'bad' && (ready.badSignedBy || ready.badReason) && (
+          <View style={m.badSignoffBox}>
+            <Text style={m.badSignoffLabel}>BAD SIGN-OFF</Text>
+            {ready.badSignedBy && <Text style={m.badSignoffText}>Signed by {ready.badSignedBy}</Text>}
+            {ready.badReason && <Text style={m.badSignoffText}>{ready.badReason}</Text>}
           </View>
         )}
         <View style={m.issueSectionHeader}>
@@ -849,6 +933,9 @@ const m = StyleSheet.create({
   goodNoteBox: { backgroundColor: '#3fb95011', borderRadius: 8, borderWidth: 1, borderColor: '#3fb95044', padding: 10, marginBottom: 20 },
   goodNoteLabel: { color: '#3fb950', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 3 },
   goodNoteText: { color: '#e6edf3', fontSize: 13 },
+  badSignoffBox: { backgroundColor: '#f8514911', borderRadius: 8, borderWidth: 1, borderColor: '#f8514944', padding: 10, marginBottom: 20 },
+  badSignoffLabel: { color: '#f85149', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 3 },
+  badSignoffText: { color: '#e6edf3', fontSize: 13 },
 });
 
 const ic = StyleSheet.create({
