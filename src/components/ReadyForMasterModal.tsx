@@ -546,7 +546,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
 
   const handleStatusChange = useCallback((status: ComponentStatus) => {
     if (status === 'good' || status === 'bad') { setPendingStatus(status); setView('statusSignoff'); return; }
-    updateReadyForMaster(unitId, { progressNote: '', goodNote: '' }); pushToCloud().catch(() => {});
+    updateReadyForMaster(unitId, { status, progressNote: '', goodNote: '' }); pushToCloud().catch(() => {});
   }, [unitId, updateReadyForMaster]);
 
   const handleStatusSignoff = useCallback((data: { date: string; signedBy: string; reason?: string }) => {
