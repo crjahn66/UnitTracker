@@ -1,4 +1,4 @@
-- Excel Completed Units now matches the app's fully-green unit logic.
-- Completed exports require Ready for Master to be good, matching Dashboard and unit lists.
-- Ready for Master issues now count in export constraint totals/status coloring.
-- APK and web Excel exports remain matched for the same report logic.
+- Fixed Optimo Mode updates being reverted during cloud push.
+- Fixed RED/ACS/N/A unit card updates being reverted during cloud push.
+- Local edits now merge remote issue/photo additions without clobbering the field just changed.
+- Completed Units Log data was reset in Supabase so old test transition entries no longer export.

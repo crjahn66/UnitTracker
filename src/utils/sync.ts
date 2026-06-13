@@ -405,11 +405,10 @@ function injectRemotePhotos(localUnits: Record<string, any>, remoteUnits: Record
 let _suppressDepth = 0;
 export function isSuppressingAutoPush(): boolean { return _suppressDepth > 0; }
 
-// Lightweight push — merges remote state into local then writes back to sync_state.
-// Fetches and merges the remote row first so stale local state cannot overwrite
-// newer Supabase JSON fields. This is especially important for Ready for Master:
-// older/stale clients can carry unchecked/missing local values, while the cloud
-// row has already been backfilled.
+// Lightweight push — pulls additive remote data into local, then writes back to
+// sync_state. The user just changed the local store before this runs, so do not
+// full-import remote values here or stale cloud fields can immediately clobber
+// simple local edits like Optimo Mode and RED/ACS/N/A working party.
 export async function pushToCloud(): Promise<void> {
   let { units: localUnits, generalIssues } = useStore.getState();
 
@@ -445,7 +444,7 @@ export async function pushToCloud(): Promise<void> {
 
   _suppressDepth++;
   try {
-    useStore.getState().mergeImport(remoteUnits, remoteGeneralIssues);
+    useStore.getState().mergeAdditive(remoteUnits, remoteGeneralIssues);
   } finally {
     _suppressDepth--;
   }
