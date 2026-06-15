@@ -239,9 +239,6 @@ async function buildConstraints(wb: any, sorted: Unit[]) {
         rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label: item.label || 'Misc Equipment' });
       }
     }
-    for (const issue of getReadyForMaster(u).issues.filter((i) => !i.deleted)) {
-      rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label: 'Ready for Master' });
-    }
   }
 
   rows.sort((a, b) => {
@@ -390,7 +387,9 @@ function buildCompletedLog(wb: any, sorted: Unit[]) {
   let rows = 0;
   for (const u of sorted) {
     const ready = getReadyForMaster(u);
-    const statusLog = [...(ready.transitionLog ?? [])].sort((a, b) => (a.signedDate ?? a.date).localeCompare(b.signedDate ?? b.date));
+    const statusLog = [...(ready.transitionLog ?? [])]
+      .filter((entry) => !entry.deleted)
+      .sort((a, b) => (a.signedDate ?? a.date).localeCompare(b.signedDate ?? b.date));
     const legacyIssueLog = ready.issues
       .filter((issue) => !issue.deleted)
       .filter((issue) => !statusLog.some((entry) =>
@@ -465,9 +464,6 @@ async function buildWithConstraints(wb: any, sorted: Unit[]) {
       for (const issue of (item.issues ?? []).filter((i: any) => !i.deleted && !i.resolved)) {
         rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label: item.label || 'Misc Equipment' });
       }
-    }
-    for (const issue of getReadyForMaster(u).issues.filter((i) => !i.deleted && !i.resolved)) {
-      rows.push({ issue, unitId: u.id, side: u.side, unitNum: u.unitNumber, label: 'Ready for Master' });
     }
   }
   rows.sort((a, b) => {

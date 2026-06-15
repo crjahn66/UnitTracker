@@ -10,6 +10,7 @@ import {
   ComponentStatus,
   OptimoMode,
   WorkingParty,
+  PriorityStatus,
   Issue,
   IssueUpdate,
   GeneralIssue,
@@ -74,7 +75,7 @@ function latestIso(...values: Array<string | undefined>): string | undefined {
 }
 
 function transitionActivityAt(transition: ReadyForMasterTransition): string {
-  return transition.updatedAt ?? transition.date;
+  return latestIso(transition.deletedAt, transition.updatedAt, transition.date) ?? '';
 }
 
 function mergeReadyForMasterTransitions(existingRfm: ReadyForMasterData, importRfm: ReadyForMasterData) {
@@ -87,8 +88,9 @@ function mergeReadyForMasterTransitions(existingRfm: ReadyForMasterData, importR
     }
   }
   const transitionLog = [...transitionMap.values()]
-    .filter((t) => !completedLogResetAt || t.date > completedLogResetAt);
-  const badTransitionCount = new Set(transitionLog.filter((t) => t.status === 'bad').map((t) => t.date)).size;
+    .filter((t) => !completedLogResetAt || transitionActivityAt(t) > completedLogResetAt);
+  const visibleTransitions = transitionLog.filter((t) => !t.deleted);
+  const badTransitionCount = new Set(visibleTransitions.filter((t) => t.status === 'bad').map((t) => t.date)).size;
   const failCount = completedLogResetAt
     ? badTransitionCount
     : Math.max(existingRfm.failCount ?? 0, importRfm.failCount ?? 0, badTransitionCount);
@@ -98,7 +100,7 @@ function mergeReadyForMasterTransitions(existingRfm: ReadyForMasterData, importR
 function readyForMasterStatusDate(rfm: ReadyForMasterData): string | undefined {
   if (rfm.status === 'good') return rfm.goodDate;
   if (rfm.status === 'bad') return rfm.badDate;
-  return [...(rfm.transitionLog ?? [])].filter((t) => t.status === 'unchecked').sort((a, b) => a.date.localeCompare(b.date)).pop()?.date;
+  return [...(rfm.transitionLog ?? [])].filter((t) => !t.deleted && t.status === 'unchecked').sort((a, b) => a.date.localeCompare(b.date)).pop()?.date;
 }
 
 function applyReadyForMasterStatusReset(status: ComponentStatus, existingRfm: ReadyForMasterData, importRfm: ReadyForMasterData, latestTransitionDate?: string) {
@@ -179,6 +181,7 @@ interface StoreState {
   setChillerAvailable: (unitId: string, available: boolean) => void;
   setOptimoMode: (unitId: string, mode: OptimoMode) => void;
   setWorkingParty: (unitId: string, party: WorkingParty) => void;
+  setPriorityStatus: (unitId: string, status: PriorityStatus) => void;
   mergeImport: (importUnits: UnitsStore, importGeneralIssues: GeneralIssue[]) => void;
   mergeAdditive: (importUnits: UnitsStore, importGeneralIssues: GeneralIssue[]) => void;
   loadBackup: (units: UnitsStore, generalIssues?: GeneralIssue[]) => void;
@@ -687,6 +690,17 @@ export const useStore = create<StoreState>()(
           },
         })),
 
+      setPriorityStatus: (unitId, status) =>
+        set((state) => ({
+          units: {
+            ...state.units,
+            [unitId]: {
+              ...state.units[unitId],
+              priorityStatus: status,
+            },
+          },
+        })),
+
       addIssueUpdate: (unitId, componentKey, issueId, update) =>
         set((state) => {
           const comp = state.units[unitId].components[componentKey];
@@ -1067,7 +1081,7 @@ export const useStore = create<StoreState>()(
             const existingRfmIds = new Set(existingRfm.issues.map((i) => i.id));
             const newRfmIssues = importRfm.issues.filter((i: any) => !existingRfmIds.has(i.id));
             const { completedLogResetAt, transitionLog: rfmTransitionLog, failCount: rfmFailCount } = mergeReadyForMasterTransitions(existingRfm, importRfm);
-            const latestRfmTransition = [...rfmTransitionLog].sort((a, b) => a.date.localeCompare(b.date)).pop();
+            const latestRfmTransition = [...rfmTransitionLog].filter((t) => !t.deleted).sort((a, b) => a.date.localeCompare(b.date)).pop();
             const resetStatusResult = applyReadyForMasterStatusReset(
               latestRfmTransition?.status ?? (imp.readyForMaster ? (importRfm.status ?? existingRfm.status) : existingRfm.status),
               existingRfm,
@@ -1163,6 +1177,7 @@ export const useStore = create<StoreState>()(
               ...('chillerAvailable' in imp && { chillerAvailable: imp.chillerAvailable }),
               ...('optimoMode' in imp && { optimoMode: imp.optimoMode }),
               ...('workingParty' in imp && { workingParty: imp.workingParty }),
+              ...('priorityStatus' in imp && { priorityStatus: imp.priorityStatus }),
             };
           }
 
@@ -1248,7 +1263,7 @@ export const useStore = create<StoreState>()(
             const newRfmIssues = importRfm.issues.filter((i: any) => !existingRfmIds.has(i.id));
             const { completedLogResetAt, transitionLog: rfmLog, failCount: rfmFailCount } = mergeReadyForMasterTransitions(existingRfm, importRfm);
             const localHasReadyStatus = existingRfm.status !== 'unchecked';
-            const sortedRfmLog = [...rfmLog].sort((a, b) => a.date.localeCompare(b.date));
+            const sortedRfmLog = [...rfmLog].filter((t) => !t.deleted).sort((a, b) => a.date.localeCompare(b.date));
             const latestRfmLog = sortedRfmLog[sortedRfmLog.length - 1];
             const latestLoggedStatus = latestRfmLog && (latestRfmLog.status === existingRfm.status || latestRfmLog.status === importRfm.status)
               ? latestRfmLog.status
@@ -1284,6 +1299,7 @@ export const useStore = create<StoreState>()(
               readyForMaster,
               ...(!existing.optimoMode && 'optimoMode' in imp && { optimoMode: imp.optimoMode }),
               ...(!existing.workingParty && 'workingParty' in imp && { workingParty: imp.workingParty }),
+              ...(!existing.priorityStatus && 'priorityStatus' in imp && { priorityStatus: imp.priorityStatus }),
             };
           }
 

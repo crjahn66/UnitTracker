@@ -88,6 +88,7 @@ export default function DashboardScreen() {
     const openGeneralCount = generalIssues.filter((i) => !i.resolved && !i.deleted).length;
     const totalIssues = all.reduce((n, u) => n + getOpenIssueCount(u), 0) + openGeneralCount;
     const chillerReady = all.filter((u) => u.chillerAvailable === true).length;
+    const priorityCount = all.filter((u) => u.priorityStatus === 'priority').length;
     const postCommissionIssues = all.filter((u) => getPostCommissionHealth(u).needsAttention).length;
     const overallPct = all.length > 0 ? Math.round(all.reduce((n, u) => n + getUnitPct(u), 0) / all.length) : 0;
 
@@ -118,7 +119,7 @@ export default function DashboardScreen() {
     }
     openIssues.sort((a, b) => b.ageDays - a.ageDays);
 
-    return { sortedUnits: all, northUnits, southUnits, workingUnits, stats: { total: all.length, complete, inProgress, totalIssues, chillerReady, postCommissionIssues }, openIssues, overallPct, sidePcts, sideDone };
+    return { sortedUnits: all, northUnits, southUnits, workingUnits, stats: { total: all.length, complete, inProgress, totalIssues, chillerReady, priorityCount, postCommissionIssues }, openIssues, overallPct, sidePcts, sideDone };
   }, [units, generalIssues]);
 
   // Detail list: when not showing all, hide complete units. Order is numerical (by side, then unit number).
@@ -163,6 +164,7 @@ export default function DashboardScreen() {
         <SumStat label="Open Issues" value={stats.totalIssues}   color={stats.totalIssues > 0 ? '#f85149' : '#3fb950'} />
         <SumStat label="RFM Issues" value={stats.postCommissionIssues} color={stats.postCommissionIssues > 0 ? '#f85149' : '#3fb950'} />
         <SumStat label="❄ Ready"    value={stats.chillerReady}  color="#58a6ff" />
+        <SumStat label="Priority" value={stats.priorityCount} color={stats.priorityCount > 0 ? '#d29922' : '#6e7681'} />
       </View>
 
       {/* Overall completion bar */}
@@ -325,13 +327,16 @@ function FleetGrid({
                   <Text style={s.gridHealthBadgeText}>!</Text>
                 </View>
               )}
+              {unit.priorityStatus === 'priority' && (
+                <View style={s.gridPriorityBadge}>
+                  <Text style={s.gridPriorityBadgeText}>P</Text>
+                </View>
+              )}
+              {unit.optimoMode && <Text style={s.gridCellOptimo}>{unit.optimoMode}</Text>}
               {unit.chillerAvailable === true && (
-                <>
-                  {unit.optimoMode && <Text style={s.gridCellOptimo}>{unit.optimoMode}</Text>}
-                  <View style={s.gridCellChillerWrap}>
-                    <Text style={s.gridCellChiller}>❄</Text>
-                  </View>
-                </>
+                <View style={s.gridCellChillerWrap}>
+                  <Text style={s.gridCellChiller}>❄</Text>
+                </View>
               )}
             </TouchableOpacity>
           );
@@ -478,10 +483,15 @@ function CompactUnitRow({ unit, onPress, lastInColumn }: { unit: Unit; onPress: 
         <View style={[s.sideDotSm, { backgroundColor: color }]} />
       )}
       <Text style={[s.compactId, { color }]}>{unit.unitNumber}</Text>
+      {unit.optimoMode && <Text style={s.compactOptimoBadge}>{unit.optimoMode}</Text>}
       {unit.chillerAvailable === true && (
         <View style={s.compactChillerWrap}>
           <Text style={s.compactChiller}>❄</Text>
-          {unit.optimoMode && <Text style={s.compactOptimoBadge}>{unit.optimoMode}</Text>}
+        </View>
+      )}
+      {unit.priorityStatus === 'priority' && (
+        <View style={s.compactPriorityBadge}>
+          <Text style={s.compactPriorityText}>P</Text>
         </View>
       )}
       <StageSegmentBar unit={unit} />
@@ -590,6 +600,13 @@ const s = StyleSheet.create({
     position: 'absolute', bottom: -1, left: 2,
     color: '#ffffff', fontSize: 9, lineHeight: 14, fontWeight: '900',
   },
+  gridPriorityBadge: {
+    position: 'absolute', top: 1, left: 1,
+    minWidth: 10, height: 10, borderRadius: 5,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#d29922',
+  },
+  gridPriorityBadgeText: { color: '#d29922', fontSize: 7, lineHeight: 8, fontWeight: '900' },
   gridHealthBadge: {
     position: 'absolute', top: 1, right: 1,
     minWidth: 10, height: 10, borderRadius: 5,
@@ -649,7 +666,9 @@ const s = StyleSheet.create({
   compactId: { fontSize: 12, fontWeight: '700', minWidth: 18 },
   compactChillerWrap: { position: 'relative', width: 14, height: 14, marginRight: -2 },
   compactChiller: { color: '#58a6ff', fontSize: 11, lineHeight: 14, textAlign: 'center' },
-  compactOptimoBadge: { position: 'absolute', left: -2, bottom: -3, color: '#ffffff', fontSize: 8, fontWeight: '900' },
+  compactOptimoBadge: { color: '#ffffff', fontSize: 9, fontWeight: '900', minWidth: 8, textAlign: 'center' },
+  compactPriorityBadge: { borderWidth: 1, borderColor: '#d29922', borderRadius: 7, paddingHorizontal: 4, paddingVertical: 1 },
+  compactPriorityText: { color: '#d29922', fontSize: 8, fontWeight: '900' },
   segBar: { flex: 1, flexDirection: 'row', gap: 2, alignItems: 'center' },
   segCell: { flex: 1, height: 6, borderRadius: 1.5 },
   compactPct: { color: '#c9d1d9', fontSize: 11, fontWeight: '600', minWidth: 28, textAlign: 'right' },

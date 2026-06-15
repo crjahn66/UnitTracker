@@ -1,2 +1,4 @@
-- Fixed Ready for Master log edits being overwritten by older synced copies.
-- Ready for Master log merge now keeps the newest edited entry by update timestamp.
+- Added Priority / Unmarked tracking alongside Optimo Mode and RED / ACS / N/A on unit cards and unit detail pages.
+- Added Priority indicators on the dashboard, with the P badge in the top-left of each priority unit card.
+- Fixed Ready for Master entries, edits, deletes, resolutions, and photo changes so they save and sync consistently.
+- Excluded Ready for Master items from Units with Constraints and Constraints Log while preserving the Ready for Master Log sheet.

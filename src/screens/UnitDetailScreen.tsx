@@ -8,7 +8,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { UnitStackParamList } from '../navigation';
 import { useStore } from '../store/useStore';
-import { STAGES, COMPONENTS, ComponentKey, StageKey, StageStatus, OptimoMode, OPTIMO_MODE_LABELS, getReadyForMaster, normalizeStageStatus } from '../types';
+import { STAGES, COMPONENTS, ComponentKey, StageKey, StageStatus, OptimoMode, OPTIMO_MODE_LABELS, WorkingParty, WORKING_PARTY_LABELS, PriorityStatus, PRIORITY_STATUS_LABELS, getReadyForMaster, normalizeStageStatus } from '../types';
 import ComponentModal from '../components/ComponentModal';
 import MiscEquipModal from '../components/MiscEquipModal';
 import ReadyForMasterModal from '../components/ReadyForMasterModal';
@@ -19,6 +19,9 @@ import { useEditMode } from '../context/EditModeContext';
 import { getPostCommissionHealth } from '../utils/postCommissionHealth';
 
 type Props = NativeStackScreenProps<UnitStackParamList, 'UnitDetail'>;
+const OPTIMO_MODE_OPTIONS: OptimoMode[] = ['L', 'O', 'R'];
+const WORKING_PARTY_OPTIONS: WorkingParty[] = ['redGroup', 'acs', 'na'];
+const PRIORITY_STATUS_OPTIONS: PriorityStatus[] = ['priority', 'unmarked'];
 
 // Session-scoped scroll position cache, keyed by unitId. Restored when the
 // same unit is reopened (typically via the prev/next sibling nav, or after
@@ -57,6 +60,8 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
   const setStageDate = useStore((state) => state.setStageDate);
   const setStageStuckReason = useStore((state) => state.setStageStuckReason);
   const setOptimoMode = useStore((state) => state.setOptimoMode);
+  const setWorkingParty = useStore((state) => state.setWorkingParty);
+  const setPriorityStatus = useStore((state) => state.setPriorityStatus);
 
   const [selectedComponent, setSelectedComponent] = useState<ComponentKey | null>(null);
   const [selectedMiscItem, setSelectedMiscItem] = useState<string | null>(null);
@@ -172,6 +177,8 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
   const openIssues = allComps.flatMap((c) => c.issues).filter((i) => !i.resolved && !i.deleted).length
     + miscItems.flatMap((m) => m.issues).filter((i) => !i.resolved && !i.deleted).length;
   const postCommissionHealth = useMemo(() => getPostCommissionHealth(unit), [unit]);
+  const currentWorkingParty = unit.workingParty ?? 'na';
+  const currentPriorityStatus = unit.priorityStatus ?? 'unmarked';
 
   return (
     <View style={s.container}>
@@ -239,37 +246,103 @@ export default function UnitDetailScreen({ route, navigation }: Props) {
               <NetRow label="BMS Path (MSG AOI)"    value={networkEntry.bmsPath} first />
               <NetRow label="BMS Source (MSG AOI)"  value={networkEntry.bmsSourceElement} last />
             </View>
-            <View style={s.optimoCard}>
-              <View style={s.optimoHeaderRow}>
-                <View>
-                  <Text style={s.optimoTitle}>Optimo Mode</Text>
-                  <Text style={s.optimoSubtitle}>{unit.optimoMode ? OPTIMO_MODE_LABELS[unit.optimoMode] : 'Not set'}</Text>
-                </View>
-                <View style={s.optimoCurrentBadge}>
-                  <Text style={s.optimoCurrentBadgeText}>{unit.optimoMode ?? '—'}</Text>
-                </View>
-              </View>
-              <View style={s.optimoButtonRow}>
-                {(['O', 'L', 'R'] as OptimoMode[]).map((mode) => {
-                  const active = unit.optimoMode === mode;
-                  return (
-                    <TouchableOpacity
-                      key={mode}
-                      style={[s.optimoButton, active && s.optimoButtonActive, !isEditMode && s.optimoButtonDisabled]}
-                      disabled={!isEditMode}
-                      onPress={() => { setOptimoMode(unitId, mode); pushToCloud().catch(() => {}); }}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[s.optimoButtonLetter, active && s.optimoButtonLetterActive]}>{mode}</Text>
-                      <Text style={[s.optimoButtonLabel, active && s.optimoButtonLabelActive]}>{OPTIMO_MODE_LABELS[mode]}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              {!isEditMode && <Text style={s.optimoHint}>Enable Edit Mode to change Optimo mode.</Text>}
-            </View>
           </>
         )}
+
+        <SectionHeader title="Unit Trackers" icon="pricetags-outline" />
+        <View style={s.trackerCard}>
+          <View style={s.trackerGroup}>
+            <View style={s.trackerHeaderRow}>
+              <View>
+                <Text style={s.trackerTitle}>Optimo Mode</Text>
+                <Text style={s.trackerSubtitle}>{unit.optimoMode ? OPTIMO_MODE_LABELS[unit.optimoMode] : 'Not set'}</Text>
+              </View>
+              <View style={s.trackerCurrentBadge}>
+                <Text style={s.trackerCurrentBadgeText}>{unit.optimoMode ?? '—'}</Text>
+              </View>
+            </View>
+            <View style={s.trackerButtonRow}>
+              {OPTIMO_MODE_OPTIONS.map((mode) => {
+                const active = unit.optimoMode === mode;
+                return (
+                  <TouchableOpacity
+                    key={mode}
+                    style={[s.trackerButton, active && s.trackerButtonActiveBlue, !isEditMode && s.trackerButtonDisabled]}
+                    disabled={!isEditMode}
+                    onPress={() => { setOptimoMode(unitId, mode); pushToCloud().catch(() => {}); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.trackerButtonLetter, active && s.trackerButtonLetterActive]}>{mode}</Text>
+                    <Text style={[s.trackerButtonLabel, active && s.trackerButtonLabelActive]}>{OPTIMO_MODE_LABELS[mode]}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+          <View style={s.trackerGroup}>
+            <View style={s.trackerHeaderRow}>
+              <View>
+                <Text style={s.trackerTitle}>Working Party</Text>
+                <Text style={s.trackerSubtitle}>{WORKING_PARTY_LABELS[currentWorkingParty]}</Text>
+              </View>
+              <View style={s.trackerCurrentBadge}>
+                <Text style={s.trackerCurrentBadgeText}>{currentWorkingParty === 'redGroup' ? 'RED' : WORKING_PARTY_LABELS[currentWorkingParty]}</Text>
+              </View>
+            </View>
+            <View style={s.trackerButtonRow}>
+              {WORKING_PARTY_OPTIONS.map((party) => {
+                const active = currentWorkingParty === party;
+                return (
+                  <TouchableOpacity
+                    key={party}
+                    style={[
+                      s.trackerButton,
+                      active && (party === 'redGroup' ? s.trackerButtonActiveRed : party === 'acs' ? s.trackerButtonActiveBlue : s.trackerButtonActiveMuted),
+                      !isEditMode && s.trackerButtonDisabled,
+                    ]}
+                    disabled={!isEditMode}
+                    onPress={() => { setWorkingParty(unitId, party); pushToCloud().catch(() => {}); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.trackerButtonLetter, active && s.trackerButtonLetterActive]}>{party === 'redGroup' ? 'RED' : WORKING_PARTY_LABELS[party]}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+          <View style={[s.trackerGroup, s.trackerGroupLast]}>
+            <View style={s.trackerHeaderRow}>
+              <View>
+                <Text style={s.trackerTitle}>Priority</Text>
+                <Text style={s.trackerSubtitle}>{PRIORITY_STATUS_LABELS[currentPriorityStatus]}</Text>
+              </View>
+              <View style={s.trackerCurrentBadge}>
+                <Text style={s.trackerCurrentBadgeText}>{currentPriorityStatus === 'priority' ? 'P' : '—'}</Text>
+              </View>
+            </View>
+            <View style={s.trackerButtonRow}>
+              {PRIORITY_STATUS_OPTIONS.map((status) => {
+                const active = currentPriorityStatus === status;
+                return (
+                  <TouchableOpacity
+                    key={status}
+                    style={[
+                      s.trackerButton,
+                      active && (status === 'priority' ? s.trackerButtonActivePriority : s.trackerButtonActiveMuted),
+                      !isEditMode && s.trackerButtonDisabled,
+                    ]}
+                    disabled={!isEditMode}
+                    onPress={() => { setPriorityStatus(unitId, status); pushToCloud().catch(() => {}); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.trackerButtonLetter, active && s.trackerButtonLetterActive]}>{PRIORITY_STATUS_LABELS[status]}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+          {!isEditMode && <Text style={s.trackerHint}>Enable Edit Mode to change unit trackers.</Text>}
+        </View>
 
         {/* Stage Checklist */}
         <SectionHeader title="Commissioning Stages" icon="checkmark-circle-outline" />
@@ -795,30 +868,35 @@ const s = StyleSheet.create({
   chevron: { marginLeft: 2 },
   pskBanner: { marginBottom: 6, paddingHorizontal: 4 },
   pskText: { color: '#58a6ff', fontSize: 12, fontWeight: '600', letterSpacing: 0.3 },
-  optimoCard: {
+  trackerCard: {
     backgroundColor: '#161b22', borderRadius: 10, borderWidth: 1, borderColor: '#21262d',
-    marginTop: 10, padding: 12,
+    padding: 12,
   },
-  optimoHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  optimoTitle: { color: '#e6edf3', fontSize: 14, fontWeight: '700' },
-  optimoSubtitle: { color: '#8b949e', fontSize: 12, marginTop: 2 },
-  optimoCurrentBadge: {
+  trackerGroup: { paddingBottom: 12, marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#21262d' },
+  trackerGroupLast: { paddingBottom: 0, marginBottom: 0, borderBottomWidth: 0 },
+  trackerHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  trackerTitle: { color: '#e6edf3', fontSize: 14, fontWeight: '700' },
+  trackerSubtitle: { color: '#8b949e', fontSize: 12, marginTop: 2 },
+  trackerCurrentBadge: {
     minWidth: 30, height: 30, borderRadius: 15, backgroundColor: '#58a6ff22', borderWidth: 1, borderColor: '#58a6ff',
     alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8,
   },
-  optimoCurrentBadgeText: { color: '#58a6ff', fontSize: 14, fontWeight: '900' },
-  optimoButtonRow: { flexDirection: 'row', gap: 8 },
-  optimoButton: {
+  trackerCurrentBadgeText: { color: '#58a6ff', fontSize: 14, fontWeight: '900' },
+  trackerButtonRow: { flexDirection: 'row', gap: 8 },
+  trackerButton: {
     flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 8,
     borderWidth: 1, borderColor: '#30363d', backgroundColor: '#0d1117',
   },
-  optimoButtonActive: { borderColor: '#58a6ff', backgroundColor: '#58a6ff22' },
-  optimoButtonDisabled: { opacity: 0.65 },
-  optimoButtonLetter: { color: '#8b949e', fontSize: 15, fontWeight: '900' },
-  optimoButtonLetterActive: { color: '#58a6ff' },
-  optimoButtonLabel: { color: '#6e7681', fontSize: 10, marginTop: 2, fontWeight: '600' },
-  optimoButtonLabelActive: { color: '#c9d1d9' },
-  optimoHint: { color: '#6e7681', fontSize: 11, marginTop: 8 },
+  trackerButtonActiveBlue: { borderColor: '#58a6ff', backgroundColor: '#58a6ff22' },
+  trackerButtonActiveRed: { borderColor: '#f85149', backgroundColor: '#f8514922' },
+  trackerButtonActivePriority: { borderColor: '#d29922', backgroundColor: '#d2992222' },
+  trackerButtonActiveMuted: { borderColor: '#8b949e', backgroundColor: '#30363d' },
+  trackerButtonDisabled: { opacity: 0.65 },
+  trackerButtonLetter: { color: '#8b949e', fontSize: 15, fontWeight: '900' },
+  trackerButtonLetterActive: { color: '#ffffff' },
+  trackerButtonLabel: { color: '#6e7681', fontSize: 10, marginTop: 2, fontWeight: '600' },
+  trackerButtonLabelActive: { color: '#c9d1d9' },
+  trackerHint: { color: '#6e7681', fontSize: 11, marginTop: 8 },
   netRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 14 },
   netRowBorder: { borderBottomWidth: 1, borderBottomColor: '#21262d' },
   netLabel: { color: '#8b949e', fontSize: 13, fontWeight: '500' },

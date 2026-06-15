@@ -26,6 +26,13 @@ export const WORKING_PARTY_LABELS: Record<WorkingParty, string> = {
   na: 'N/A',
 };
 
+export type PriorityStatus = 'priority' | 'unmarked';
+
+export const PRIORITY_STATUS_LABELS: Record<PriorityStatus, string> = {
+  priority: 'Priority',
+  unmarked: 'Unmarked',
+};
+
 // Converts legacy boolean stage values (true=complete, false=pending) to StageStatus
 export function normalizeStageStatus(v: unknown): StageStatus {
   if (v === true)  return 'complete';
@@ -145,6 +152,8 @@ export interface ReadyForMasterTransition {
   signedDate?: string;
   signedBy?: string;
   notes?: string;
+  deleted?: boolean;
+  deletedAt?: string;
 }
 
 export interface ReadyForMasterData {
@@ -188,6 +197,7 @@ export interface Unit {
   chillerAvailable?: boolean;
   optimoMode?: OptimoMode;
   workingParty?: WorkingParty;
+  priorityStatus?: PriorityStatus;
 }
 
 export function getReadyForMaster(unit: Pick<Unit, 'readyForMaster'>): ReadyForMasterData {

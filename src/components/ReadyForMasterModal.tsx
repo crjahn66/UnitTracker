@@ -529,7 +529,7 @@ function TransitionEditForm({ entry, initialSignedBy, initialNotes, onSave, onCa
   entry: ReadyForMasterTransition;
   initialSignedBy?: string;
   initialNotes?: string;
-  onSave: (updates: { date: string; signedBy: string; notes?: string }) => void;
+  onSave: (updates: { date: string; signedBy: string; notes: string }) => void;
   onCancel: () => void;
 }) {
   const [date, setDate] = useState(() => {
@@ -541,7 +541,7 @@ function TransitionEditForm({ entry, initialSignedBy, initialNotes, onSave, onCa
 
   const handleSave = () => {
     if (!signedBy.trim()) { showAlert('Required', entry.status === 'bad' ? 'Please enter who logged this.' : 'Please enter who signed off.'); return; }
-    onSave({ date, signedBy: signedBy.trim(), notes: notes.trim() || undefined });
+    onSave({ date, signedBy: signedBy.trim(), notes: notes.trim() });
   };
 
   return (
@@ -599,6 +599,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
     const statusChanged = pendingStatus !== ready.status;
     const updateLatestCurrentTransition = !statusChanged
       ? [...(ready.transitionLog ?? [])]
+        .filter((entry) => !entry.deleted)
         .filter((entry) => entry.status === pendingStatus)
         .sort((a, b) => (a.signedDate ?? a.date).localeCompare(b.signedDate ?? b.date))
         .pop()
@@ -638,6 +639,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
       ? { status: 'bad', progressNote: '', goodNote: '', goodSignedBy: undefined, badDate: dateFound, badSignedBy: data.foundBy, badReason: data.notes }
       : { status: data.status, progressNote: '', goodNote: '', goodDate: dateFound, goodSignedBy: data.foundBy });
     addReadyForMasterIssue(unitId, issue);
+    pushToCloud().catch(() => {});
     setView('detail');
     setPendingStatus(null);
     setPhotoFirstImages([]);
@@ -655,7 +657,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
     }
   }, [unitId, addReadyForMasterIssue, updateReadyForMasterIssue, updateReadyForMaster]);
 
-  const handleEditTransition = useCallback((entryId: string, updates: { date: string; signedBy: string; notes?: string }) => {
+  const handleEditTransition = useCallback((entryId: string, updates: { date: string; signedBy: string; notes: string }) => {
     const entry = ready.transitionLog?.find((t) => t.id === entryId);
     if (!entry) return;
     const parsed = parse(updates.date, 'MM/dd/yyyy', new Date());
@@ -677,7 +679,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
     if (entry.status === 'bad') {
       const matchingIssue = ready.issues.find((i) => !i.deleted && fmtDate(i.dateFound) === fmtDate(entry.signedDate ?? entry.date));
       if (matchingIssue) {
-        updateReadyForMasterIssue(unitId, matchingIssue.id, { dateFound: signedDate, foundBy: updates.signedBy, notes: updates.notes ?? matchingIssue.notes });
+        updateReadyForMasterIssue(unitId, matchingIssue.id, { dateFound: signedDate, foundBy: updates.signedBy, notes: updates.notes });
       }
     }
     setEditingTransitionId(null);
@@ -687,16 +689,21 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
 
   const handleDeleteTransition = useCallback((entryId: string) => {
     const doDelete = () => {
-      const transitionLog = (ready.transitionLog ?? []).filter((entry) => entry.id !== entryId);
+      const now = new Date().toISOString();
+      const transitionLog = (ready.transitionLog ?? []).map((entry) => entry.id === entryId
+        ? { ...entry, deleted: true, deletedAt: now, updatedAt: now }
+        : entry
+      );
       const latest = [...transitionLog]
+        .filter((entry) => !entry.deleted)
         .sort((a, b) => (a.signedDate ?? a.date).localeCompare(b.signedDate ?? b.date))
         .pop();
       const latestDate = latest?.signedDate ?? latest?.date;
       updateReadyForMaster(unitId, {
         transitionLog,
         status: latest?.status ?? 'unchecked',
-        failCount: transitionLog.filter((entry) => entry.status === 'bad').length,
-        wasGood: transitionLog.some((entry) => entry.status === 'good'),
+        failCount: transitionLog.filter((entry) => !entry.deleted && entry.status === 'bad').length,
+        wasGood: transitionLog.some((entry) => !entry.deleted && entry.status === 'good'),
         goodDate: latest?.status === 'good' ? latestDate : undefined,
         goodSignedBy: latest?.status === 'good' ? latest.signedBy : undefined,
         goodNote: latest?.status === 'good' ? latest.notes ?? '' : '',
@@ -723,6 +730,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
       fixedBy: data.fixedBy, howFixed: data.howFixed,
     });
     setResolvingId(null); setView('detail');
+    pushToCloud().catch(() => {});
   }, [unitId, updateReadyForMasterIssue]);
 
   const handlePhotoFirstIssue = useCallback(async () => {
@@ -770,6 +778,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
     const saved = await saveImage(issueId, uri);
     const issue = ready.issues.find((i) => i.id === issueId);
     updateReadyForMasterIssue(unitId, issueId, { images: [...(issue?.images ?? []), saved] });
+    pushToCloud().catch(() => {});
   }, [unitId, updateReadyForMasterIssue, ready.issues]);
 
   const handleRemoveImage = useCallback((issueId: string, uri: string) => {
@@ -777,6 +786,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
       await deleteImage(uri);
       const issue = ready.issues.find((i) => i.id === issueId);
       updateReadyForMasterIssue(unitId, issueId, { images: (issue?.images ?? []).filter((i) => i !== uri) });
+      pushToCloud().catch(() => {});
     };
     if (Platform.OS === 'web') {
       if ((window as any).confirm('Remove this photo from the issue?')) doRemove();
@@ -816,7 +826,7 @@ export default function ReadyForMasterModal({ unitId, onClose }: Props) {
   }, [unitId, deleteReadyForMasterIssueUpdate]);
 
   const visibleIssues = ready.issues.filter((i) => !i.deleted);
-  const statusLog = [...(ready.transitionLog ?? [])].sort((a, b) => (a.signedDate ?? a.date).localeCompare(b.signedDate ?? b.date));
+  const statusLog = [...(ready.transitionLog ?? [])].filter((entry) => !entry.deleted).sort((a, b) => (a.signedDate ?? a.date).localeCompare(b.signedDate ?? b.date));
   const legacyIssueLog = visibleIssues
     .filter((issue) => !statusLog.some((entry) =>
       entry.status === 'bad'
