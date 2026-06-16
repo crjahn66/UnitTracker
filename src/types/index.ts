@@ -180,6 +180,21 @@ export function createDefaultReadyForMaster(): ReadyForMasterData {
   return { status: 'unchecked', issues: [], failCount: 0, transitionLog: [] };
 }
 
+export function normalizeReadyForMasterStatus(status?: ComponentStatus): ComponentStatus {
+  return status === 'good' || status === 'bad' ? status : 'unchecked';
+}
+
+export function getLatestReadyForMasterTransition(data?: Pick<ReadyForMasterData, 'transitionLog'>): ReadyForMasterTransition | undefined {
+  return [...(data?.transitionLog ?? [])]
+    .filter((entry) => !entry.deleted)
+    .sort((a, b) => {
+      const dateCompare = (a.signedDate ?? a.date).localeCompare(b.signedDate ?? b.date);
+      if (dateCompare !== 0) return dateCompare;
+      return (a.updatedAt ?? a.date).localeCompare(b.updatedAt ?? b.date);
+    })
+    .pop();
+}
+
 export interface Unit {
   id: string;
   side: Side;
@@ -201,7 +216,25 @@ export interface Unit {
 }
 
 export function getReadyForMaster(unit: Pick<Unit, 'readyForMaster'>): ReadyForMasterData {
-  return unit.readyForMaster ?? createDefaultReadyForMaster();
+  const ready = { ...createDefaultReadyForMaster(), ...(unit.readyForMaster ?? {}) };
+  const transitionLog = ready.transitionLog ?? [];
+  const latestTransition = getLatestReadyForMasterTransition({ transitionLog });
+  const status = normalizeReadyForMasterStatus(latestTransition?.status ?? ready.status);
+
+  return {
+    ...ready,
+    status,
+    issues: ready.issues ?? [],
+    transitionLog,
+    failCount: ready.failCount ?? 0,
+    inProgressDate: undefined,
+    goodDate: status === 'good' ? (latestTransition?.signedDate ?? latestTransition?.date ?? ready.goodDate) : undefined,
+    goodSignedBy: status === 'good' ? (latestTransition?.signedBy ?? ready.goodSignedBy) : undefined,
+    goodNote: status === 'good' ? (latestTransition?.notes ?? ready.goodNote) : ready.goodNote,
+    badDate: status === 'bad' ? (latestTransition?.signedDate ?? latestTransition?.date ?? ready.badDate) : undefined,
+    badSignedBy: status === 'bad' ? (latestTransition?.signedBy ?? ready.badSignedBy) : undefined,
+    badReason: status === 'bad' ? (latestTransition?.notes ?? ready.badReason) : undefined,
+  };
 }
 
 export function hasOpenReadyForMasterIssues(unit: Pick<Unit, 'readyForMaster'>): boolean {

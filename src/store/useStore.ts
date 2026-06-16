@@ -21,7 +21,9 @@ import {
   ReadyForMasterTransition,
   COMPONENTS,
   createDefaultReadyForMaster,
+  getLatestReadyForMasterTransition,
   normalizeStageStatus,
+  normalizeReadyForMasterStatus,
 } from '../types';
 import { createInitialUnits } from '../utils/initialData';
 
@@ -57,15 +59,16 @@ function normalizeUnitComponents<T extends Unit>(unit: T): T {
 }
 
 function normalizeReadyForMaster(data?: Partial<ReadyForMasterData>): ReadyForMasterData {
-  const rawStatus = data?.status as ComponentStatus | undefined;
-  const status = rawStatus === 'inProgress' ? 'unchecked' : rawStatus ?? 'unchecked';
+  const transitionLog = data?.transitionLog ?? [];
+  const latestTransition = getLatestReadyForMasterTransition({ transitionLog });
+  const status = normalizeReadyForMasterStatus(latestTransition?.status ?? data?.status as ComponentStatus | undefined);
   return {
     ...createDefaultReadyForMaster(),
     ...(data ?? {}),
     status,
     issues: data?.issues ?? [],
     failCount: data?.failCount ?? 0,
-    transitionLog: data?.transitionLog ?? [],
+    transitionLog,
     inProgressDate: undefined,
   };
 }
@@ -518,9 +521,12 @@ export const useStore = create<StoreState>()(
         set((state) => {
           const u = state.units[unitId];
           const current = normalizeReadyForMaster(u.readyForMaster);
-          const nextStatus = updates.status === 'inProgress' ? 'unchecked' : updates.status ?? current.status;
           const now = new Date().toISOString();
           const explicitTransitionLog = 'transitionLog' in updates;
+          const explicitTransitionStatus = explicitTransitionLog
+            ? getLatestReadyForMasterTransition({ transitionLog: updates.transitionLog ?? current.transitionLog })?.status
+            : undefined;
+          const nextStatus = normalizeReadyForMasterStatus(explicitTransitionStatus ?? updates.status ?? current.status);
           const statusChanged = 'status' in updates && nextStatus !== current.status && !explicitTransitionLog;
           const extraUpdates: Partial<ReadyForMasterData> = {};
           if (statusChanged) {
@@ -553,6 +559,19 @@ export const useStore = create<StoreState>()(
                 ...(transitionNotes ? { notes: transitionNotes } : {}),
               },
             ];
+          } else if (explicitTransitionLog) {
+            const transitionLog = updates.transitionLog ?? current.transitionLog ?? [];
+            const latestTransition = getLatestReadyForMasterTransition({ transitionLog });
+            const latestTransitionDate = latestTransition?.signedDate ?? latestTransition?.date;
+            extraUpdates.failCount = transitionLog.filter((entry) => !entry.deleted && entry.status === 'bad').length;
+            extraUpdates.wasGood = transitionLog.some((entry) => !entry.deleted && entry.status === 'good');
+            extraUpdates.goodDate = nextStatus === 'good' ? latestTransitionDate : undefined;
+            extraUpdates.goodSignedBy = nextStatus === 'good' ? latestTransition?.signedBy : undefined;
+            extraUpdates.goodNote = nextStatus === 'good' ? latestTransition?.notes ?? '' : '';
+            extraUpdates.inProgressDate = undefined;
+            extraUpdates.badDate = nextStatus === 'bad' ? latestTransitionDate : undefined;
+            extraUpdates.badSignedBy = nextStatus === 'bad' ? latestTransition?.signedBy : undefined;
+            extraUpdates.badReason = nextStatus === 'bad' ? latestTransition?.notes : undefined;
           }
           return {
             units: {
@@ -1081,12 +1100,13 @@ export const useStore = create<StoreState>()(
             const existingRfmIds = new Set(existingRfm.issues.map((i) => i.id));
             const newRfmIssues = importRfm.issues.filter((i: any) => !existingRfmIds.has(i.id));
             const { completedLogResetAt, transitionLog: rfmTransitionLog, failCount: rfmFailCount } = mergeReadyForMasterTransitions(existingRfm, importRfm);
-            const latestRfmTransition = [...rfmTransitionLog].filter((t) => !t.deleted).sort((a, b) => a.date.localeCompare(b.date)).pop();
+            const latestRfmTransition = getLatestReadyForMasterTransition({ transitionLog: rfmTransitionLog });
+            const latestRfmTransitionDate = latestRfmTransition?.signedDate ?? latestRfmTransition?.date;
             const resetStatusResult = applyReadyForMasterStatusReset(
               latestRfmTransition?.status ?? (imp.readyForMaster ? (importRfm.status ?? existingRfm.status) : existingRfm.status),
               existingRfm,
               importRfm,
-              latestRfmTransition?.date
+              latestRfmTransitionDate
             );
             const mergedRfmStatus = resetStatusResult.status;
             const importRfmIsCurrent = mergedRfmStatus === importRfm.status;
@@ -1263,16 +1283,13 @@ export const useStore = create<StoreState>()(
             const newRfmIssues = importRfm.issues.filter((i: any) => !existingRfmIds.has(i.id));
             const { completedLogResetAt, transitionLog: rfmLog, failCount: rfmFailCount } = mergeReadyForMasterTransitions(existingRfm, importRfm);
             const localHasReadyStatus = existingRfm.status !== 'unchecked';
-            const sortedRfmLog = [...rfmLog].filter((t) => !t.deleted).sort((a, b) => a.date.localeCompare(b.date));
-            const latestRfmLog = sortedRfmLog[sortedRfmLog.length - 1];
-            const latestLoggedStatus = latestRfmLog && (latestRfmLog.status === existingRfm.status || latestRfmLog.status === importRfm.status)
-              ? latestRfmLog.status
-              : undefined;
+            const latestRfmLog = getLatestReadyForMasterTransition({ transitionLog: rfmLog });
+            const latestRfmLogDate = latestRfmLog?.signedDate ?? latestRfmLog?.date;
             const resetStatusResult = applyReadyForMasterStatusReset(
-              latestLoggedStatus ?? (localHasReadyStatus ? existingRfm.status : importRfm.status),
+              latestRfmLog?.status ?? (localHasReadyStatus ? existingRfm.status : importRfm.status),
               existingRfm,
               importRfm,
-              latestRfmLog?.date
+              latestRfmLogDate
             );
             const mergedRfmStatus = resetStatusResult.status;
             const localStatusIsCurrent = mergedRfmStatus === existingRfm.status;

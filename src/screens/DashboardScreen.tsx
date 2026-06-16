@@ -346,7 +346,7 @@ function FleetGrid({
         <Legend color={STATUS_COLOR.complete}   text="Done" />
         <SplitLegend text="Done + Issues" />
         <BadgeLegend text="Ready for Master Issue" />
-        <Legend color={STATUS_COLOR.inProgress} text="In Prog" />
+        <PriorityLegend text="Priority" />
         <Legend color={STATUS_COLOR.issues}     text="Issues" />
         <Legend color={STATUS_COLOR.notStarted} text="Not Started" dim />
       </View>
@@ -371,6 +371,17 @@ function BadgeLegend({ text }: { text: string }) {
     <View style={s.legendItem}>
       <View style={s.legendBadgeSwatch}>
         <Text style={s.legendBadgeText}>!</Text>
+      </View>
+      <Text style={s.legendText}>{text}</Text>
+    </View>
+  );
+}
+
+function PriorityLegend({ text }: { text: string }) {
+  return (
+    <View style={s.legendItem}>
+      <View style={s.legendPrioritySwatch}>
+        <Text style={s.legendPriorityText}>P</Text>
       </View>
       <Text style={s.legendText}>{text}</Text>
     </View>
@@ -621,6 +632,8 @@ const s = StyleSheet.create({
   legendSplitHalf: { flex: 1 },
   legendBadgeSwatch: { width: 10, height: 10, borderRadius: 5, marginRight: 4, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#f85149' },
   legendBadgeText: { color: '#f85149', fontSize: 7, lineHeight: 8, fontWeight: '900' },
+  legendPrioritySwatch: { width: 10, height: 10, borderRadius: 3, marginRight: 4, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#d29922' },
+  legendPriorityText: { color: '#d29922', fontSize: 7, lineHeight: 8, fontWeight: '900' },
   legendText: { color: '#6e7681', fontSize: 10, fontWeight: '600' },
 
   workingCard: {

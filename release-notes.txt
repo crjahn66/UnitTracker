@@ -1,4 +1,3 @@
-- Added Priority / Unmarked tracking alongside Optimo Mode and RED / ACS / N/A on unit cards and unit detail pages.
-- Added Priority indicators on the dashboard, with the P badge in the top-left of each priority unit card.
-- Fixed Ready for Master entries, edits, deletes, resolutions, and photo changes so they save and sync consistently.
-- Excluded Ready for Master items from Units with Constraints and Constraints Log while preserving the Ready for Master Log sheet.
+- Fixed Ready for Master completion counts so dashboard, reports, cards, and the Excel Completed Units tab follow the latest non-deleted Ready for Master log entry.
+- Recalculated Ready for Master summary fields after log edits/deletes so the stored status stays aligned with the log history.
+- Replaced the dashboard grid legend's In Progress indicator with a Priority P indicator.
