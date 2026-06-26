@@ -16,6 +16,10 @@ const WHT = { bg: 'FFFFFF', fg: '000000' };
 
 type Clr = { bg: string; fg: string };
 
+export interface ExcelExportOptions {
+  includeIssueResolutionTimes?: boolean;
+}
+
 function applyCell(cell: any, value: string | number, clr: Clr, bold = false, center = false) {
   cell.value = value;
   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + clr.bg } };
@@ -77,6 +81,26 @@ const fmtDate = (iso?: string) => {
   if (!iso) return '';
   try { return format(new Date(iso), 'MM/dd/yyyy'); } catch { return iso; }
 };
+
+const MS_PER_HOUR = 60 * 60 * 1000;
+
+function hoursToResolve(issue: Pick<Issue, 'dateFound' | 'dateFixed' | 'resolved'>): number | undefined {
+  if (!issue.resolved || !issue.dateFound || !issue.dateFixed) return undefined;
+  const start = new Date(issue.dateFound).getTime();
+  const end = new Date(issue.dateFixed).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return undefined;
+  return (end - start) / MS_PER_HOUR;
+}
+
+function fmtDuration(hours?: number): string {
+  if (hours == null) return '';
+  if (hours < 24) {
+    const display = hours.toFixed(1);
+    return `${display} hour${display === '1.0' ? '' : 's'}`;
+  }
+  const display = (hours / 24).toFixed(1);
+  return `${display} day${display === '1.0' ? '' : 's'}`;
+}
 
 function notesWithUpdates(issue: { notes: string; updates?: Array<{ date: string; updatedBy: string; note: string }> }): string {
   if (!issue.updates?.length) return issue.notes;
@@ -208,6 +232,68 @@ function buildComponents(wb: any, sorted: Unit[]) {
     });
     r.height = autoRowHeight(r, colWidths);
   }
+  freezeAndWidth(ws, colWidths);
+}
+
+function buildIssueResolutionTimes(wb: any, sorted: Unit[]) {
+  const ws = wb.addWorksheet('Issue Resolution Time');
+  const colWidths = [9, 7, 7, 22, 12, 12, 18, 14, 10, 14, 14, 18, 42, 42];
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Component', 'Date Found', 'Date Fixed', 'Time to Resolve', 'Hours to Resolve', 'Status', 'Found By', 'Fixed By', 'Responsible Party', 'Notes', 'How Fixed'];
+  const row1 = ws.addRow(headers);
+  row1.eachCell((cell: any) => applyHeader(cell, cell.value));
+  row1.height = 45;
+
+  const rows: { unit: Unit; component: string; issue: Issue; hours?: number }[] = [];
+  for (const unit of sorted) {
+    for (const comp of COMPONENTS) {
+      const component = unit.customComponentLabels?.[comp.key] ?? comp.label;
+      for (const issue of unit.components[comp.key].issues.filter((i) => !i.deleted)) {
+        rows.push({ unit, component, issue, hours: hoursToResolve(issue) });
+      }
+    }
+  }
+
+  rows.sort((a, b) => {
+    if (a.issue.resolved !== b.issue.resolved) return a.issue.resolved ? -1 : 1;
+    if (a.unit.side !== b.unit.side) return a.unit.side === 'North' ? -1 : 1;
+    if (a.unit.unitNumber !== b.unit.unitNumber) return a.unit.unitNumber - b.unit.unitNumber;
+    return a.issue.dateFound.localeCompare(b.issue.dateFound);
+  });
+
+  let currentSide = '';
+  for (const { unit, component, issue, hours } of rows) {
+    if (unit.side !== currentSide) {
+      currentSide = unit.side;
+      addSectionHeader(ws, unit.side.toUpperCase(), headers.length);
+    }
+    const status = issue.resolved ? 'Resolved' : 'Open';
+    const clr = issue.resolved ? GRN : RED;
+    const r = ws.addRow([
+      unit.id,
+      unit.side,
+      unit.unitNumber,
+      component,
+      fmtDate(issue.dateFound),
+      fmtDate(issue.dateFixed),
+      fmtDuration(hours),
+      hours == null ? '' : Number(hours.toFixed(1)),
+      status,
+      issue.foundBy,
+      issue.fixedBy ?? '',
+      issue.responsibleParty ?? '',
+      notesWithUpdates(issue),
+      issue.howFixed ?? '',
+    ]);
+    r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, clr, col === 1 || col === 9, col === 3 || col === 8 || col === 9));
+    r.height = autoRowHeight(r, colWidths);
+  }
+
+  if (rows.length === 0) {
+    const r = ws.addRow(['No component issues logged']);
+    applyCell(r.getCell(1), 'No component issues logged', WHT);
+    ws.mergeCells(r.number, 1, r.number, headers.length);
+  }
+
   freezeAndWidth(ws, colWidths);
 }
 
@@ -596,7 +682,7 @@ function buildReadiness(wb: any, sorted: Unit[]) {
 }
 
 // ─── Export entry point ───────────────────────────────────────────────────────
-export const exportToExcel = async (units: Record<string, Unit>, generalIssues: GeneralIssue[]): Promise<void> => {
+export const exportToExcel = async (units: Record<string, Unit>, generalIssues: GeneralIssue[], options: ExcelExportOptions = {}): Promise<void> => {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'UnitTracker';
   wb.created = new Date();
@@ -609,6 +695,7 @@ export const exportToExcel = async (units: Record<string, Unit>, generalIssues: 
   buildCompleted(wb, sorted);
   buildCompletedLog(wb, sorted);
   buildComponents(wb, sorted);
+  if (options.includeIssueResolutionTimes === true) buildIssueResolutionTimes(wb, sorted);
   buildReadiness(wb, sorted);
   await buildWithConstraints(wb, sorted);
   await buildConstraints(wb, sorted);

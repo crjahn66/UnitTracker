@@ -192,6 +192,7 @@ export default function ReportsScreen() {
   const [syncWarning, setSyncWarning]       = useState<string | null>(null);
   const [wiping, setWiping]                 = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [includeResolutionTimeSheet, setIncludeResolutionTimeSheet] = useState(false);
 
   const sortedUnits = useMemo(
     () => Object.values(units).sort((a, b) =>
@@ -257,7 +258,7 @@ export default function ReportsScreen() {
   const handleExport = async () => {
     setExporting(true);
     pauseTimer();
-    try { await exportToExcel(units, generalIssues); }
+    try { await exportToExcel(units, generalIssues, { includeIssueResolutionTimes: includeResolutionTimeSheet }); }
     catch (e) { Alert.alert('Export Failed', String(e)); }
     finally { setExporting(false); resumeTimer(); }
   };
@@ -383,10 +384,22 @@ export default function ReportsScreen() {
     <ScrollView style={s.container} contentContainerStyle={s.content}>
       {/* Export button */}
       {!isViewOnly && (
-        <TouchableOpacity style={s.exportBtn} onPress={handleExport} disabled={exporting} activeOpacity={0.8}>
-          {exporting ? <ActivityIndicator color="#0d1117" size="small" /> : <Ionicons name="download-outline" size={20} color="#0d1117" style={{ marginRight: 8 }} />}
-          <Text style={s.exportBtnText}>{exporting ? 'Generating…' : 'Export to Excel'}</Text>
-        </TouchableOpacity>
+        <View style={s.exportRow}>
+          <TouchableOpacity style={s.exportBtn} onPress={handleExport} disabled={exporting} activeOpacity={0.8}>
+            {exporting ? <ActivityIndicator color="#0d1117" size="small" /> : <Ionicons name="download-outline" size={20} color="#0d1117" style={{ marginRight: 8 }} />}
+            <Text style={s.exportBtnText}>{exporting ? 'Generating…' : 'Export to Excel'}</Text>
+          </TouchableOpacity>
+          <View style={s.exportOption}>
+            <Text style={s.exportOptionText}>Resolution time</Text>
+            <Switch
+              value={includeResolutionTimeSheet}
+              onValueChange={setIncludeResolutionTimeSheet}
+              disabled={exporting}
+              trackColor={{ false: '#30363d', true: '#238636' }}
+              thumbColor={includeResolutionTimeSheet ? '#3fb950' : '#8b949e'}
+            />
+          </View>
+        </View>
       )}
 
       {/* Backup / Restore */}
@@ -673,11 +686,18 @@ function StatRow({ label, value, valueColor, last }: { label: string; value: str
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0d1117' },
   content: { padding: 16, paddingBottom: 50 },
+  exportRow: { flexDirection: 'row', alignItems: 'stretch', marginBottom: 10 },
   exportBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#3fb950', borderRadius: 10, paddingVertical: 14, marginBottom: 10,
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#3fb950', borderRadius: 10, paddingVertical: 14, marginRight: 8,
   },
   exportBtnText: { color: '#0d1117', fontSize: 16, fontWeight: '700' },
+  exportOption: {
+    width: 132, borderRadius: 10, borderWidth: 1, borderColor: '#30363d',
+    paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#161b22',
+  },
+  exportOptionText: { color: '#c9d1d9', fontSize: 12, fontWeight: '600', marginBottom: 2 },
   backupRow: { flexDirection: 'row', marginBottom: 10 },
   backupBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
