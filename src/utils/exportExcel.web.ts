@@ -237,8 +237,8 @@ function buildComponents(wb: any, sorted: Unit[]) {
 
 function buildIssueResolutionTimes(wb: any, sorted: Unit[]) {
   const ws = wb.addWorksheet('Issue Resolution Time');
-  const colWidths = [9, 7, 7, 22, 12, 12, 18, 14, 10, 14, 14, 18, 42, 42];
-  const headers = ['Unit ID', 'Side', 'Unit #', 'Component', 'Date Found', 'Date Fixed', 'Time to Resolve', 'Hours to Resolve', 'Status', 'Found By', 'Fixed By', 'Responsible Party', 'Notes', 'How Fixed'];
+  const colWidths = [9, 7, 7, 22, 12, 12, 18, 10, 14, 14, 18, 42, 42];
+  const headers = ['Unit ID', 'Side', 'Unit #', 'Component', 'Date Found', 'Date Fixed', 'Time to Resolve', 'Status', 'Found By', 'Fixed By', 'Responsible Party', 'Notes', 'How Fixed'];
   const row1 = ws.addRow(headers);
   row1.eachCell((cell: any) => applyHeader(cell, cell.value));
   row1.height = 45;
@@ -276,7 +276,6 @@ function buildIssueResolutionTimes(wb: any, sorted: Unit[]) {
       fmtDate(issue.dateFound),
       fmtDate(issue.dateFixed),
       fmtDuration(hours),
-      hours == null ? '' : Number(hours.toFixed(1)),
       status,
       issue.foundBy,
       issue.fixedBy ?? '',
@@ -284,7 +283,7 @@ function buildIssueResolutionTimes(wb: any, sorted: Unit[]) {
       notesWithUpdates(issue),
       issue.howFixed ?? '',
     ]);
-    r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, clr, col === 1 || col === 9, col === 3 || col === 8 || col === 9));
+    r.eachCell((cell: any, col: number) => applyCell(cell, cell.value, clr, col === 1 || col === 8, col === 3 || col === 7 || col === 8));
     r.height = autoRowHeight(r, colWidths);
   }
 
@@ -292,6 +291,33 @@ function buildIssueResolutionTimes(wb: any, sorted: Unit[]) {
     const r = ws.addRow(['No component issues logged']);
     applyCell(r.getCell(1), 'No component issues logged', WHT);
     ws.mergeCells(r.number, 1, r.number, headers.length);
+  }
+
+  const averages = new Map<string, { totalHours: number; count: number }>();
+  for (const row of rows) {
+    if (row.hours == null) continue;
+    const current = averages.get(row.component) ?? { totalHours: 0, count: 0 };
+    averages.set(row.component, { totalHours: current.totalHours + row.hours, count: current.count + 1 });
+  }
+
+  ws.addRow([]);
+  addSectionHeader(ws, 'AVERAGE RESOLUTION TIME BY COMPONENT', headers.length);
+  const summaryHeader = ws.addRow(['Component', 'Resolved Issues', 'Average Time to Resolve']);
+  summaryHeader.eachCell((cell: any, col: number) => {
+    if (col <= 3) applyHeader(cell, cell.value);
+  });
+
+  const summaryRows = [...averages.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  for (const [component, avg] of summaryRows) {
+    const r = ws.addRow([component, avg.count, fmtDuration(avg.totalHours / avg.count)]);
+    r.eachCell((cell: any, col: number) => {
+      if (col <= 3) applyCell(cell, cell.value, WHT, col === 1, col === 2 || col === 3);
+    });
+  }
+  if (summaryRows.length === 0) {
+    const r = ws.addRow(['No resolved component issues with valid dates']);
+    applyCell(r.getCell(1), 'No resolved component issues with valid dates', WHT);
+    ws.mergeCells(r.number, 1, r.number, 3);
   }
 
   freezeAndWidth(ws, colWidths);
